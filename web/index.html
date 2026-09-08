@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ОРГ — выучи за 3 дня</title>
+  <meta name="description" content="Интерактивная подготовка к зачёту по Основам российской государственности: 3 дня, темы и мини-игры." />
+  <link rel="stylesheet" href="assets/styles.css" />
+</head>
+<body>
+  <header class="topnav">
+    <div class="wrap topnav-inner">
+      <a class="brand" href="#home" data-nav="home">
+        <div class="brand-mark">ОРГ</div>
+        <div class="brand-text">
+          <strong>Государство-цивилизация</strong>
+          <span>Подготовка к зачёту за 3 дня</span>
+        </div>
+      </a>
+      <nav class="nav-links" aria-label="Основное меню">
+        <button type="button" data-nav="home" class="active">Главная</button>
+        <button type="button" data-nav="days">3 дня</button>
+        <button type="button" data-nav="study">Темы</button>
+        <button type="button" data-nav="games">Мини-игры</button>
+        <button type="button" data-nav="exam">Зачёт</button>
+      </nav>
+      <div class="xp-pill" id="xpPill">0 XP · 0%</div>
+    </div>
+  </header>
+
+  <main>
+    <section class="view active" id="view-home">
+      <div class="wrap hero">
+        <div>
+          <div class="hero-kicker">Основы российской государственности</div>
+          <h1>Выучи <em>ОРГ</em> за три дня</h1>
+          <p class="hero-lead">
+            Красивый маршрут подготовки: короткие темы, карточки, викторины и схема власти —
+            чтобы уверенно сдать зачёт, а не зубрить ночь напролёт.
+          </p>
+          <div class="hero-actions">
+            <button class="btn btn-primary" type="button" data-nav="days">Начать день 1</button>
+            <button class="btn btn-secondary" type="button" data-nav="games">Играть сразу</button>
+          </div>
+        </div>
+        <aside class="hero-panel">
+          <h2>Твой прогресс</h2>
+          <div class="progress-ring-row" id="homeProgress"></div>
+          <ul class="tips" id="homeTips"></ul>
+        </aside>
+      </div>
+
+      <div class="wrap">
+        <div class="section-head">
+          <div>
+            <h2>Как это работает</h2>
+            <p>Один день — один блок. Сначала прочитай темы, потом закрепи мини-игрой.</p>
+          </div>
+        </div>
+        <div class="grid-3" id="homeSteps">
+          <article class="card">
+            <h3>1. Читай коротко</h3>
+            <p>Тезисы по вопросам зачёта и контрольной — без воды, с формулой устного ответа.</p>
+          </article>
+          <article class="card">
+            <h3>2. Играй</h3>
+            <p>Карточки, викторина, сопоставление, хронология и схема власти.</p>
+          </article>
+          <article class="card">
+            <h3>3. Сдай пробный зачёт</h3>
+            <p>15 случайных вопросов — как на занятии. Прогресс сохраняется в браузере.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="view" id="view-days">
+      <div class="wrap">
+        <div class="section-head">
+          <div>
+            <h2>План на 3 дня</h2>
+            <p>Отмечай темы прочитанными — прогресс дня растёт автоматически.</p>
+          </div>
+        </div>
+        <div class="grid-3" id="daysGrid"></div>
+      </div>
+    </section>
+
+    <section class="view" id="view-study">
+      <div class="wrap">
+        <div class="section-head">
+          <div>
+            <h2 id="studyTitle">Темы</h2>
+            <p id="studyGoal">Выберите день</p>
+          </div>
+          <div class="hero-actions">
+            <button class="btn btn-ghost" type="button" data-day-filter="1">День 1</button>
+            <button class="btn btn-ghost" type="button" data-day-filter="2">День 2</button>
+            <button class="btn btn-ghost" type="button" data-day-filter="3">День 3</button>
+          </div>
+        </div>
+        <div id="topicsList"></div>
+      </div>
+    </section>
+
+    <section class="view" id="view-games">
+      <div class="wrap">
+        <div class="section-head">
+          <div>
+            <h2>Мини-игры</h2>
+            <p>Закрепи материал играючи. Каждая игра даёт XP.</p>
+          </div>
+        </div>
+        <div class="games-grid" id="gamesMenu">
+          <article class="card game-card" data-game="flash">
+            <div>
+              <div class="icon" style="background:#0f6b5c">К</div>
+              <h3>Карточки</h3>
+              <p>Переворачивай термин → определение.</p>
+            </div>
+            <div class="meta"><span>+8 XP</span><span>память</span></div>
+          </article>
+          <article class="card game-card" data-game="quiz">
+            <div>
+              <div class="icon" style="background:#1b4f72">В</div>
+              <h3>Викторина</h3>
+              <p>Вопросы с вариантами по всем дням.</p>
+            </div>
+            <div class="meta"><span>+12 XP</span><span>знание</span></div>
+          </article>
+          <article class="card game-card" data-game="match">
+            <div>
+              <div class="icon" style="background:#b86b3c">С</div>
+              <h3>Сопоставление</h3>
+              <p>Свяжи термин с определением.</p>
+            </div>
+            <div class="meta"><span>+10 XP</span><span>связь</span></div>
+          </article>
+          <article class="card game-card" data-game="timeline">
+            <div>
+              <div class="icon" style="background:#243b53">Х</div>
+              <h3>Хронология</h3>
+              <p>Расставь этапы государственности по порядку.</p>
+            </div>
+            <div class="meta"><span>+10 XP</span><span>история</span></div>
+          </article>
+          <article class="card game-card" data-game="power">
+            <div>
+              <div class="icon" style="background:#8B4513">Вл</div>
+              <h3>Схема власти</h3>
+              <p>Разложи органы РФ по уровням и ветвям.</p>
+            </div>
+            <div class="meta"><span>+14 XP</span><span>конституция</span></div>
+          </article>
+          <article class="card game-card" data-game="exam">
+            <div>
+              <div class="icon" style="background:#102a43">З</div>
+              <h3>Пробный зачёт</h3>
+              <p>15 случайных вопросов без подсказок.</p>
+            </div>
+            <div class="meta"><span>+25 XP</span><span>финал</span></div>
+          </article>
+        </div>
+
+        <div class="game-stage hidden" id="gameStage">
+          <div class="game-toolbar">
+            <button class="btn btn-ghost" type="button" id="backToGames">← К играм</button>
+            <div class="score" id="gameScore">0</div>
+            <button class="btn btn-accent" type="button" id="gameAction">Дальше</button>
+          </div>
+          <div id="gameRoot"></div>
+          <div id="gameFeedback" class="feedback hidden"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="view" id="view-exam">
+      <div class="wrap">
+        <div class="section-head">
+          <div>
+            <h2>Режим зачёта</h2>
+            <p>15 вопросов. Цель — 80%+. Формула ответа: определение → тезисы → пример → вывод.</p>
+          </div>
+          <button class="btn btn-primary" type="button" id="startExam">Начать</button>
+        </div>
+        <div class="game-stage" id="examStage">
+          <p style="color:var(--ink-soft)">Нажми «Начать», когда будешь готов. Результат сохранится в прогрессе.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="wrap">
+      ОРГ · интерактивная подготовка на основе конспекта «Основы российской государственности».
+      Прогресс хранится локально в браузере.
+    </div>
+  </footer>
+
+  <script src="assets/data.js"></script>
+  <script src="assets/app.js"></script>
+</body>
+</html>
