@@ -142,15 +142,19 @@
   }
 
   function showGameMenu() {
-    $("#gameMenu").classList.remove("hidden");
-    $("#gameStage").classList.add("hidden");
+    const menu = $("#gameMenu");
+    const stage = $("#gameStage");
+    if (menu) menu.classList.remove("hidden");
+    if (stage) stage.classList.add("hidden");
     state.game = null;
   }
 
   function openGame(type) {
-    $("#gameMenu").classList.add("hidden");
-    $("#gameStage").classList.remove("hidden");
-    $("#gameFeedback").classList.add("hidden");
+    const menu = $("#gameMenu");
+    const stage = $("#gameStage");
+    if (menu) menu.classList.add("hidden");
+    if (stage) stage.classList.remove("hidden");
+    $("#gameFeedback")?.classList.add("hidden");
     const runners = {
       flash: runFlash,
       quiz: () => runQuiz(false),
