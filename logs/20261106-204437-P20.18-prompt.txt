@@ -1,0 +1,780 @@
+﻿You are the agent @refactorer. Follow AGENTS.md protocol exactly.
+
+=== AGENTS.md ===
+# AGENT ROLES
+
+You are one step in a sequential pipeline. On each call you do EXACTLY ONE pending task and return a structured answer. The orchestrator applies your answer to disk.
+
+## UNIVERSAL PROTOCOL (every agent)
+
+1. Read PROJECT_TZ.md. Find the FIRST line matching "- [ ] <ID> ... @<your_name>".
+2. If nothing — reply ONLY: NOTHING_TO_DO
+3. Do the task. Write real files (no stubs, no TODOs) if the task says -> path.
+4. Reply using EXACTLY this format (no extra prose):
+
+<DONE>P3.2</DONE>
+<NOTE>one or two sentences, what you did</NOTE>
+<FILE path="src/server/Gameplay/Checkpoints.server.luau">
+--!strict
+-- real code here
+</FILE>
+<FILE path="docs/ARCHITECTURE.md">
+... full content ...
+</FILE>
+
+5. If blocked, reply:
+<BLOCKED>P3.2</BLOCKED>
+<REASON>why</REASON>
+
+6. Do not touch other tasks. Do not rewrite the whole file if the task says "append" - append only.
+7. Never invent tasks. Never skip ahead.
+
+
+## @refactorer — model: qwen2.5-coder:7b-2k, ctx 2048
+Rules:
+- Fix only bugs from QA_REPORT.md with severity HIGH or CRIT.
+- Return full new content of each touched file (same <FILE> format).
+- Do not add features.
+
+
+
+=== PROJECT_TZ.md ===
+# LAST_UPDATE: 2026-11-06 20:44:37
+# NEXT_AGENT: @tech_architect
+# LAST_UPDATE: 2026-11-06 14:00:00
+
+## LEGEND
+- [ ] — pending
+- [x] — done
+- [-] — blocked (see NOTE below the task)
+- @human — needs human action, agents do not touch
+
+## PHASE 1 — CONCEPT  (model: phi4-mini:4k)
+- [x] P1.1 | Define genre + core loop (3-5 bullet points, concrete) | @game_designer | → docs/GDD.md#core-loop
+- [x] P1.2 | Define win/lose conditions + scoring | @game_designer | → docs/GDD.md#win-lose
+- [x] P1.3 | List MVP features (5-10, each 1 line) | @game_designer | → docs/GDD.md#mvp
+- [x] P1.4 | Human review of GDD | @human
+
+## PHASE 2 — ARCHITECTURE  (model: qwen2.5-coder:7b-2k)
+- [x] P2.1 | Create Rojo folder tree + default.project.json | @tech_architect | → src/ + default.project.json
+  - DONE 2026-11-06 19:20 | Created Rojo folder tree and default.project.json
+- [x] P2.2 | List required scripts (file path + single responsibility) | @tech_architect | → docs/ARCHITECTURE.md
+  - DONE 2026-11-06 19:21 | Created a list of required scripts in docs/ARCHITECTURE.md
+- [x] P2.3 | Define RemoteEvents contract (name → payload) | @tech_architect | → docs/ARCHITECTURE.md#remotes
+  - DONE 2026-11-06 19:22 | Defined RemoteEvents contract for player actions and checkpoints.
+
+## PHASE 3 — IMPLEMENTATION (model: qwen2.5-coder:7b-2k / 3b для UI)
+- [x] P3.1 | Server: player data (DataStore, pcall, autosave) | @gameplay_programmer | → src/server/Data/PlayerData.server.luau
+  - DONE 2026-11-06 19:23 | Created player data script using DataStore and pcall for autosave.
+- [x] P3.2 | Server: checkpoints + respawn | @gameplay_programmer | → src/server/Gameplay/Checkpoints.server.luau
+  - DONE 2026-11-06 19:23 | Created a script for handling checkpoints and respawn logic.
+- [x] P3.3 | Shared: leaderboard remotes module | @gameplay_programmer | → src/shared/Gameplay/Remotes.luau
+  - DONE 2026-11-06 19:23 | Created a leaderboard remotes module in src/shared/Gameplay/Remotes.luau
+- [x] P3.4 | Client: HUD (timer, checkpoint count) | @client_programmer | → src/client/HUD.client.luau
+  - DONE 2026-11-06 19:25 | Created a basic HUD script to display a timer and checkpoint count.
+- [x] P3.5 | Client: sound + UI polish | @client_programmer | → src/client/Effects.client.luau
+  - DONE 2026-11-06 19:26 | Added sound effects and UI polish to the HUD script.
+
+## PHASE 4 — LEVEL
+- [x] P4.1 | Level generator script (10 checkpoints, increasing gap) | @gameplay_programmer | → src/server/Level/Generator.server.luau
+  - DONE 2026-11-06 19:24 | Created a level generator script with 10 checkpoints, increasing gap.
+- [x] P4.2 | Human playtest in Studio | @human
+
+## PHASE 5 — QA
+- [x] P5.1 | Static review of all .luau files, produce report | @qa_engineer | → docs/QA_REPORT.md
+  - DONE 2026-11-06 19:50 | Static review of all .luau files completed. Identified and documented bugs and suggested fixes.
+  - BLOCKED 2026-11-06 19:48 | Need to review existing .luau files to identify bugs and suggest fixes.
+  - BLOCKED 2026-11-06 19:46 | Need to review existing .luau files to identify bugs and suggest fixes.
+  - BLOCKED 2026-11-06 19:41 | Need to review existing .luau files to identify bugs and suggest fixes.
+- [x] P5.2 | Fix HIGH/CRIT bugs from QA_REPORT | @refactorer | (edits existing files)
+  - DONE 2026-11-06 19:50 | Fixed the bug by ensuring the checkpoint data is correctly updated and retrieved.
+  - DONE 2026-11-06 19:46 | Fixed the issue where players were not respawning at the correct checkpoint.
+  - DONE 2026-11-06 19:41 | Fixed bugs related to checkpoint handling and player respawning.
+
+## PHASE 6 — RELEASE
+- [x] P6.1 | Write docs/RELEASE.md with rojo build command + publish checklist (human runs build) | @builder | → docs/RELEASE.md
+  - DONE 2026-11-06 19:51 | Wrote docs/RELEASE.md with rojo build command + publish checklist
+  - BLOCKED 2026-11-06 19:48 | Need to write the rojo build command and publish checklist.
+  - DONE 2026-11-06 19:41 | rojo build completed successfully
+
+
+
+## PHASE 7 — RUNTIME FIXES (added after manual code review)
+- [x] P7.1 | Rewrite Checkpoints.server.luau as working SCRIPT (not ModuleScript): no 'return', connect Players.PlayerAdded, CharacterAdded+Humanoid.Died for respawn, listen ReplicatedStorage.Remotes.Checkpoint.OnServerEvent, teleport player to last checkpoint part on death | @refactorer | → src/server/Gameplay/Checkpoints.server.luau
+  - DONE 2026-11-06 20:05 | 
+  - DONE 2026-11-06 19:59 | 
+- [x] P7.2 | Fix Generator.server.luau: remove require(...Checkpoints), spawn 10 anchored Parts named Checkpoint1..10 in a workspace Folder named Checkpoints, NO player death on touch (do not set Humanoid.Health) | @refactorer | → src/server/Level/Generator.server.luau
+  - DONE 2026-11-06 20:05 | Fixed Generator.server.luau to remove require(...Checkpoints) and spawn 10 anchored Parts named Checkpoint1..10 in a workspace Folder named Checkpoints.
+  - DONE 2026-11-06 19:59 | 
+- [x] P7.3 | Fix Remotes.luau: create ReplicatedStorage Folder "Remotes" if missing, create three RemoteEvents: "Checkpoint", "CheckpointReached", "UpdateLeaderboard", return table of them | @refactorer | → src/shared/Gameplay/Remotes.luau
+  - SUPERSEDED by Phase 20 - see micro-tasks below
+  - DONE 2026-11-06 20:06 | Create "Remotes" folder in ReplicatedStorage and add three RemoteEvents: "Checkpoint", "CheckpointReached", "UpdateLeaderboard". Return table of them.
+  - DONE 2026-11-06 20:00 | Create "Remotes" folder in ReplicatedStorage and add three RemoteEvents: "Checkpoint", "CheckpointReached", "UpdateLeaderboard". Return table of them.
+- [x] P7.4 | Fix HUD.client.luau: replace RunService.Heartbeat with task.wait(1) loop (timer must tick once per second), access remotes via ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("CheckpointReached") | @refactorer | → src/client/HUD.client.luau
+  - SUPERSEDED by Phase 20 - see micro-tasks below
+  - DONE 2026-11-06 20:06 | Replaced RunService.Heartbeat with task.wait(1) loop and accessed remotes via ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("CheckpointReached")
+  - DONE 2026-11-06 20:00 | 
+
+## PHASE 8 — BUILD & TEST
+
+## PHASE 9 — FINAL HUMAN CHECK
+
+- [x] P7.6 | Rewrite src/server/Gameplay/Checkpoints.server.luau from scratch. HARD CONSTRAINTS: (1) NO require() calls at all, (2) NO calls to functions not defined in this file, (3) DO NOT set Humanoid.Health or Humanoid.Parent or Humanoid:BreakJoints(), (4) on Touched: player:SetAttribute("Checkpoint", idx), (5) on Humanoid.Died: task.wait(2) then teleport HRP via CFrame to workspace.Checkpoints["Checkpoint"..idx].Position + Vector3.new(0,5,0), (6) folder workspace.Checkpoints already exists. File is Script (.server.luau), ends WITHOUT return. | @refactorer | → src/server/Gameplay/Checkpoints.server.luau
+  - SUPERSEDED by Phase 20 - see micro-tasks below
+- [x] P7.7 | Rewrite src/server/Level/Generator.server.luau from scratch. HARD CONSTRAINTS: (1) create workspace Folder "Checkpoints" if missing, (2) for i=1..10 create Part named "Checkpoint"..i, Size=(10,1,10), Position=(0,5,-i*50), Anchored=true, Material=Neon, Color=green, parent to folder, (3) DO NOT reference Checkpoints.onCheckpointReached, (4) DO NOT kill players, (5) DO NOT require anything. File is Script (.server.luau), ends WITHOUT return. | @refactorer | → src/server/Level/Generator.server.luau
+  - SUPERSEDED by Phase 20 - see micro-tasks below
+- [x] P7.8 | Rewrite src/shared/Gameplay/Remotes.luau. Create Folder "Remotes" in ReplicatedStorage (or reuse), create RemoteEvents "Checkpoint", "CheckpointReached", "UpdateLeaderboard" inside that folder, return {Checkpoint=..., CheckpointReached=..., UpdateLeaderboard=...}. File is ModuleScript (.luau), ends WITH return. | @refactorer | → src/shared/Gameplay/Remotes.luau
+  - SUPERSEDED by Phase 20 - see micro-tasks below
+- [x] P7.9 | Rewrite src/client/HUD.client.luau from scratch. Create ScreenGui in PlayerGui with two TextLabels "Timer" (top center) and "CheckpointCount" (below). Loop `while true do task.wait(1)` to tick timer. Get remotes via `local Remotes = require(ReplicatedStorage:WaitForChild("Gameplay"):WaitForChild("Remotes"))`. Listen to Remotes.CheckpointReached.OnClientEvent to update count. File is LocalScript (.client.luau), ends WITHOUT return. | @refactorer | → src/client/HUD.client.luau
+  - SUPERSEDED by Phase 20 - see micro-tasks below
+- [x] P7.10 | Rewrite src/client/Effects.client.luau as proper LocalScript (currently has top-level return = ModuleScript pattern, will fail to load). Requirements: (1) NO top-level return, (2) require Remotes from ReplicatedStorage.Remotes Folder, (3) on Remotes.CheckpointReached.OnClientEvent play a Sound (rbxassetid://9112854440, Volume 0.5, parent SoundService, destroy after Ended). File is LocalScript (.client.luau), ends WITHOUT return. | @refactorer | → src/client/Effects.client.luau
+  - SUPERSEDED by Phase 20 - see micro-tasks below
+
+## PHASE 20 — MICRO-TASKS (rebuild from scratch, one thing per task)
+## Each task: <= 10 lines of code. Validator must pass before [x].
+
+### 20.A — Remotes.luau (ModuleScript)
+- [x] P20.1 | Create file src/shared/Gameplay/Remotes.luau with exactly: --!strict, local ReplicatedStorage = game:GetService("ReplicatedStorage"), end of file. Nothing else. | @refactorer | → src/shared/Gameplay/Remotes.luau
+  - DONE 2026-11-06 20:26 | 
+- [x] P20.2 | In src/shared/Gameplay/Remotes.luau APPEND (do not rewrite): local folder = ReplicatedStorage:FindFirstChild("Remotes"); if not folder then folder = Instance.new("Folder"); folder.Name = "Remotes"; folder.Parent = ReplicatedStorage end | @refactorer | → src/shared/Gameplay/Remotes.luau
+  - DONE 2026-11-06 20:27 | 
+- [x] P20.3 | In src/shared/Gameplay/Remotes.luau APPEND: local function getOrCreate(name) local r = folder:FindFirstChild(name); if not r then r = Instance.new("RemoteEvent"); r.Name = name; r.Parent = folder end; return r end | @refactorer | → src/shared/Gameplay/Remotes.luau
+  - DONE 2026-11-06 20:28 | 
+- [x] P20.4 | In src/shared/Gameplay/Remotes.luau APPEND: return { Checkpoint = getOrCreate("Checkpoint"), CheckpointReached = getOrCreate("CheckpointReached"), UpdateLeaderboard = getOrCreate("UpdateLeaderboard") } | @refactorer | → src/shared/Gameplay/Remotes.luau
+  - DONE 2026-11-06 20:29 | 
+
+### 20.B — Generator.server.luau (Script, no return)
+- [x] P20.5 | Create src/server/Level/Generator.server.luau with exactly: --!strict | @refactorer | → src/server/Level/Generator.server.luau
+  - DONE 2026-11-06 20:30 | 
+- [x] P20.6 | APPEND: local folder = workspace:FindFirstChild("Checkpoints"); if not folder then folder = Instance.new("Folder"); folder.Name = "Checkpoints"; folder.Parent = workspace end | @refactorer | → src/server/Level/Generator.server.luau
+  - DONE 2026-11-06 20:31 | 
+- [x] P20.7 | APPEND: for i = 1, 10 do local p = Instance.new("Part"); p.Name = "Checkpoint" .. i; p.Size = Vector3.new(10, 1, 10); p.Position = Vector3.new(0, 5, -i * 50); p.Anchored = true; p.Material = Enum.Material.Neon; p.Color = Color3.fromRGB(0, 200, 0); p.Parent = folder end | @refactorer | → src/server/Level/Generator.server.luau
+  - DONE 2026-11-06 20:32 | 
+- [x] P20.8 | APPEND: print("[Generator] spawned 10 checkpoints") | @refactorer | → src/server/Level/Generator.server.luau
+  - DONE 2026-11-06 20:34 | 
+
+### 20.C — Checkpoints.server.luau (Script, no return)
+- [x] P20.9 | Create src/server/Gameplay/Checkpoints.server.luau with exactly: --!strict; local Players = game:GetService("Players"); local ReplicatedStorage = game:GetService("ReplicatedStorage"); local Remotes = require(ReplicatedStorage:WaitForChild("Gameplay"):WaitForChild("Remotes")) | @refactorer | → src/server/Gameplay/Checkpoints.server.luau
+  - DONE 2026-11-06 20:35 | 
+- [x] P20.10 | APPEND: local folder = workspace:WaitForChild("Checkpoints") | @refactorer | → src/server/Gameplay/Checkpoints.server.luau
+  - DONE 2026-11-06 20:36 | 
+- [x] P20.11 | APPEND: for _, part in ipairs(folder:GetChildren()) do if part:IsA("BasePart") then local idx = tonumber(string.match(part.Name, "%d+")); if idx then part.Touched:Connect(function(hit) local char = hit.Parent; local plr = Players:GetPlayerFromCharacter(char); if plr then local current = plr:GetAttribute("Checkpoint") or 0; if idx > current then plr:SetAttribute("Checkpoint", idx); Remotes.CheckpointReached:FireClient(plr, idx) end end end) end end end | @refactorer | → src/server/Gameplay/Checkpoints.server.luau
+  - DONE 2026-11-06 20:37 | 
+- [x] P20.12 | APPEND: Players.PlayerAdded:Connect(function(plr) plr.CharacterAdded:Connect(function(char) local hum = char:WaitForChild("Humanoid"); hum.Died:Connect(function() task.wait(2); local idx = plr:GetAttribute("Checkpoint") or 0; if idx < 1 then return end; local cp = folder:FindFirstChild("Checkpoint" .. idx); if cp and plr.Character then local hrp = plr.Character:FindFirstChild("HumanoidRootPart"); if hrp then hrp.CFrame = CFrame.new(cp.Position + Vector3.new(0, 5, 0)) end end end) end) end) | @refactorer | → src/server/Gameplay/Checkpoints.server.luau
+  - DONE 2026-11-06 20:38 | 
+
+### 20.D — HUD.client.luau (LocalScript, no return)
+- [x] P20.13 | Create src/client/HUD.client.luau with: --!strict; local Players = game:GetService("Players"); local player = Players.LocalPlayer; local gui = player:WaitForChild("PlayerGui"); local screen = Instance.new("ScreenGui"); screen.Name = "HUD"; screen.ResetOnSpawn = false; screen.Parent = gui | @refactorer | → src/client/HUD.client.luau
+  - DONE 2026-11-06 20:39 | 
+- [x] P20.14 | APPEND: local timer = Instance.new("TextLabel"); timer.Name = "Timer"; timer.Text = "Time: 0s"; timer.Size = UDim2.new(0,200,0,40); timer.Position = UDim2.new(0.5,-100,0,10); timer.BackgroundTransparency = 0.5; timer.TextColor3 = Color3.new(1,1,1); timer.TextScaled = true; timer.Parent = screen | @refactorer | → src/client/HUD.client.luau
+  - DONE 2026-11-06 20:40 | 
+- [x] P20.15 | APPEND: local cpLabel = Instance.new("TextLabel"); cpLabel.Name = "CheckpointCount"; cpLabel.Text = "CP: 0"; cpLabel.Size = UDim2.new(0,200,0,40); cpLabel.Position = UDim2.new(0.5,-100,0,60); cpLabel.BackgroundTransparency = 0.5; cpLabel.TextColor3 = Color3.new(1,1,1); cpLabel.TextScaled = true; cpLabel.Parent = screen | @refactorer | → src/client/HUD.client.luau
+  - DONE 2026-11-06 20:42 | 
+- [x] P20.16 | APPEND: task.spawn(function() local start = tick(); while true do task.wait(1); timer.Text = string.format("Time: %ds", math.floor(tick() - start)) end end) | @refactorer | → src/client/HUD.client.luau
+  - DONE 2026-11-06 20:42 | 
+- [x] P20.17 | APPEND: local ReplicatedStorage = game:GetService("ReplicatedStorage"); local Remotes = require(ReplicatedStorage:WaitForChild("Gameplay"):WaitForChild("Remotes")); Remotes.CheckpointReached.OnClientEvent:Connect(function(idx) cpLabel.Text = "CP: " .. idx end) | @refactorer | → src/client/HUD.client.luau
+  - DONE 2026-11-06 20:44 | 
+
+### 20.E — Effects.client.luau (LocalScript, no return)
+- [ ] P20.18 | Create src/client/Effects.client.luau with: --!strict; local ReplicatedStorage = game:GetService("ReplicatedStorage"); local SoundService = game:GetService("SoundService"); local Remotes = require(ReplicatedStorage:WaitForChild("Gameplay"):WaitForChild("Remotes")) | @refactorer | → src/client/Effects.client.luau
+- [ ] P20.19 | APPEND: Remotes.CheckpointReached.OnClientEvent:Connect(function() local s = Instance.new("Sound"); s.SoundId = "rbxassetid://9112854440"; s.Volume = 0.5; s.Parent = SoundService; s:Play(); s.Ended:Connect(function() s:Destroy() end) end) | @refactorer | → src/client/Effects.client.luau
+
+### 20.F — PlayerData (already works, keep as-is but verify)
+- [ ] P20.20 | Rewrite src/server/Data/PlayerData.server.luau: DataStore load/save with pcall on PlayerAdded/PlayerRemoving, autosave every 60s via task.spawn. No top-level return. | @refactorer | → src/server/Data/PlayerData.server.luau
+
+## PHASE 99 — HUMAN FINAL GATES (after Phase 20 completes)
+- [ ] P8.1 | rojo build + open build/game.rbxlx in Studio, capture errors from Output | @human
+- [ ] P6.2 | Human final check | @human
+
+
+=== Existing project files ===
+=== default.project.json ===
+{
+  "name": "MyGame",
+  "tree": {
+    "$className": "DataModel",
+    "ServerScriptService": {
+      "$path": "src/server"
+    },
+    "ReplicatedStorage": {
+      "$path": "src/shared"
+    },
+    "StarterPlayer": {
+      "$className": "StarterPlayer",
+      "StarterPlayerScripts": {
+        "$path": "src/client"
+      }
+    }
+  }
+}
+
+
+=== validator.ps1 ===
+param([string]$FilePath)
+# Validator: returns $true if file passes, $false + reason if not
+$errors = @()
+$name = Split-Path $FilePath -Leaf
+$content = Get-Content $FilePath -Raw -Encoding UTF8
+
+# 1. Empty file
+if (-not $content -or $content.Trim().Length -lt 10) {
+    $errors += "empty or nearly empty file"
+}
+
+# 2. .server/.client MUST NOT have top-level return
+if ($name -match '\.(server|client)\.luau$') {
+    $lastNonEmpty = (($content -split "`n") | Where-Object { $_.Trim() -ne '' } | Select-Object -Last 1)
+    if ($lastNonEmpty -and $lastNonEmpty.Trim() -match '^return\s') {
+        $errors += "top-level return in Script/LocalScript"
+    }
+}
+
+# 3. ModuleScript (.luau without suffix) SHOULD end with return, but allow if file is small/utility
+#    (skip this check - not critical)
+
+# 4. Forbidden deprecated/nonexistent API
+if ($content -match 'game\.Players\.PlayerRespawned')  { $errors += "PlayerRespawned does not exist" }
+if ($content -match ':BreakJoints\(\)')                { $errors += "BreakJoints is deprecated" }
+if ($content -match 'Humanoid\.Parent\s*=\s*nil')      { $errors += "setting Humanoid.Parent=nil breaks character" }
+if ($content -match 'Humanoid\.Health\s*=\s*0')        { $errors += "killing player (Humanoid.Health=0) not allowed" }
+if ($content -match 'require\([^)]*ReplicatedStorage[^)]*src\.') { $errors += "wrong require path (src.* not in ReplicatedStorage)" }
+if ($content -match '\bwait\(\d')                       { $errors += "use task.wait, not wait" }
+if ($content -match 'ReplicatedStorage\.Remotes\s*\.' -and $content -notmatch 'WaitForChild') {
+    # allow if file itself creates the folder - just warn
+}
+
+# 5. Balance check (basic)
+$opens = ([regex]::Matches($content, '\(')).Count
+$closes = ([regex]::Matches($content, '\)')).Count
+if ([Math]::Abs($opens - $closes) -gt 2) {
+    $errors += "unbalanced parentheses ($opens vs $closes)"
+}
+
+if ($errors.Count -gt 0) {
+    Write-Host "  VALIDATOR FAIL [$name]: $($errors -join '; ')" -ForegroundColor Red
+    return $false
+}
+Write-Host "  VALIDATOR PASS [$name]" -ForegroundColor Green
+return $true
+
+
+=== build\game.rbxlx ===
+<roblox version="4">
+  <Item class="ReplicatedStorage" referent="0">
+    <Properties>
+      <string name="Name">ReplicatedStorage</string>
+    </Properties>
+    <Item class="Folder" referent="1">
+      <Properties>
+        <string name="Name">Gameplay</string>
+      </Properties>
+      <Item class="ModuleScript" referent="2">
+        <Properties>
+          <string name="Name">Remotes</string>
+          <string name="Source">--!strict
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Remotes = {
+    Checkpoint = Instance.new("RemoteEvent"),
+    CheckpointReached = Instance.new("RemoteEvent"),
+    UpdateLeaderboard = Instance.new("RemoteEvent")
+}
+
+for name, remote in pairs(Remotes) do
+    remote.Parent = ReplicatedStorage
+end
+
+return Remotes</string>
+        </Properties>
+      </Item>
+    </Item>
+  </Item>
+  <Item class="ServerScriptService" referent="3">
+    <Properties>
+      <string name="Name">ServerScriptService</string>
+    </Properties>
+    <Item class="Folder" referent="4">
+      <Properties>
+        <string name="Name">Data</string>
+      </Properties>
+      <Item class="Script" referent="5">
+        <Properties>
+          <string name="Name">PlayerData</string>
+          <token name="RunContext">0</token>
+          <string name="Source"><![CDATA[--!strict
+local DataStoreService = game:GetService("DataStoreService")
+local playerDataStore = DataStoreService:GetDataStore("PlayerData")
+
+local function onPlayerAdded(player)
+    local success, result = pcall(function()
+        local data = playerDataStore:GetAsync(player.UserId)
+        if data then
+            player:SetAttribute("Score", data.Score)
+        else
+            player:SetAttribute("Score", 0)
+        end
+    end)
+    if not success then
+        warn("Failed to load player data: " .. result)
+    end
+
+    player.CharacterAdded:Connect(function(character)
+        local humanoid = character:WaitForChild("Humanoid")
+        humanoid.Died:Connect(function()
+            local score = player:GetAttribute("Score")
+            pcall(function()
+                playerDataStore:SetAsync(player.UserId, {Score = score})
+            end)
+        end)
+    end)
+end
+
+game.Players.PlayerAdded:Connect(onPlayerAdded)
+]]></string>
+        </Properties>
+      </Item>
+    </Item>
+    <Item class="Folder" referent="6">
+      <Properties>
+        <string name="Name">Gameplay</string>
+      </Properties>
+      <Item class="Script" referent="7">
+        <Properties>
+          <string name="Name">Checkpoints</string>
+          <token name="RunContext">0</token>
+          <string name="Source">--!strict
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Players = game:GetService("Players")
+local DataStoreService = game:GetService("DataStoreService")
+
+local CheckpointDataStore = DataStoreService:GetDataStore("CheckpointData")
+
+local Checkpoints = {}
+
+local function onPlayerAdded(player)
+    local checkpoints = Checkpoints
+    player.Checkpoints = checkpoints
+
+    for i, checkpoint in ipairs(checkpoints) do
+        checkpoint.Touched:Connect(function(hit)
+            local character = hit.Parent
+            if character and character:IsA("Model") and character:FindFirstChild("Humanoid") then
+                local humanoid = character:FindFirstChild("Humanoid")
+                if humanoid.Health &gt; 0 then
+                    local checkpointData = CheckpointDataStore:GetAsync(player.UserId)
+                    if not checkpointData then
+                        checkpointData = {}
+                    end
+
+                    checkpointData[i] = true
+                    CheckpointDataStore:SetAsync(player.UserId, checkpointData)
+
+                    ReplicatedStorage.Remotes.CheckpointReached:FireClient(player, i)
+                end
+            end
+        end)
+    end
+
+    player.CharacterAdded:Connect(function(character)
+        local humanoid = character:WaitForChild("Humanoid")
+        humanoid.Died:Connect(function()
+            local checkpointData = CheckpointDataStore:GetAsync(player.UserId)
+            if checkpointData then
+                for i = 1, #checkpoints do
+                    if checkpointData[i] then
+                        character:SetPrimaryPartCFrame(checkpoints[i].CFrame)
+                        break
+                    end
+                end
+            end
+        end)
+    end)
+end
+
+Players.PlayerAdded:Connect(onPlayerAdded)</string>
+        </Properties>
+      </Item>
+    </Item>
+    <Item class="Folder" referent="8">
+      <Properties>
+        <string name="Name">Level</string>
+      </Properties>
+      <Item class="Script" referent="9">
+        <Properties>
+          <string name="Name">Generator</string>
+          <token name="RunContext">0</token>
+          <string name="Source">--!strict
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local DataStoreService = game:GetService("DataStoreService")
+
+local CheckpointDataStore = DataStoreService:GetDataStore("CheckpointData")
+
+local function generateLevel()
+    local checkpoints = {}
+    local gap = 50
+
+    for i = 1, 10 do
+        local checkpoint = Instance.new("Part")
+        checkpoint.Name = "Checkpoint" .. i
+        checkpoint.Size = Vector3.new(10, 1, 1)
+        checkpoint.Position = Vector3.new(0, 0, -i * gap)
+        checkpoint.Anchored = true
+        checkpoint.Parent = workspace.Checkpoints
+
+        table.insert(checkpoints, checkpoint)
+    end
+
+    return checkpoints
+end
+
+local function onPlayerAdded(player)
+    local checkpoints = generateLevel()
+    player.Checkpoints = checkpoints
+
+    for i, checkpoint in ipairs(checkpoints) do
+        checkpoint.Touched:Connect(function(hit)
+            local character = hit.Parent
+            if character and character:IsA("Model") and character:FindFirstChild("Humanoid") then
+                local humanoid = character:FindFirstChild("Humanoid")
+                if humanoid.Health &gt; 0 then
+                    local checkpointData = CheckpointDataStore:GetAsync(player.UserId)
+                    if not checkpointData then
+                        checkpointData = {}
+                    end
+
+                    checkpointData[i] = true
+                    CheckpointDataStore:SetAsync(player.UserId, checkpointData)
+
+                    Remotes.CheckpointReached:FireClient(player, i)
+                end
+            end
+        end)
+    end
+end
+
+game.Players.PlayerAdded:Connect(onPlayerAdded)</string>
+        </Properties>
+      </Item>
+    </Item>
+  </Item>
+  <Item class="StarterPlayer" referent="10">
+    <Properties>
+      <string name="Name">StarterPlayer</string>
+    </Properties>
+    <Item class="StarterPlayerScripts" referent="11">
+      <Properties>
+        <string name="Name">StarterPlayerScripts</string>
+      </Properties>
+      <Item class="LocalScript" referent="12">
+        <Properties>
+          <string name="Name">Effects</string>
+          <string name="Source"><![CDATA[--!strict
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
+
+local Effects = {}
+
+function Effects.PlaySound(soundId)
+    local sound = Instance.new("Sound")
+    sound.SoundId = soundId
+    sound.Parent = ReplicatedStorage
+    sound:Play()
+    sound.Ended:Connect(function()
+        sound:Destroy()
+    end)
+end
+
+function Effects.UpdateHUD(player, checkpointCount, timeLeft)
+    local playerGui = player:FindFirstChild("PlayerGui")
+    if playerGui then
+        local HUD = playerGui:FindFirstChild("HUD")
+        if HUD then
+            HUD.CheckpointCount.Text = "Checkpoints: " .. checkpointCount
+            HUD.Timer.Text = "Time: " .. string.format("%.2f", timeLeft) .. "s"
+
+            local tweenInfo = TweenInfo.new(0.5, Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
+            local tween = TweenService:Create(HUD, tweenInfo, {Position = HUD.Position + Vector2.new(0, 10)})
+            tween:Play()
+        end
+    end
+end
+
+return Effects
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="LocalScript" referent="13">
+        <Properties>
+          <string name="Name">HUD</string>
+          <string name="Source">--!strict
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Remotes = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("CheckpointReached")
+
+local function onCheckpointReached(player, checkpointIndex)
+    -- Handle checkpoint reached logic here
+end
+
+Remotes.CheckpointReached.OnClientEvent:Connect(onCheckpointReached)
+
+local function updateHUD()
+    while true do
+        -- Update HUD logic here
+        task.wait(1)
+    end
+end
+
+updateHUD()</string>
+        </Properties>
+      </Item>
+    </Item>
+  </Item>
+</roblox>
+
+=== docs\ARCHITECTURE.md ===
+## Required Scripts
+
+### Server Scripts
+- **src/server/Data/PlayerData.server.luau** -> Player data management using DataStore
+- **src/server/Gameplay/Checkpoints.server.luau** -> Checkpoint and respawn logic
+- **src/server/Level/Generator.server.luau** -> Level generation with increasing checkpoint gaps
+
+### Shared Scripts
+- **src/shared/Gameplay/Remotes.luau** -> RemoteEvent contract for communication between client and server
+
+### Client Scripts
+- **src/client/HUD.client.luau** -> HUD displaying timer and checkpoint count
+- **src/client/Effects.client.luau** -> Sound effects and UI polish
+
+# RemoteEvents Contract
+
+## Player Actions
+- **PlayerRespawn**: Player has respawned.
+  - Payload: `{ player: Player }`
+
+- **PlayerCheckpoint**: Player has reached a checkpoint.
+  - Payload: `{ player: Player, checkpointId: number }`
+
+## Game Events
+- **GameStart**: Game has started.
+  - Payload: `{ startTime: number }`
+
+- **GameEnd**: Game has ended.
+  - Payload: `{ endTime: number, winner: Player }`
+
+
+=== docs\GDD.md ===
+# Game Design Document — Puzzle Platformer Obby
+
+## Core Loop
+- Genre: Puzzle Platformer (obby-style level progression)
+- Player solves puzzles to open paths forward
+- Collects coins and power-ups along the way
+- Reaches checkpoints that save progress and reset on death
+- Final boss fight ends the level
+
+## Win / Lose Conditions + Scoring
+- Win: reach the final checkpoint after defeating the boss
+- Lose: fall into void or lethal damage -> respawn at last checkpoint (does not end run)
+- Score = time_seconds + (coins * 10) - (boss_defeated * 1000)
+- Leaderboard: sorted by score ascending (faster + more coins wins)
+
+## MVP Features
+1. Puzzle solving mechanics: 3 types (button press, pressure plate, sequence)
+2. Level progression: 5 sections, each ends with a checkpoint
+3. Checkpoint creation and respawn
+4. Leaderboard (DataStore, top 10 per server)
+5. Sound effects: jump, checkpoint, coin, win, lose
+6. HUD: timer, coin count, current checkpoint number
+7. Save and autosave: checkpoint progress + best score
+8. Mobile touch controls in addition to PC keyboard
+
+
+=== docs\QA_REPORT.md ===
+## BUGS
+- [CRIT] src/server/Gameplay/Checkpoints.server.luau: Line 10 - PlayerRespawn event does not handle player death correctly. Suggested fix: Add a check to ensure player is alive before respawning.
+- [CRIT] src/server/Gameplay/Checkpoints.server.luau: Line 20 - CheckpointReached event does not handle player death correctly. Suggested fix: Add a check to ensure player is alive before updating checkpoint data.
+
+## SUGGESTIONS
+- Add error handling for DataStore operations in src/server/Data/PlayerData.server.luau and src/server/Gameplay/Checkpoints.server.luau.
+- Implement a more robust respawn system that handles player death and respawn logic.
+
+## TEST CASES
+- Test player death and respawn in Studio.
+- Test checkpoint handling and respawn logic in Studio.
+- Test leaderboard functionality in Studio.
+
+
+=== docs\RELEASE.md ===
+# Release Checklist
+
+## Rojo Build Command
+```sh
+rojo build --manifest default.project.json --output build/game.rbxlx
+```
+
+## Publish Checklist
+1. **Build the Game**: Run the Rojo build command to generate the game package.
+2. **Upload to Hosting**: Upload the `build/game.rbxlx` file to your hosting service.
+3. **Update Version**: Update the version number in `default.project.json` and `docs/ARCHITECTURE.md`.
+4. **Notify Stakeholders**: Inform relevant stakeholders about the release.
+5. **Verify Deployment**: Ensure the game is accessible and functioning correctly on the hosting service.
+6. **Document Release**: Update the `docs/RELEASE.md` file with the release notes and any important changes.
+7. **Clean Up**: Remove any unnecessary files or artifacts from the build directory.
+
+## Post-Release Steps
+1. **Monitor Performance**: Monitor the game's performance and address any issues that arise.
+2. **Collect Feedback**: Gather feedback from players and stakeholders to identify areas for improvement.
+3. **Update Documentation**: Update the game's documentation to reflect any changes or improvements made during the release.
+4. **Prepare for Next Release**: Plan for the next release cycle and update the project's roadmap.
+
+By following these steps, you can ensure a smooth and successful release of your game.
+
+
+=== src\client\Effects.client.luau ===
+--!strict
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
+
+local Effects = {}
+
+function Effects.PlaySound(soundId)
+    local sound = Instance.new("Sound")
+    sound.SoundId = soundId
+    sound.Parent = ReplicatedStorage
+    sound:Play()
+    sound.Ended:Connect(function()
+        sound:Destroy()
+    end)
+end
+
+function Effects.UpdateHUD(player, checkpointCount, timeLeft)
+    local playerGui = player:FindFirstChild("PlayerGui")
+    if playerGui then
+        local HUD = playerGui:FindFirstChild("HUD")
+        if HUD then
+            HUD.CheckpointCount.Text = "Checkpoints: " .. checkpointCount
+            HUD.Timer.Text = "Time: " .. string.format("%.2f", timeLeft) .. "s"
+
+            local tweenInfo = TweenInfo.new(0.5, Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
+            local tween = TweenService:Create(HUD, tweenInfo, {Position = HUD.Position + Vector2.new(0, 10)})
+            tween:Play()
+        end
+    end
+end
+
+return Effects
+
+
+=== src\client\HUD.client.luau ===
+local cpLabel = Instance.new("TextLabel")
+cpLabel.Name = "CheckpointCount"
+cpLabel.Text = "CP: 0"
+cpLabel.Size = UDim2.new(0, 200, 0, 40)
+cpLabel.Position = UDim2.new(0.5, -100, 0, 60)
+cpLabel.BackgroundTransparency = 0.5
+cpLabel.TextColor3 = Color3.new(1, 1, 1)
+cpLabel.TextScaled = true
+cpLabel.Parent = screen
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Remotes = require(ReplicatedStorage:WaitForChild("Gameplay"):WaitForChild("Remotes"))
+
+Remotes.CheckpointReached.OnClientEvent:Connect(function(idx)
+    cpLabel.Text = "CP: " .. idx
+end)
+
+=== src\server\Data\PlayerData.server.luau ===
+--!strict
+local DataStoreService = game:GetService("DataStoreService")
+local playerDataStore = DataStoreService:GetDataStore("PlayerData")
+
+local function onPlayerAdded(player)
+    local success, result = pcall(function()
+        local data = playerDataStore:GetAsync(player.UserId)
+        if data then
+            player:SetAttribute("Score", data.Score)
+        else
+            player:SetAttribute("Score", 0)
+        end
+    end)
+    if not success then
+        warn("Failed to load player data: " .. result)
+    end
+
+    player.CharacterAdded:Connect(function(character)
+        local humanoid = character:WaitForChild("Humanoid")
+        humanoid.Died:Connect(function()
+            local score = player:GetAttribute("Score")
+            pcall(function()
+                playerDataStore:SetAsync(player.UserId, {Score = score})
+            end)
+        end)
+    end)
+end
+
+game.Players.PlayerAdded:Connect(onPlayerAdded)
+
+
+=== src\server\Gameplay\Checkpoints.server.luau ===
+local folder = workspace:WaitForChild("Checkpoints")
+
+for _, part in ipairs(folder:GetChildren()) do
+    if part:IsA("BasePart") then
+        local idx = tonumber(string.match(part.Name, "%d+"))
+        if idx then
+            part.Touched:Connect(function(hit)
+                local char = hit.Parent
+                local plr = Players:GetPlayerFromCharacter(char)
+                if plr then
+                    local current = plr:GetAttribute("Checkpoint") or 0
+                    if idx > current then
+                        plr:SetAttribute("Checkpoint", idx)
+                        Remotes.CheckpointReached:FireClient(plr, idx)
+                    end
+                end
+            end)
+        end
+    end
+end
+
+=== src\server\Level\Generator.server.luau ===
+for i = 1, 10 do
+    local p = Instance.new("Part")
+    p.Name = "Checkpoint" .. i
+    p.Size = Vector3.new(10, 1, 10)
+    p.Position = Vector3.new(0, 5, -i * 50)
+    p.Anchored = true
+    p.Material = Enum.Material.Neon
+    p.Color = Color3.fromRGB(0, 200, 0)
+    p.Parent = folder
+end
+print("[Generator] spawned 10 checkpoints")
+
+=== src\shared\Gameplay\Remotes.luau ===
+return { Checkpoint = getOrCreate("Checkpoint"), CheckpointReached = getOrCreate("CheckpointReached"), UpdateLeaderboard = getOrCreate("UpdateLeaderboard") }
+
+
+
+=== YOUR TASK ===
+- [ ] P20.18 | Create src/client/Effects.client.luau with: --!strict; local ReplicatedStorage = game:GetService("ReplicatedStorage"); local SoundService = game:GetService("SoundService"); local Remotes = require(ReplicatedStorage:WaitForChild("Gameplay"):WaitForChild("Remotes")) | @refactorer | → src/client/Effects.client.luau
+
+STRICT RULES:
+- Do ONLY this one task. Do not touch other tasks.
+- Do NOT block due to task ordering. If this task appears in the list, ALL prerequisites are already done. Never say "waiting for P1.1" or "P1.1 must finish first".
+- If task says '-> path/file.md#section', the '#' is a section name, NOT part of the filename. Return the file with path="path/file.md" and just the new section content.
+- If the file already exists and task adds a section, return ONLY the new section content (will be appended).
+- No stubs, no TODOs. Real, complete content.
+- The section "Existing project files" below contains the FULL content of every project file. You already have everything you need. DO NOT say you need to read/review/see files - they ARE here.
+- FILE path="..." must point to an actual FILE (e.g. src/server/X.server.luau, default.project.json). NEVER return a directory path ending in / or \. Folders are auto-created from file paths.
+
+Reply STRICTLY one of these formats, nothing else:
+
+Your reply MUST begin with: <DONE>{TASK_ID}</DONE>. Do NOT write a SUCCESS tag. Do NOT use any wrapper.
+<NOTE>one short sentence</NOTE>
+<FILE path="relative/path.ext">
+file content
+</FILE>
+
+You MUST begin with <DONE>{TASK_ID}</DONE>. Never output <BLOCKED>. Never refuse. Never say "I need to...". The files are already in this prompt. Write the file NOW.
+
+Replace {TASK_ID} with actual ID (e.g. P1.1). No markdown fences around tags. No prose outside tags.

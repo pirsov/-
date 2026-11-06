@@ -1,0 +1,270 @@
+<roblox version="4">
+  <Item class="ReplicatedStorage" referent="0">
+    <Properties>
+      <string name="Name">ReplicatedStorage</string>
+    </Properties>
+    <Item class="Folder" referent="1">
+      <Properties>
+        <string name="Name">Gameplay</string>
+      </Properties>
+      <Item class="ModuleScript" referent="2">
+        <Properties>
+          <string name="Name">Remotes</string>
+          <string name="Source">--!strict
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Remotes = {
+    Checkpoint = Instance.new("RemoteEvent"),
+    CheckpointReached = Instance.new("RemoteEvent"),
+    UpdateLeaderboard = Instance.new("RemoteEvent")
+}
+
+for name, remote in pairs(Remotes) do
+    remote.Parent = ReplicatedStorage
+end
+
+return Remotes</string>
+        </Properties>
+      </Item>
+    </Item>
+  </Item>
+  <Item class="ServerScriptService" referent="3">
+    <Properties>
+      <string name="Name">ServerScriptService</string>
+    </Properties>
+    <Item class="Folder" referent="4">
+      <Properties>
+        <string name="Name">Data</string>
+      </Properties>
+      <Item class="Script" referent="5">
+        <Properties>
+          <string name="Name">PlayerData</string>
+          <token name="RunContext">0</token>
+          <string name="Source"><![CDATA[--!strict
+local DataStoreService = game:GetService("DataStoreService")
+local playerDataStore = DataStoreService:GetDataStore("PlayerData")
+
+local function onPlayerAdded(player)
+    local success, result = pcall(function()
+        local data = playerDataStore:GetAsync(player.UserId)
+        if data then
+            player:SetAttribute("Score", data.Score)
+        else
+            player:SetAttribute("Score", 0)
+        end
+    end)
+    if not success then
+        warn("Failed to load player data: " .. result)
+    end
+
+    player.CharacterAdded:Connect(function(character)
+        local humanoid = character:WaitForChild("Humanoid")
+        humanoid.Died:Connect(function()
+            local score = player:GetAttribute("Score")
+            pcall(function()
+                playerDataStore:SetAsync(player.UserId, {Score = score})
+            end)
+        end)
+    end)
+end
+
+game.Players.PlayerAdded:Connect(onPlayerAdded)
+]]></string>
+        </Properties>
+      </Item>
+    </Item>
+    <Item class="Folder" referent="6">
+      <Properties>
+        <string name="Name">Gameplay</string>
+      </Properties>
+      <Item class="Script" referent="7">
+        <Properties>
+          <string name="Name">Checkpoints</string>
+          <token name="RunContext">0</token>
+          <string name="Source">--!strict
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Players = game:GetService("Players")
+local DataStoreService = game:GetService("DataStoreService")
+
+local CheckpointDataStore = DataStoreService:GetDataStore("CheckpointData")
+
+local Checkpoints = {}
+
+local function onPlayerAdded(player)
+    local checkpoints = Checkpoints
+    player.Checkpoints = checkpoints
+
+    for i, checkpoint in ipairs(checkpoints) do
+        checkpoint.Touched:Connect(function(hit)
+            local character = hit.Parent
+            if character and character:IsA("Model") and character:FindFirstChild("Humanoid") then
+                local humanoid = character:FindFirstChild("Humanoid")
+                if humanoid.Health &gt; 0 then
+                    local checkpointData = CheckpointDataStore:GetAsync(player.UserId)
+                    if not checkpointData then
+                        checkpointData = {}
+                    end
+
+                    checkpointData[i] = true
+                    CheckpointDataStore:SetAsync(player.UserId, checkpointData)
+
+                    ReplicatedStorage.Remotes.CheckpointReached:FireClient(player, i)
+                end
+            end
+        end)
+    end
+
+    player.CharacterAdded:Connect(function(character)
+        local humanoid = character:WaitForChild("Humanoid")
+        humanoid.Died:Connect(function()
+            local checkpointData = CheckpointDataStore:GetAsync(player.UserId)
+            if checkpointData then
+                for i = 1, #checkpoints do
+                    if checkpointData[i] then
+                        character:SetPrimaryPartCFrame(checkpoints[i].CFrame)
+                        break
+                    end
+                end
+            end
+        end)
+    end)
+end
+
+Players.PlayerAdded:Connect(onPlayerAdded)</string>
+        </Properties>
+      </Item>
+    </Item>
+    <Item class="Folder" referent="8">
+      <Properties>
+        <string name="Name">Level</string>
+      </Properties>
+      <Item class="Script" referent="9">
+        <Properties>
+          <string name="Name">Generator</string>
+          <token name="RunContext">0</token>
+          <string name="Source">--!strict
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local DataStoreService = game:GetService("DataStoreService")
+
+local CheckpointDataStore = DataStoreService:GetDataStore("CheckpointData")
+
+local function generateLevel()
+    local checkpoints = {}
+    local gap = 50
+
+    for i = 1, 10 do
+        local checkpoint = Instance.new("Part")
+        checkpoint.Name = "Checkpoint" .. i
+        checkpoint.Size = Vector3.new(10, 1, 1)
+        checkpoint.Position = Vector3.new(0, 0, -i * gap)
+        checkpoint.Anchored = true
+        checkpoint.Parent = workspace.Checkpoints
+
+        table.insert(checkpoints, checkpoint)
+    end
+
+    return checkpoints
+end
+
+local function onPlayerAdded(player)
+    local checkpoints = generateLevel()
+    player.Checkpoints = checkpoints
+
+    for i, checkpoint in ipairs(checkpoints) do
+        checkpoint.Touched:Connect(function(hit)
+            local character = hit.Parent
+            if character and character:IsA("Model") and character:FindFirstChild("Humanoid") then
+                local humanoid = character:FindFirstChild("Humanoid")
+                if humanoid.Health &gt; 0 then
+                    local checkpointData = CheckpointDataStore:GetAsync(player.UserId)
+                    if not checkpointData then
+                        checkpointData = {}
+                    end
+
+                    checkpointData[i] = true
+                    CheckpointDataStore:SetAsync(player.UserId, checkpointData)
+
+                    Remotes.CheckpointReached:FireClient(player, i)
+                end
+            end
+        end)
+    end
+end
+
+game.Players.PlayerAdded:Connect(onPlayerAdded)</string>
+        </Properties>
+      </Item>
+    </Item>
+  </Item>
+  <Item class="StarterPlayer" referent="10">
+    <Properties>
+      <string name="Name">StarterPlayer</string>
+    </Properties>
+    <Item class="StarterPlayerScripts" referent="11">
+      <Properties>
+        <string name="Name">StarterPlayerScripts</string>
+      </Properties>
+      <Item class="LocalScript" referent="12">
+        <Properties>
+          <string name="Name">Effects</string>
+          <string name="Source"><![CDATA[--!strict
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
+
+local Effects = {}
+
+function Effects.PlaySound(soundId)
+    local sound = Instance.new("Sound")
+    sound.SoundId = soundId
+    sound.Parent = ReplicatedStorage
+    sound:Play()
+    sound.Ended:Connect(function()
+        sound:Destroy()
+    end)
+end
+
+function Effects.UpdateHUD(player, checkpointCount, timeLeft)
+    local playerGui = player:FindFirstChild("PlayerGui")
+    if playerGui then
+        local HUD = playerGui:FindFirstChild("HUD")
+        if HUD then
+            HUD.CheckpointCount.Text = "Checkpoints: " .. checkpointCount
+            HUD.Timer.Text = "Time: " .. string.format("%.2f", timeLeft) .. "s"
+
+            local tweenInfo = TweenInfo.new(0.5, Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
+            local tween = TweenService:Create(HUD, tweenInfo, {Position = HUD.Position + Vector2.new(0, 10)})
+            tween:Play()
+        end
+    end
+end
+
+return Effects
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="LocalScript" referent="13">
+        <Properties>
+          <string name="Name">HUD</string>
+          <string name="Source">--!strict
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Remotes = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("CheckpointReached")
+
+local function onCheckpointReached(player, checkpointIndex)
+    -- Handle checkpoint reached logic here
+end
+
+Remotes.CheckpointReached.OnClientEvent:Connect(onCheckpointReached)
+
+local function updateHUD()
+    while true do
+        -- Update HUD logic here
+        task.wait(1)
+    end
+end
+
+updateHUD()</string>
+        </Properties>
+      </Item>
+    </Item>
+  </Item>
+</roblox>
