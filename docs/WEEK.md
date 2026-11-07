@@ -69,6 +69,9 @@ Notes:
 See [FORGE_CONTRACT.md](FORGE_CONTRACT.md): **LLM via `--week`**, not Cursor hand-edits.
 First pending lines in `PROJECT_TZ.md` are **AGENT SPRINT** (`A1`…). Human `y/n` gates come after.
 
+### If log said `malformed (no DONE)` on A1/A2…
+Old forge regex only accepted `P…`/`W…` ids, so `<DONE>A1</DONE>` was ignored. Pull latest, ensure sprint lines are still `- [ ]` (not `[x]` from a false KEEP), then `--week` again.
+
 ## Start the week
 ```powershell
 $env:FORGE_BACKEND = "openrouter"   # or SPACE_BUNNY_API_KEY

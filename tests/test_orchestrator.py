@@ -211,6 +211,26 @@ class TestParseOutput(unittest.TestCase):
         self.assertEqual(len(files), 1)
         self.assertIsNone(blocked)
 
+    def test_parse_sprint_done_a1(self):
+        out = (
+            "<DONE>A1</DONE>\n<NOTE>obstacles</NOTE>\n"
+            '<FILE path="src/server/Level/Generator.server.luau">\n--!strict\nprint(1)\n</FILE>\n'
+        )
+        done, note, files, blocked = parse_agent_output(out, "A1")
+        self.assertEqual(done, "A1")
+        self.assertEqual(note, "obstacles")
+        self.assertEqual(len(files), 1)
+        self.assertIsNone(blocked)
+
+    def test_parse_sloppy_done_a3(self):
+        out = (
+            "DONE>A3\n<NOTE>map</NOTE>\n"
+            '<FILE path="docs/GDD.md">\n# Map\n</FILE>\n'
+        )
+        done, note, files, _ = parse_agent_output(out, "A3")
+        self.assertEqual(done, "A3")
+        self.assertEqual(len(files), 1)
+
 
 class TestModelResolve(unittest.TestCase):
     def test_remap_bare_tag_to_custom(self):

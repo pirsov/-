@@ -14,8 +14,8 @@
   },
   "escalation": [
     "qwen2.5-coder:14b-4k",
-    "qwen2.5-coder:14b-2k",
-    "qwen2.5-coder:14b"
+    "qwen2.5-coder:14b-4k",
+    "qwen2.5-coder:14b-4k"
   ],
   "spacebunny": {
     "model": "space-bunny-alpha",

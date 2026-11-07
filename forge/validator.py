@@ -115,6 +115,21 @@ def validate_file(path: Path) -> Tuple[bool, List[str]]:
         ):
             errors.append("uses Players service without GetService")
 
+    # Generator must keep walkable map + CheckpointN naming (not Checkpoint_N)
+    if name == "Generator.server.luau":
+        if "SpawnLocation" not in content and "SpawnPlaza" not in content:
+            errors.append("Generator must create SpawnLocation or SpawnPlaza")
+        if not re.search(r'Name\s*=\s*["\']Path["\']', content) and 'Name = "Path"' not in content:
+            if "Map" not in content or "Path" not in content:
+                errors.append("Generator must keep Map Path floor (Name = \"Path\")")
+        if re.search(r'Name\s*=\s*["\']Checkpoint_["\']', content) or re.search(
+            r'Checkpoint_"\s*\.\.', content
+        ):
+            errors.append('Checkpoint parts must be named "Checkpoint"..id (no underscore)')
+        if "Obstacle" not in content and "obstacle" not in content.lower():
+            # soft: only when file is a full rewrite that claims obstacles — enforced by tasks
+            pass
+
     # Checkpoints must keep touch + death wiring with a *numeric* checkpoint index
     if name == "Checkpoints.server.luau":
         if "Touched" not in content:

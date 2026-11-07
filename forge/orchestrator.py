@@ -137,20 +137,39 @@ KNOWN_SEEDS = {
 }
 
 
+# Sprint A1, week W1.5, legacy P30.1 / P20.20.a
+_DONE_ID = r"((?:A\d+)|(?:[PW]\d+(?:\.\d+)*(?:\.[a-z])?))"
+
+
 def parse_agent_output(text: str, expected_id: str) -> Tuple[Optional[str], str, List[FileOp], Optional[str]]:
     """Returns (done_id, note, files, blocked_id)."""
-    blocked = re.search(r"<BLOCKED>\s*([PW]\d+(?:\.\d+)*)\s*</BLOCKED>", text)
+    blocked = re.search(rf"<BLOCKED>\s*{_DONE_ID}\s*</BLOCKED>", text, re.I)
     if blocked:
         return None, "", [], blocked.group(1)
 
-    done = re.search(r"<(?:DONE|SUCCESS)>\s*([PW]\d+(?:\.\d+)*)\s*</(?:DONE|SUCCESS)>", text)
+    # Accept <DONE>A1</DONE>, <SUCCESS>…, and sloppy DONE>A3 (missing '<')
+    done = re.search(
+        rf"(?:<(?:DONE|SUCCESS)>|(?<![\w/])DONE>)\s*{_DONE_ID}\s*(?:</(?:DONE|SUCCESS)>)?",
+        text,
+        re.I,
+    )
     if not done:
-        return None, "", [], None
-    done_id = done.group(1)
-    note_m = re.search(r"<NOTE>([\s\S]*?)</NOTE>", text)
+        # Last resort: expected id appears right after DONE somewhere
+        loose = re.search(
+            rf"(?:DONE|SUCCESS)\s*>?\s*{re.escape(expected_id)}\b",
+            text,
+            re.I,
+        )
+        if not loose:
+            return None, "", [], None
+        done_id = expected_id
+    else:
+        done_id = done.group(1)
+
+    note_m = re.search(r"<NOTE>([\s\S]*?)</NOTE>", text, re.I)
     note = note_m.group(1).strip() if note_m else ""
     files: List[FileOp] = []
-    for m in re.finditer(r'<FILE\s+path="([^"]+)">\r?\n?([\s\S]*?)</FILE>', text):
+    for m in re.finditer(r'<FILE\s+path="([^"]+)">\r?\n?([\s\S]*?)</FILE>', text, re.I):
         raw_path = m.group(1).strip()
         content = m.group(2).strip("\r\n")
         mode = WriteMode.REWRITE
@@ -746,13 +765,17 @@ class Orchestrator:
                 print(f"   keep-check FAIL [{rel}]: {'; '.join(errs)}")
                 break
         if checked and kept_ok:
-            mark_tz_done(
+            # Do NOT mark TZ done — seed keep is recovery, not task completion.
+            # (Old bug: "KEPT" marked A1 done while <DONE>A1</DONE> was ignored by parser.)
+            add_tz_note(
                 self.root,
                 task.task_id,
-                "kept existing valid files after model failures",
+                "RETRY",
+                "model output not applied; seed kept; leave [ ] for re-run",
             )
-            print(f"   KEPT existing valid file(s): {', '.join(checked)}")
-            return StepResult(ok=True, task_id=task.task_id, note="kept existing", files=checked)
+            print(f"   KEPT seed (task still pending): {', '.join(checked)}")
+            write_heartbeat(self.root, {"status": "retry", "task": task.task_id})
+            return StepResult(ok=False, task_id=task.task_id, reason="retry", note="kept seed")
 
         # QA docs seed
         if task.owner == "qa_engineer" and task.target_path and task.target_path.endswith("QA_REPORT.md"):
@@ -764,19 +787,17 @@ class Orchestrator:
             print("   SEEDED docs/QA_REPORT.md and marked done")
             return StepResult(ok=True, task_id=task.task_id, note="seeded QA", files=[task.target_path])
 
-        # Week mode: NEVER micro-split code — skip task with note or stop
+        # Week mode: never micro-split; leave task pending so a forge/model fix can retry
         if WEEK_MODE.get("disable_micro_split", True):
             add_tz_note(
                 self.root,
                 task.task_id,
-                "SKIPPED",
-                "week mode: model failed; seed kept / fix prompt manually",
+                "RETRY",
+                "week mode: model failed; task left [ ] — re-run --week after fix",
             )
-            # Mark done so the week continues past poison tasks
-            mark_tz_done(self.root, task.task_id, "SKIPPED after failures (week mode, no micro-split)")
-            print("   SKIPPED task (week mode) — continuing pipeline")
-            write_heartbeat(self.root, {"status": "skipped", "task": task.task_id})
-            return StepResult(ok=True, task_id=task.task_id, note="skipped", reason="skipped")
+            print("   FAILED (week mode) — task left pending; stopping loop")
+            write_heartbeat(self.root, {"status": "retry", "task": task.task_id})
+            return StepResult(ok=False, task_id=task.task_id, reason="retry", note="pending retry")
 
         add_tz_note(self.root, task.task_id, "FAILED", "see logs — fix prompt or model")
         write_heartbeat(self.root, {"status": "failed", "task": task.task_id})
@@ -804,7 +825,9 @@ def run_loop(
     for i in range(max_steps):
         result = orch.invoke_step()
         if not result.ok:
-            if result.reason in {"no_tasks", "human", "failed", "auth"}:
+            if result.reason in {"no_tasks", "human", "failed", "auth", "retry"}:
+                if result.reason == "retry":
+                    print("   Stopping so you can fix model/parser and re-run --week (task left pending).")
                 break
             break
         completed += 1
