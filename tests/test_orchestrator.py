@@ -276,6 +276,14 @@ class TestHitlPrompt(unittest.TestCase):
             self.assertIn("- [ ] W1.5", tz)
 
 
+class TestLlmAuthHelpers(unittest.TestCase):
+    def test_clean_key_strips_quotes(self):
+        from forge.llm import _clean_key
+
+        self.assertEqual(_clean_key("  'sk-or-v1-abc'  "), "sk-or-v1-abc")
+        self.assertEqual(_clean_key('"sb_live_x"'), "sb_live_x")
+
+
 class TestLlmBackend(unittest.TestCase):
     def test_auto_spacebunny_when_key_set(self):
         import os

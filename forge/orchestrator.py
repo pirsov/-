@@ -370,22 +370,24 @@ def doctor(root: Path) -> int:
     print(f"  root: {root}")
     be = llm.backend_name()
     print(f"  backend: {be}")
-    if be == "spacebunny":
-        key = bool(os.environ.get("SPACE_BUNNY_API_KEY"))
-        print(f"  SPACE_BUNNY_API_KEY set: {key}")
+    if be in {"spacebunny", "openrouter"}:
+        env_name = "SPACE_BUNNY_API_KEY" if be == "spacebunny" else "OPENROUTER_API_KEY"
+        raw = os.environ.get(env_name) or ""
+        key = llm._clean_key(raw)  # noqa: SLF001 — doctor needs same cleaner
+        print(f"  {env_name} set: {bool(key)}  {llm._mask_key(key) if key else ''}")  # noqa: SLF001
         if not key:
-            print("  FIX: https://spacebunnymodel.com/get-jev  then set SPACE_BUNNY_API_KEY")
+            if be == "spacebunny":
+                print("  FIX: https://spacebunnymodel.com/get-jev")
+            else:
+                print("  FIX: https://openrouter.ai/keys  (key must start with sk-or-)")
             return 1
-        print("  model: space-bunny-alpha (1M ctx)")
-        print("  Ready. Run: python run.py --week")
-        return 0
-    if be == "openrouter":
-        key = bool(os.environ.get("OPENROUTER_API_KEY"))
-        print(f"  OPENROUTER_API_KEY set: {key}")
-        if not key:
-            print("  FIX: set OPENROUTER_API_KEY for stealth/space-bunny-alpha")
+        print(f"  model: {'space-bunny-alpha' if be == 'spacebunny' else 'stealth/space-bunny-alpha'}")
+        print("  probing API…")
+        ok, msg = llm.auth_probe()
+        print(f"  probe: {'OK' if ok else 'FAIL'}")
+        if not ok:
+            print(msg)
             return 1
-        print("  model: stealth/space-bunny-alpha")
         print("  Ready. Run: python run.py --week")
         return 0
 
@@ -574,6 +576,10 @@ class Orchestrator:
             temp = 0.1 if attempt == 1 else 0.0
             try:
                 out = self._call_model(task, prompt, cfg, attempt, temp)
+            except llm.AuthError as e:
+                print(f"   AUTH FAIL (no retries): {e}")
+                write_heartbeat(self.root, {"status": "auth_failed", "task": task.task_id})
+                return StepResult(ok=False, task_id=task.task_id, reason="auth", note=str(e))
             except Exception as e:
                 print(f"   API abort: {e}")
                 validator_feedback = f"API error: {e}"
@@ -798,7 +804,7 @@ def run_loop(
     for i in range(max_steps):
         result = orch.invoke_step()
         if not result.ok:
-            if result.reason in {"no_tasks", "human", "failed"}:
+            if result.reason in {"no_tasks", "human", "failed", "auth"}:
                 break
             break
         completed += 1

@@ -5,9 +5,13 @@ import json
 import os
 import urllib.error
 import urllib.request
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from . import ollama_client
+
+
+class AuthError(RuntimeError):
+    """API key rejected — do not retry the same key."""
 
 
 def backend_name() -> str:
@@ -21,6 +25,22 @@ def backend_name() -> str:
     return "ollama"
 
 
+def _clean_key(raw: Optional[str]) -> str:
+    if not raw:
+        return ""
+    key = raw.strip()
+    # PowerShell users often set $env:KEY = "'sk-...'" with extra quotes
+    if (key.startswith('"') and key.endswith('"')) or (key.startswith("'") and key.endswith("'")):
+        key = key[1:-1].strip()
+    return key
+
+
+def _mask_key(key: str) -> str:
+    if len(key) <= 8:
+        return "(too short / empty)"
+    return f"{key[:6]}…{key[-4:]} (len={len(key)})"
+
+
 def _openai_compat_generate(
     *,
     base_url: str,
@@ -30,6 +50,7 @@ def _openai_compat_generate(
     temperature: float,
     max_tokens: int,
     timeout: int,
+    extra_headers: Optional[Dict[str, str]] = None,
 ) -> str:
     url = base_url.rstrip("/") + "/chat/completions"
     body: Dict[str, Any] = {
@@ -48,13 +69,16 @@ def _openai_compat_generate(
         ],
     }
     data = json.dumps(body).encode("utf-8")
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {api_key}",
+    }
+    if extra_headers:
+        headers.update(extra_headers)
     req = urllib.request.Request(
         url,
         data=data,
-        headers={
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {api_key}",
-        },
+        headers=headers,
         method="POST",
     )
     try:
@@ -62,6 +86,19 @@ def _openai_compat_generate(
             payload = json.loads(resp.read().decode("utf-8"))
     except urllib.error.HTTPError as e:
         detail = e.read().decode("utf-8", errors="replace") if e.fp else ""
+        if e.code in {401, 403}:
+            raise AuthError(
+                f"LLM auth failed HTTP {e.code}: {e.reason}\n{detail}\n"
+                f"Key in use: {_mask_key(api_key)}\n"
+                "Fix:\n"
+                "  OpenRouter → https://openrouter.ai/keys  then:\n"
+                "    $env:FORGE_BACKEND='openrouter'\n"
+                "    $env:OPENROUTER_API_KEY='sk-or-v1-...'\n"
+                "  Space Bunny (hosted) → https://spacebunnymodel.com/get-jev  then:\n"
+                "    $env:FORGE_BACKEND='spacebunny'\n"
+                "    $env:SPACE_BUNNY_API_KEY='sb_live_...'\n"
+                "  Do not put quotes inside the value. Re-open the terminal after setting User env vars."
+            ) from e
         raise RuntimeError(f"LLM HTTP {e.code}: {e.reason}\n{detail}") from e
     except urllib.error.URLError as e:
         raise RuntimeError(f"LLM network error: {e}") from e
@@ -72,7 +109,6 @@ def _openai_compat_generate(
     msg = choices[0].get("message") or {}
     content = msg.get("content") or ""
     if isinstance(content, list):
-        # multimodal-style content parts
         parts = []
         for p in content:
             if isinstance(p, dict) and p.get("type") == "text":
@@ -94,12 +130,14 @@ def generate(
 ) -> str:
     be = backend_name()
     if be == "spacebunny":
-        key = os.environ.get("SPACE_BUNNY_API_KEY") or ""
+        key = _clean_key(os.environ.get("SPACE_BUNNY_API_KEY"))
         if not key:
-            raise RuntimeError(
+            raise AuthError(
                 "FORGE_BACKEND=spacebunny but SPACE_BUNNY_API_KEY is unset. "
                 "Get a free key: https://spacebunnymodel.com/get-jev"
             )
+        if not key.startswith("sb_"):
+            print(f"   warn: SPACE_BUNNY_API_KEY usually starts with sb_live_ (got {_mask_key(key)})")
         return _openai_compat_generate(
             base_url=os.environ.get("SPACE_BUNNY_BASE_URL") or "https://spacebunnymodel.com/api/v1",
             api_key=key,
@@ -110,9 +148,11 @@ def generate(
             timeout=timeout,
         )
     if be == "openrouter":
-        key = os.environ.get("OPENROUTER_API_KEY") or ""
+        key = _clean_key(os.environ.get("OPENROUTER_API_KEY"))
         if not key:
-            raise RuntimeError("FORGE_BACKEND=openrouter but OPENROUTER_API_KEY is unset.")
+            raise AuthError("FORGE_BACKEND=openrouter but OPENROUTER_API_KEY is unset.")
+        if not key.startswith("sk-or-"):
+            print(f"   warn: OPENROUTER_API_KEY usually starts with sk-or- (got {_mask_key(key)})")
         return _openai_compat_generate(
             base_url=os.environ.get("OPENROUTER_BASE_URL") or "https://openrouter.ai/api/v1",
             api_key=key,
@@ -121,6 +161,10 @@ def generate(
             temperature=temperature,
             max_tokens=num_predict,
             timeout=timeout,
+            extra_headers={
+                "HTTP-Referer": os.environ.get("OPENROUTER_REFERER") or "https://github.com/pirsov/-",
+                "X-Title": os.environ.get("OPENROUTER_TITLE") or "QualityForge",
+            },
         )
     return ollama_client.generate(
         model,
@@ -135,10 +179,30 @@ def generate(
 def ping() -> bool:
     be = backend_name()
     if be == "spacebunny":
-        return bool(os.environ.get("SPACE_BUNNY_API_KEY"))
+        return bool(_clean_key(os.environ.get("SPACE_BUNNY_API_KEY")))
     if be == "openrouter":
-        return bool(os.environ.get("OPENROUTER_API_KEY"))
+        return bool(_clean_key(os.environ.get("OPENROUTER_API_KEY")))
     return ollama_client.ping()
+
+
+def auth_probe(timeout: int = 20) -> Tuple[bool, str]:
+    """Tiny chat call to verify the cloud key. Returns (ok, message)."""
+    be = backend_name()
+    if be == "ollama":
+        return ollama_client.ping(), "ollama ping"
+    try:
+        out = generate(
+            "space-bunny-alpha" if be == "spacebunny" else "stealth/space-bunny-alpha",
+            "Reply with exactly: PONG",
+            num_predict=8,
+            temperature=0,
+            timeout=timeout,
+        )
+        return True, f"ok ({len(out)} chars)"
+    except AuthError as e:
+        return False, str(e)
+    except Exception as e:
+        return False, f"{type(e).__name__}: {e}"
 
 
 def list_models() -> List[str]:

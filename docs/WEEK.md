@@ -6,22 +6,27 @@ cd C:\Users\sv244\Desktop\--cursor-quality-forge-orchestrator-9409
 git pull
 ```
 
-### Backend A — Space Bunny Alpha (recommended, 1M context, free)
+### Backend A — Space Bunny hosted (simplest free key)
 Get a key: https://spacebunnymodel.com/get-jev  
-Docs: https://github.com/codaaiteam/awesome-space-bunny
 
 ```powershell
-$env:SPACE_BUNNY_API_KEY = "sb_live_..."   # or set permanently in System env
-# optional: $env:FORGE_BACKEND = "spacebunny"
-python run.py --doctor
-python run.py --validate
+$env:FORGE_BACKEND = "spacebunny"
+$env:SPACE_BUNNY_API_KEY = "sb_live_..."   # NO extra quotes inside
+python run.py --doctor    # must print probe: OK
+python run.py --week
 ```
 
-OpenRouter alternative:
+### Backend B — OpenRouter (`stealth/space-bunny-alpha`)
+Key: https://openrouter.ai/keys (must start with `sk-or-v1-…`)
+
 ```powershell
-$env:OPENROUTER_API_KEY = "sk-or-..."
-$env:FORGE_BACKEND = "openrouter"   # model: stealth/space-bunny-alpha
+$env:FORGE_BACKEND = "openrouter"
+$env:OPENROUTER_API_KEY = "sk-or-v1-..."   # NOT a Space Bunny sb_ key
+python run.py --doctor    # 401 User not found = bad/expired key → make a new one
+python run.py --week
 ```
+
+If doctor says **auth FAIL**: wrong key for that backend, expired key, or quotes baked into the env value. Fix key, new PowerShell window, `--doctor` again. Do **not** keep running `--week` on 401.
 
 ### Backend B — local Ollama (default if no cloud key)
 ```powershell
