@@ -62,6 +62,10 @@ def validate_file(path: Path) -> Tuple[bool, List[str]]:
                 errors.append("Remotes.luau must create-or-reuse RemoteEvents (getOrCreate/FindFirstChild)")
             if "CheckpointReached" not in content:
                 errors.append("Remotes.luau missing CheckpointReached")
+            # Dead code after first top-level return (classic failed APPEND)
+            returns = list(re.finditer(r"(?m)^return\b", content))
+            if len(returns) > 1:
+                errors.append("Remotes.luau has multiple top-level return — APPEND corrupted file")
 
     forbidden = [
         (r"game\.Players\.PlayerRespawned", "PlayerRespawned does not exist"),

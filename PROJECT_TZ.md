@@ -59,10 +59,11 @@
 - [ ] P31.4 | Extend ARCHITECTURE with new module paths for Plus features | @tech_architect | → docs/ARCHITECTURE.md#plus-modules
 
 ## PHASE 32 — PLUS SYSTEMS (one module per task)
-- [ ] P32.1 | Create coins module (server awards coin, fires remote) | @gameplay_programmer | → src/server/Gameplay/Coins.server.luau
-- [ ] P32.2 | APPEND CoinCollected remote to Remotes.luau (APPEND only) | @gameplay_programmer | → src/shared/Gameplay/Remotes.luau
-- [ ] P32.3 | Create shared Content/LevelConfig.luau (gaps, coin counts per section) | @content_author | → src/shared/Content/LevelConfig.luau
-- [ ] P32.4 | Rewrite Generator to read LevelConfig and spawn coins + checkpoints | @gameplay_programmer | → src/server/Level/Generator.server.luau
+- [ ] P32.1 | Create SCRIPT (not ModuleScript) Coins.server.luau: --!strict, no top-level return; on coin Part Touched award attribute Coins+=1 and Remotes.CoinCollected:FireClient; use require Gameplay.Remotes | @gameplay_programmer | → src/server/Gameplay/Coins.server.luau
+- [ ] P32.2 | REWRITE full Remotes.luau (do not APPEND after return): keep getOrCreate + return table including CoinCollected | @gameplay_programmer | → src/shared/Gameplay/Remotes.luau
+- [x] P32.3 | Create shared Content/LevelConfig.luau (gaps, coin counts per section) | @content_author | → src/shared/Content/LevelConfig.luau
+  - DONE 2026-11-07 | LevelConfig with gaps 50..130 — verify locally; may need --!strict
+- [ ] P32.4 | Rewrite Generator.server.luau: require LevelConfig from ReplicatedStorage.Content; spawn Checkpoint1..N and Coin parts; NO BreakJoints; NO require Checkpoints module; no markdown fences | @gameplay_programmer | → src/server/Level/Generator.server.luau
 - [ ] P32.5 | APPEND coin count label to HUD (APPEND only) | @client_programmer | → src/client/HUD.client.luau
 - [ ] P32.6 | APPEND coin pickup sound in Effects (APPEND only) | @client_programmer | → src/client/Effects.client.luau
 - [ ] P32.7 | Create simple pressure-plate puzzle server script | @gameplay_programmer | → src/server/Gameplay/Puzzles.server.luau

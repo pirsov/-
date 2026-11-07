@@ -22,4 +22,5 @@ return {
 	Checkpoint = getOrCreate("Checkpoint"),
 	CheckpointReached = getOrCreate("CheckpointReached"),
 	UpdateLeaderboard = getOrCreate("UpdateLeaderboard"),
+	CoinCollected = getOrCreate("CoinCollected"),
 }
