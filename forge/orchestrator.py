@@ -130,11 +130,11 @@ KNOWN_SEEDS = {
 
 def parse_agent_output(text: str, expected_id: str) -> Tuple[Optional[str], str, List[FileOp], Optional[str]]:
     """Returns (done_id, note, files, blocked_id)."""
-    blocked = re.search(r"<BLOCKED>\s*(P\d+(?:\.\d+)*)\s*</BLOCKED>", text)
+    blocked = re.search(r"<BLOCKED>\s*([PW]\d+(?:\.\d+)*)\s*</BLOCKED>", text)
     if blocked:
         return None, "", [], blocked.group(1)
 
-    done = re.search(r"<(?:DONE|SUCCESS)>\s*(P\d+(?:\.\d+)*)\s*</(?:DONE|SUCCESS)>", text)
+    done = re.search(r"<(?:DONE|SUCCESS)>\s*([PW]\d+(?:\.\d+)*)\s*</(?:DONE|SUCCESS)>", text)
     if not done:
         return None, "", [], None
     done_id = done.group(1)

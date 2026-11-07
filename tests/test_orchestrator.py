@@ -43,6 +43,13 @@ class TestTaskParser(unittest.TestCase):
         self.assertEqual(t.target_path, "docs/GDD.md")
         self.assertEqual(t.section, "core-loop")
 
+    def test_week_human_task_parsed(self):
+        line = '- [ ] W1.5 | Studio smoke baseline (CP, coin, void, plate) | @human'
+        t = parse_task_line(line)
+        assert t is not None
+        self.assertEqual(t.task_id, "W1.5")
+        self.assertEqual(t.owner, "human")
+
 
 class TestAppendNeverOverwrites(unittest.TestCase):
     def test_append_preserves_prefix(self):
