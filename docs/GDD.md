@@ -37,9 +37,15 @@
 4. Combo stretch → Checkpoint4 (gap 110)
 5. Final approach → Checkpoint5 (gap 130)
 
+## Map (Generator)
+- `workspace.Map.Path` — continuous floor (width 28) from spawn Z=+20 through CP5
+- `workspace.Map.SpawnPlaza` + `SpawnLocation` — start pad
+- Soft rails left/right; default `Baseplate` removed
+- Floor top **Y = 5**; checkpoints sit on the path
+
 ## Puzzle Layout
-- **PressurePlate** Part at position `(12, 5, −30)`, size `(6, 1, 6)`, color blue
-- **Gate** Part at `(12, 11, −40)`, size `(10, 12, 1)`; opens (CanCollide=false, Transparency=0.7) while player stands on plate
+- **PressurePlate** Part at `(8, 5.5, −30)`, size `(6, 1, 6)`, color blue
+- **Gate** Part at `(8, 11, −40)`, size `(10, 12, 1)`; opens (CanCollide=false, Transparency=0.7) while player stands on plate
 
 ## Juice
 - CheckpointReached: HUD CheckpointCount flash (BackgroundTransparency 0.1→0.5) + sound `9112854440`

@@ -9,12 +9,13 @@ if not folder then
 	folder.Parent = workspace
 end
 
+-- Positions match Generator floor top Y=5 (on the path, toward −Z).
 local plate = folder:FindFirstChild("PressurePlate")
 if not plate then
 	plate = Instance.new("Part")
 	plate.Name = "PressurePlate"
 	plate.Size = Vector3.new(6, 1, 6)
-	plate.Position = Vector3.new(12, 5, -30)
+	plate.Position = Vector3.new(8, 5.5, -30)
 	plate.Anchored = true
 	plate.Color = Color3.fromRGB(80, 80, 200)
 	plate.Parent = folder
@@ -25,7 +26,7 @@ if not gate then
 	gate = Instance.new("Part")
 	gate.Name = "Gate"
 	gate.Size = Vector3.new(10, 12, 1)
-	gate.Position = Vector3.new(12, 11, -40)
+	gate.Position = Vector3.new(8, 11, -40)
 	gate.Anchored = true
 	gate.Color = Color3.fromRGB(180, 60, 60)
 	gate.Parent = folder
