@@ -269,6 +269,32 @@ class TestValidatorGuards(unittest.TestCase):
             self.assertFalse(ok2)
             self.assertTrue(any("PlayerRespawn" in e for e in errs2))
 
+    def test_reject_checkpoints_setattr_part_and_hit_parent(self):
+        from forge.validator import validate_file
+
+        with tempfile.TemporaryDirectory() as td:
+            p = Path(td) / "Checkpoints.server.luau"
+            p.write_text(
+                "--!strict\n"
+                "local Remotes = require(game.ReplicatedStorage.Gameplay.Remotes)\n"
+                "local function onCheckpointTouched(hit)\n"
+                "  local cp = hit.Parent\n"
+                "  plr:SetAttribute(\"Checkpoint\", cp)\n"
+                "  Remotes.CheckpointReached:FireClient(plr, 1)\n"
+                "end\n"
+                "child.Touched:Connect(onCheckpointTouched)\n"
+                "hum.Died:Connect(function() plr:LoadCharacter() end)\n",
+                encoding="utf-8",
+            )
+            ok, errs = validate_file(p)
+            self.assertFalse(ok)
+            joined = " ".join(errs)
+            self.assertIn("idx", joined.lower() + "number")
+            self.assertTrue(
+                "hit.Parent" in joined or "SetAttribute" in joined or "number" in joined,
+                errs,
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

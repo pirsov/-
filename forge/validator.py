@@ -111,16 +111,43 @@ def validate_file(path: Path) -> Tuple[bool, List[str]]:
         ):
             errors.append("uses Players service without GetService")
 
-    # Checkpoints must keep touch + death wiring (P30.2 attempt3 deleted both)
+    # Checkpoints must keep touch + death wiring with a *numeric* checkpoint index
     if name == "Checkpoints.server.luau":
         if "Touched" not in content:
             errors.append("Checkpoints.server.luau missing Touched handlers")
-        if "Died" not in content:
-            errors.append("Checkpoints.server.luau missing Humanoid.Died handling")
-        if "SetAttribute" not in content or "Checkpoint" not in content:
-            errors.append("Checkpoints.server.luau must SetAttribute('Checkpoint', idx)")
+        if "Died" not in content and "LoadCharacter" not in content:
+            errors.append("Checkpoints.server.luau missing Humanoid.Died / LoadCharacter handling")
+        # Must store a number index, not a BasePart Instance
+        if not re.search(
+            r'SetAttribute\(\s*["\']Checkpoint["\']\s*,\s*(idx|index|checkpointIndex|n)\s*\)',
+            content,
+        ):
+            errors.append(
+                "Checkpoints must SetAttribute(\"Checkpoint\", idx) with a number — "
+                "not a Part/Instance"
+            )
+        if re.search(r'SetAttribute\(\s*["\']Checkpoint["\']\s*,\s*cp\s*\)', content):
+            errors.append("SetAttribute(\"Checkpoint\", cp) is wrong — pass numeric idx")
         if "FireClient" not in content:
             errors.append("Checkpoints.server.luau must FireClient CheckpointReached")
+        # Teleport must resolve CheckpointN from workspace folder
+        if not re.search(r'FindFirstChild\(\s*["\']Checkpoint["\']\s*\.\.', content) and not re.search(
+            r'FindFirstChild\(\s*["\']Checkpoint["\'].*idx|FindFirstChild\(\s*"Checkpoint"\s*\.\.\s*tostring',
+            content,
+        ):
+            if not re.search(r'Checkpoint"\s*\.\.\s*|Checkpoint\'\s*\.\.\s*|Checkpoint"\s*\.\.\s*tostring', content):
+                errors.append("Checkpoints teleport must FindFirstChild(\"Checkpoint\"..idx)")
+        # Reject module-style return (Script, not ModuleScript)
+        if re.search(r"(?m)^return\s+Checkpoints\s*$", content):
+            errors.append("Checkpoints.server.luau must not return a table (it is a Script)")
+        # Common broken Touched: treat character as checkpoint part
+        if re.search(
+            r"onCheckpointTouched|Touched:Connect",
+            content,
+        ) and re.search(r"local\s+cp\s*=\s*hit\.Parent", content):
+            errors.append(
+                "Touched handler bug: hit is the touching limb; checkpoint is `part`/`child`, not hit.Parent"
+            )
 
     return len(errors) == 0, errors
 

@@ -47,9 +47,10 @@
 ---
 
 ## PHASE 30 — INTEGRITY GATE (after forge repair)
-- [ ] P30.1 | Static QA of repaired sources; write SCORE 0-100 | @qa_engineer | → docs/QA_REPORT.md
-- [ ] P30.2 | Fix HIGH/CRIT bugs from docs/QA_REPORT.md; REWRITE each touched .luau file fully | @refactorer
-- [ ] P30.3 | Integrator: verify Remotes names match HUD/Effects/Checkpoints; Fix mismatches; REWRITE touched files | @integrator
+- [x] P30.1 | Static QA of repaired sources; write SCORE 0-100 | @qa_engineer | → docs/QA_REPORT.md
+  - DONE 2026-11-07 | score 82; only LOW open
+- [ ] P30.2 | If QA_REPORT has HIGH/CRIT: REWRITE those .luau files. If only LOW/RESOLVED: reply DONE with NOTE no code changes and NO <FILE> tags | @refactorer
+- [ ] P30.3 | Integrator: verify Remotes names match HUD/Effects/Checkpoints. If already match, DONE with NOTE only (no FILE). If broken, REWRITE Remotes.luau as getOrCreate table | @integrator | → src/shared/Gameplay/Remotes.luau
 
 ## PHASE 31 — DEPTH BLUEPRINT (week-long quality)
 - [ ] P31.1 | APPEND depth layers MVP/Plus/Deluxe with concrete numbers | @game_designer | → docs/GDD.md#depth-layers

@@ -104,6 +104,9 @@ def parse_task_line(line: str) -> Optional[Task]:
         WriteMode.APPEND,
         WriteMode.DOCS,
     }
+    # Explicit no-op / note-only tasks (even with → path for reference)
+    if re.search(r"no <file>|note only|no code changes|already match", desc, re.I):
+        requires = False
     return Task(
         raw=line,
         task_id=task_id,

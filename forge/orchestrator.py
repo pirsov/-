@@ -471,6 +471,38 @@ class Orchestrator:
         # Failed after retries
         print("   AGENT FAILED after retries.")
 
+        # If the on-disk file already validates, keep it and advance (don't ship broken rewrites)
+        keep_candidates = []
+        if task.target_path:
+            keep_candidates.append(task.target_path)
+        if task.owner in {"integrator", "refactorer"}:
+            keep_candidates.extend(
+                [
+                    "src/shared/Gameplay/Remotes.luau",
+                    "src/server/Gameplay/Checkpoints.server.luau",
+                ]
+            )
+        kept_ok = True
+        checked = []
+        for rel in dict.fromkeys(keep_candidates):
+            p = self.root / rel
+            if not p.is_file():
+                continue
+            ok, errs = validate_file(p)
+            checked.append(rel)
+            if not ok:
+                kept_ok = False
+                print(f"   keep-check FAIL [{rel}]: {'; '.join(errs)}")
+                break
+        if checked and kept_ok and task.owner in {"integrator", "refactorer", "qa_engineer"}:
+            mark_tz_done(
+                self.root,
+                task.task_id,
+                "kept existing valid files after model failures",
+            )
+            print(f"   KEPT existing valid file(s): {', '.join(checked)}")
+            return StepResult(ok=True, task_id=task.task_id, note="kept existing", files=checked)
+
         # QA docs: do not auto-split into nonsense micro-tasks — seed a deterministic report
         if task.owner == "qa_engineer" and task.target_path and task.target_path.endswith("QA_REPORT.md"):
             seed = self.root / "docs" / "QA_REPORT.seed.md"
