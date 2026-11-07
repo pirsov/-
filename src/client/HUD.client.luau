@@ -10,27 +10,23 @@ screen.Name = "HUD"
 screen.ResetOnSpawn = false
 screen.Parent = gui
 
-local timer = Instance.new("TextLabel")
-timer.Name = "Timer"
-timer.Text = "Time: 0s"
-timer.Size = UDim2.new(0, 200, 0, 40)
-timer.Position = UDim2.new(0.5, -100, 0, 10)
-timer.BackgroundTransparency = 0.5
-timer.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
-timer.TextColor3 = Color3.new(1, 1, 1)
-timer.TextScaled = true
-timer.Parent = screen
+local function makeLabel(name: string, text: string, y: number): TextLabel
+	local label = Instance.new("TextLabel")
+	label.Name = name
+	label.Text = text
+	label.Size = UDim2.new(0, 200, 0, 40)
+	label.Position = UDim2.new(0.5, -100, 0, y)
+	label.BackgroundTransparency = 0.5
+	label.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+	label.TextColor3 = Color3.new(1, 1, 1)
+	label.TextScaled = true
+	label.Parent = screen
+	return label
+end
 
-local cpLabel = Instance.new("TextLabel")
-cpLabel.Name = "CheckpointCount"
-cpLabel.Text = "CP: 0"
-cpLabel.Size = UDim2.new(0, 200, 0, 40)
-cpLabel.Position = UDim2.new(0.5, -100, 0, 60)
-cpLabel.BackgroundTransparency = 0.5
-cpLabel.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
-cpLabel.TextColor3 = Color3.new(1, 1, 1)
-cpLabel.TextScaled = true
-cpLabel.Parent = screen
+local timer = makeLabel("Timer", "Time: 0s", 10)
+local cpLabel = makeLabel("CheckpointCount", "CP: 0", 60)
+local coinLabel = makeLabel("CoinCount", "Coins: 0", 110)
 
 task.spawn(function()
 	local start = tick()
@@ -44,3 +40,8 @@ local Remotes = require(ReplicatedStorage:WaitForChild("Gameplay"):WaitForChild(
 Remotes.CheckpointReached.OnClientEvent:Connect(function(idx)
 	cpLabel.Text = "CP: " .. tostring(idx)
 end)
+if Remotes.CoinCollected then
+	Remotes.CoinCollected.OnClientEvent:Connect(function(total)
+		coinLabel.Text = "Coins: " .. tostring(total)
+	end)
+end

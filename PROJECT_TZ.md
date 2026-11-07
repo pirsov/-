@@ -1,94 +1,68 @@
-﻿# LAST_UPDATE: 2026-11-07 06:30:00
-# NEXT_AGENT: @qa_engineer
-# FORGE: Quality Forge week-long pipeline — resume anytime; first `- [ ]` wins
-# RUN: python run.py --loop --max 500
-#       python run.py --score
+﻿# LAST_UPDATE: 2026-11-07 13:55:00
+# FORGE: WEEK MODE — seed-first, 14b for code, no micro-split
+# RUN:  python run.py --week
+#       python run.py --loop --max 200 --sleep 30
 #       python run.py --validate
+# DAILY HUMAN: open Studio, smoke checkpoints+coins+plate, mark @human [x]
 
 ## LEGEND
-- [ ] — pending
-- [x] — done
-- [-] — blocked (see NOTE below the task)
-- @human — needs human action, agents do not touch
+- [ ] pending | [x] done | @human = you once/day (~10 min)
 
 ## QUALITY GATES
-- Gate A (after SYSTEMS): `python run.py --validate` must exit 0
-- Gate B (after CRITIQUE): QA SCORE ≥ 80 in docs/QA_REPORT.md
-- Gate C (after HARDEN): human Studio smoke test
+- After every 5 agent steps orchestrator runs validate (week mode)
+- Gate Studio (@human): no red errors; CP touch; coin pickup; pressure plate
+- Never rewrite Remotes/Checkpoints/Coins/Generator from scratch — APPEND or NOTE-only
 
 ---
 
-## PHASE 1 — CONCEPT  (BLUEPRINT)
-- [x] P1.1 | Define genre + core loop (3-5 bullet points, concrete) | @game_designer | → docs/GDD.md#core-loop
-- [x] P1.2 | Define win/lose conditions + scoring | @game_designer | → docs/GDD.md#win-lose
-- [x] P1.3 | List MVP features (5-10, each 1 line) | @game_designer | → docs/GDD.md#mvp
-- [x] P1.4 | Human review of GDD | @human
-
-## PHASE 2 — ARCHITECTURE  (BLUEPRINT)
-- [x] P2.1 | Create Rojo folder tree + default.project.json | @tech_architect | → src/ + default.project.json
-- [x] P2.2 | List required scripts (file path + single responsibility) | @tech_architect | → docs/ARCHITECTURE.md
-- [x] P2.3 | Define RemoteEvents contract (name → payload) | @tech_architect | → docs/ARCHITECTURE.md#remotes
-
-## PHASE 3–7 — MVP SYSTEMS (completed; sources repaired 2026-11-07 after APPEND overwrite bug)
-- [x] P3.1 | Server: player data (DataStore, pcall, autosave) | @gameplay_programmer | → src/server/Data/PlayerData.server.luau
-- [x] P3.2 | Server: checkpoints + respawn | @gameplay_programmer | → src/server/Gameplay/Checkpoints.server.luau
-- [x] P3.3 | Shared: leaderboard remotes module | @gameplay_programmer | → src/shared/Gameplay/Remotes.luau
-- [x] P3.4 | Client: HUD (timer, checkpoint count) | @client_programmer | → src/client/HUD.client.luau
-- [x] P3.5 | Client: sound + UI polish | @client_programmer | → src/client/Effects.client.luau
-- [x] P4.1 | Level generator script (10 checkpoints, increasing gap) | @gameplay_programmer | → src/server/Level/Generator.server.luau
-- [x] P4.2 | Human playtest in Studio | @human
-- [x] P5.1 | Static review of all .luau files, produce report | @qa_engineer | → docs/QA_REPORT.md
-- [x] P5.2 | Fix HIGH/CRIT bugs from QA_REPORT | @refactorer | (edits existing files)
-- [x] P6.1 | Write docs/RELEASE.md with rojo build command + publish checklist | @builder | → docs/RELEASE.md
-- [x] P20.1-P20.19 | Micro rebuild (historical; corrupted by APPEND overwrite — repaired) | @refactorer
-- [x] P20.20 | Rewrite PlayerData.server.luau with task.wait autosave (no wait()) | @refactorer | → src/server/Data/PlayerData.server.luau
-  - DONE 2026-11-07 06:30 | Repaired manually as part of orchestrator bugfix; uses task.wait(60)
+## BASELINE (already shipped — do not reopen)
+- [x] W0.1 | MVP Remotes+Checkpoints+HUD+Effects+PlayerData+LevelConfig+Coins+Generator+Void+Puzzles seeds | @human
+- [x] W0.2 | Phase 1–7 historical MVP | @human
 
 ---
 
-## PHASE 30 — INTEGRITY GATE (after forge repair)
-- [x] P30.1 | Static QA of repaired sources; write SCORE 0-100 | @qa_engineer | → docs/QA_REPORT.md
-  - DONE 2026-11-07 | score 82; only LOW open
-- [ ] P30.2 | If QA_REPORT has HIGH/CRIT: REWRITE those .luau files. If only LOW/RESOLVED: reply DONE with NOTE no code changes and NO <FILE> tags | @refactorer
-- [ ] P30.3 | Integrator: verify Remotes names match HUD/Effects/Checkpoints. If already match, DONE with NOTE only (no FILE). If broken, REWRITE Remotes.luau as getOrCreate table | @integrator | → src/shared/Gameplay/Remotes.luau
+## DAY 1 — LOCK BASELINE (docs only + verify)
+- [ ] W1.1 | APPEND week goals: concrete studs (gap 50/70/90/110/130, coin Y=7) | @game_designer | → docs/GDD.md#week-goals
+- [ ] W1.2 | REWRITE docs/SYSTEMS.md short: remotes table + attributes Checkpoint/Coins/BestTime | @systems_designer | → docs/SYSTEMS.md
+- [ ] W1.3 | Static QA SCORE; only open bugs; no PlayerRespawn as CRIT | @qa_engineer | → docs/QA_REPORT.md
+- [ ] W1.4 | If only LOW: DONE NOTE no FILE. Else fix HIGH only | @refactorer
+- [ ] W1.5 | Studio smoke baseline (CP, coin, void, plate) | @human
 
-## PHASE 31 — DEPTH BLUEPRINT (week-long quality)
-- [ ] P31.1 | APPEND depth layers MVP/Plus/Deluxe with concrete numbers | @game_designer | → docs/GDD.md#depth-layers
-- [ ] P31.2 | APPEND puzzle types + section layout (5 sections) | @game_designer | → docs/GDD.md#sections
-- [ ] P31.3 | Write system specs for puzzles, coins, leaderboard | @systems_designer | → docs/SYSTEMS.md
-- [ ] P31.4 | Extend ARCHITECTURE with new module paths for Plus features | @tech_architect | → docs/ARCHITECTURE.md#plus-modules
+## DAY 2 — GENERATOR TUNE (tiny edits)
+- [ ] W2.1 | APPEND one print after spawn listing section ids from LevelConfig | @gameplay_programmer | → src/server/Level/Generator.server.luau
+- [ ] W2.2 | LevelConfig: set coins per section to 5,5,5,5,8 (REWRITE full return table only) | @content_author | → src/shared/Content/LevelConfig.luau
+- [ ] W2.3 | NOTE-only: confirm Remotes has CoinCollected; if missing REWRITE full Remotes getOrCreate table | @integrator | → src/shared/Gameplay/Remotes.luau
+- [ ] W2.4 | Studio: coins appear between checkpoints | @human
 
-## PHASE 32 — PLUS SYSTEMS (one module per task)
-- [ ] P32.1 | Create SCRIPT (not ModuleScript) Coins.server.luau: --!strict, no top-level return; on coin Part Touched award attribute Coins+=1 and Remotes.CoinCollected:FireClient; use require Gameplay.Remotes | @gameplay_programmer | → src/server/Gameplay/Coins.server.luau
-- [ ] P32.2 | REWRITE full Remotes.luau (do not APPEND after return): keep getOrCreate + return table including CoinCollected | @gameplay_programmer | → src/shared/Gameplay/Remotes.luau
-- [x] P32.3 | Create shared Content/LevelConfig.luau (gaps, coin counts per section) | @content_author | → src/shared/Content/LevelConfig.luau
-  - DONE 2026-11-07 | LevelConfig with gaps 50..130 — verify locally; may need --!strict
-- [ ] P32.4 | Rewrite Generator.server.luau: require LevelConfig from ReplicatedStorage.Content; spawn Checkpoint1..N and Coin parts; NO BreakJoints; NO require Checkpoints module; no markdown fences | @gameplay_programmer | → src/server/Level/Generator.server.luau
-- [ ] P32.5 | APPEND coin count label to HUD (APPEND only) | @client_programmer | → src/client/HUD.client.luau
-- [ ] P32.6 | APPEND coin pickup sound in Effects (APPEND only) | @client_programmer | → src/client/Effects.client.luau
-- [ ] P32.7 | Create simple pressure-plate puzzle server script | @gameplay_programmer | → src/server/Gameplay/Puzzles.server.luau
-- [ ] P32.8 | PlayerData: persist coins + bestTime with pcall | @gameplay_programmer | → src/server/Data/PlayerData.server.luau
+## DAY 3 — HUD / FX POLISH (APPEND only)
+- [ ] W3.1 | APPEND: when CoinCollected fires, flash CoinCount BackgroundTransparency 0.1→0.5 via TweenService | @client_programmer | → src/client/Effects.client.luau
+- [ ] W3.2 | APPEND: show BestTime attribute under coins if present | @client_programmer | → src/client/HUD.client.luau
+- [ ] W3.3 | QA SCORE after client polish | @qa_engineer | → docs/QA_REPORT.md
+- [ ] W3.4 | Studio: coin sound + HUD coins update | @human
 
-## PHASE 33 — CRITIQUE LOOP (repeatable quality)
-- [ ] P33.1 | Full QA with SCORE; list CRIT/HIGH | @qa_engineer | → docs/QA_REPORT.md
-- [ ] P33.2 | Fix HIGH/CRIT from P33.1 | @refactorer
-- [ ] P33.3 | Re-QA; if SCORE < 80 note what remains | @qa_engineer | → docs/QA_REPORT.md
-- [ ] P33.4 | Fix remaining HIGH/CRIT from P33.3 | @refactorer
-- [ ] P33.5 | Final QA gate; SCORE must be documented | @qa_engineer | → docs/QA_REPORT.md
+## DAY 4 — PUZZLE HARDENING
+- [ ] W4.1 | APPEND debounce: ignore TouchEnded spam; standing counter never negative (already mostly done — only if broken REWRITE full Puzzles.server.luau seed-style) | @gameplay_programmer | → src/server/Gameplay/Puzzles.server.luau
+- [ ] W4.2 | APPEND GDD section: PressurePlate at (12,5,-30), Gate at (12,11,-40) | @game_designer | → docs/GDD.md#puzzle-layout
+- [ ] W4.3 | Studio: stand on plate opens gate | @human
 
-## PHASE 34 — POLISH
-- [ ] P34.1 | APPEND juice notes (tween pulses, checkpoint flash) to GDD | @game_designer | → docs/GDD.md#juice
-- [ ] P34.2 | Client: checkpoint flash tween on CheckpointReached | @client_programmer | → src/client/Effects.client.luau
-- [ ] P34.3 | Server: kill brick void below Y=-20 teleports via checkpoint (no Health=0) | @gameplay_programmer | → src/server/Gameplay/Void.server.luau
-- [ ] P34.4 | Builder: refresh RELEASE.md with Plus feature checklist | @builder | → docs/RELEASE.md
+## DAY 5 — DATA + SCORING
+- [ ] W5.1 | APPEND on PlayerRemoving: if timer exists set BestTime when better (read attribute TimeAlive or skip if missing) | @gameplay_programmer | → src/server/Data/PlayerData.server.luau
+- [ ] W5.2 | APPEND SYSTEMS: BestTime persistence notes | @systems_designer | → docs/SYSTEMS.md
+- [ ] W5.3 | QA SCORE | @qa_engineer | → docs/QA_REPORT.md
+- [ ] W5.4 | Fix HIGH/CRIT only; else NOTE no FILE | @refactorer
 
-## PHASE 35 — HARDEN + HUMAN
-- [ ] P35.1 | Integrator pass: cross-file remotes + attribute names | @integrator
-- [ ] P8.1 | rojo build + open build/game.rbxlx in Studio, capture errors from Output | @human
-- [ ] P6.2 | Human final check | @human
+## DAY 6 — POLISH PASS
+- [ ] W6.1 | APPEND juice: checkpoint flash already in Effects — document only | @game_designer | → docs/GDD.md#juice
+- [ ] W6.2 | Builder: RELEASE checklist includes coins+plate+void | @builder | → docs/RELEASE.md
+- [ ] W6.3 | Integrator NOTE-only cross-check remotes names | @integrator
+- [ ] W6.4 | Studio full smoke 10 min | @human
 
-## BACKLOG — DEEPEN (orchestrator may unlock if week continues)
-- [ ] P90.1 | Deluxe: moving platforms server script | @gameplay_programmer | → src/server/Level/MovingPlatforms.server.luau
-- [ ] P90.2 | Deluxe: leaderboard UpdateLeaderboard top-10 UI | @client_programmer | → src/client/Leaderboard.client.luau
-- [ ] P90.3 | Deluxe: 3 more sections in LevelConfig | @content_author | → src/shared/Content/LevelConfig.luau
-- [ ] P90.4 | Deluxe: sequence puzzle type | @gameplay_programmer | → src/server/Gameplay/SequencePuzzle.server.luau
+## DAY 7 — CRITIQUE + FREEZE
+- [ ] W7.1 | Full QA with SCORE; list only real open bugs | @qa_engineer | → docs/QA_REPORT.md
+- [ ] W7.2 | Fix HIGH/CRIT only | @refactorer
+- [ ] W7.3 | Re-QA SCORE must be documented ≥ 80 or explain | @qa_engineer | → docs/QA_REPORT.md
+- [ ] W7.4 | Human final accept / ship | @human
+
+## BACKLOG (only if Day 7 finishes early — still seed-sized)
+- [ ] W9.1 | Create MovingPlatforms.server.luau: one Part tween Z -20↔-80 loop Anchored | @gameplay_programmer | → src/server/Level/MovingPlatforms.server.luau
+- [ ] W9.2 | Leaderboard.client.luau: listen UpdateLeaderboard stub TextLabel | @client_programmer | → src/client/Leaderboard.client.luau

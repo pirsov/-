@@ -25,7 +25,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 from . import ollama_client
-from .prompts import AGENT_MODELS, ESCALATION, FALLBACK_ANY, build_prompt
+from .prompts import AGENT_MODELS, ESCALATION, FALLBACK_ANY, WEEK_MODE, build_prompt
 from .task_parser import Task, WriteMode, find_pending_tasks, parse_task_line
 from .validator import validate_file, validate_project_integrity
 
@@ -117,6 +117,13 @@ KNOWN_SEEDS = {
     "src/server/Gameplay/Coins.server.luau": "src/server/Gameplay/Coins.server.luau",
     "src/shared/Gameplay/Remotes.luau": "src/shared/Gameplay/Remotes.luau",
     "src/shared/Content/LevelConfig.luau": "src/shared/Content/LevelConfig.luau",
+    "src/server/Level/Generator.server.luau": "src/server/Level/Generator.server.luau",
+    "src/server/Gameplay/Void.server.luau": "src/server/Gameplay/Void.server.luau",
+    "src/server/Gameplay/Puzzles.server.luau": "src/server/Gameplay/Puzzles.server.luau",
+    "src/server/Gameplay/Checkpoints.server.luau": "src/server/Gameplay/Checkpoints.server.luau",
+    "src/client/HUD.client.luau": "src/client/HUD.client.luau",
+    "src/client/Effects.client.luau": "src/client/Effects.client.luau",
+    "src/server/Data/PlayerData.server.luau": "src/server/Data/PlayerData.server.luau",
     "docs/QA_REPORT.md": "docs/QA_REPORT.seed.md",
 }
 
@@ -632,19 +639,19 @@ class Orchestrator:
             print("   SEEDED docs/QA_REPORT.md and marked done")
             return StepResult(ok=True, task_id=task.task_id, note="seeded QA", files=[task.target_path])
 
-        if task.task_id.count(".") >= 2:
-            add_tz_note(self.root, task.task_id, "FAILED", "needs human rewrite of prompt")
-            write_heartbeat(self.root, {"status": "failed", "task": task.task_id})
-            return StepResult(ok=False, task_id=task.task_id, reason="failed")
-
-        # Only auto-decompose code modules, never markdown QA
-        if task.target_path and task.target_path.endswith(".luau"):
-            micros = decompose_task(task)
-            add_tz_note(self.root, task.task_id, "AUTO-SPLIT", "decomposed after failures; see micro-tasks")
-            mark_tz_done(self.root, task.task_id, "SUPERSEDED by auto-decompose micro-tasks")
-            insert_micro_tasks(self.root, task.task_id, micros)
-            print(f"   inserted {len(micros)} micro-tasks")
-            return StepResult(ok=True, task_id=task.task_id, note="auto-decomposed", reason="decomposed")
+        # Week mode: NEVER micro-split code — skip task with note or stop
+        if WEEK_MODE.get("disable_micro_split", True):
+            add_tz_note(
+                self.root,
+                task.task_id,
+                "SKIPPED",
+                "week mode: model failed; seed kept / fix prompt manually",
+            )
+            # Mark done so the week continues past poison tasks
+            mark_tz_done(self.root, task.task_id, "SKIPPED after failures (week mode, no micro-split)")
+            print("   SKIPPED task (week mode) — continuing pipeline")
+            write_heartbeat(self.root, {"status": "skipped", "task": task.task_id})
+            return StepResult(ok=True, task_id=task.task_id, note="skipped", reason="skipped")
 
         add_tz_note(self.root, task.task_id, "FAILED", "see logs — fix prompt or model")
         write_heartbeat(self.root, {"status": "failed", "task": task.task_id})
@@ -659,6 +666,7 @@ def run_loop(
     dry_run: bool = False,
     mock_responses: Optional[Dict[str, List[str]]] = None,
     stop_on_human: bool = True,
+    validate_every: int = 0,
 ) -> int:
     orch = Orchestrator(root, dry_run=dry_run, mock_responses=mock_responses)
     completed = 0
@@ -669,6 +677,17 @@ def run_loop(
                 break
             break
         completed += 1
+        if validate_every > 0 and completed % validate_every == 0:
+            ok, errs = validate_project_integrity(root)
+            print(f"   [gate] validate after {completed} steps: {'OK' if ok else 'INVALID'}")
+            if not ok:
+                for e in errs[:8]:
+                    print(f"      FAIL: {e}")
+                write_heartbeat(root, {"status": "gate_failed", "errors": errs[:8]})
+                print("   Stopping week loop — fix sources or git checkout seeds, then re-run.")
+                break
+            score, _ = quality_score(root)
+            print(f"   [gate] quality_score={score}")
         if sleep_s > 0 and i + 1 < max_steps:
             time.sleep(sleep_s)
     return completed
@@ -677,6 +696,7 @@ def run_loop(
 def main(argv: Optional[List[str]] = None) -> int:
     parser = argparse.ArgumentParser(description="Quality Forge — long-horizon game orchestrator")
     parser.add_argument("--loop", action="store_true", help="Process many tasks in one run")
+    parser.add_argument("--week", action="store_true", help="Week mode: loop + sleep + validate gates + no micro-split")
     parser.add_argument("--max", type=int, default=None, help="Max steps (default 1, or 500 with --loop)")
     parser.add_argument("--sleep", type=float, default=0.0, help="Seconds between steps (week-long pacing)")
     parser.add_argument("--root", type=str, default=str(ROOT_DEFAULT))
@@ -706,8 +726,18 @@ def main(argv: Optional[List[str]] = None) -> int:
         print("OK" if ok else "INVALID")
         return 0 if ok else 1
 
-    max_steps = args.max if args.max is not None else (500 if args.loop else 1)
-    print(f"Quality Forge | root={root} | max_steps={max_steps}")
+    week = bool(args.week)
+    if week:
+        max_steps = args.max if args.max is not None else 200
+        sleep_s = args.sleep if args.sleep > 0 else 30.0
+        validate_every = int(WEEK_MODE.get("validate_every_n_steps") or 5)
+        print("Quality Forge WEEK MODE | seed-first | no micro-split | 14b code models")
+    else:
+        max_steps = args.max if args.max is not None else (500 if args.loop else 1)
+        sleep_s = args.sleep
+        validate_every = 0
+
+    print(f"Quality Forge | root={root} | max_steps={max_steps} | sleep={sleep_s}s | gate_every={validate_every}")
     if not args.dry_run:
         if not ollama_client.ping():
             print("ERROR: Ollama not reachable at localhost:11434")
@@ -715,12 +745,22 @@ def main(argv: Optional[List[str]] = None) -> int:
             return 1
         installed = installed_models(force=True)
         if not installed:
-            print("ERROR: Ollama has no models. Example: ollama pull qwen2.5-coder:7b-2k")
+            print("ERROR: Ollama has no models. Example: ollama pull qwen2.5-coder:14b-4k")
             return 1
         print(f"Ollama models: {', '.join(installed)}")
 
-    completed = run_loop(root, max_steps=max_steps, sleep_s=args.sleep, dry_run=args.dry_run)
+    completed = run_loop(
+        root,
+        max_steps=max_steps,
+        sleep_s=sleep_s,
+        dry_run=args.dry_run,
+        validate_every=validate_every,
+    )
     print(f"Completed {completed} step(s).")
+    score, notes = quality_score(root)
+    print(f"Final quality score: {score}/100")
+    if week:
+        print("Next: if HITL, do Studio smoke, mark @human [x] in PROJECT_TZ.md, re-run --week")
     return 0
 
 

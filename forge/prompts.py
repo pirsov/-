@@ -29,7 +29,7 @@ AGENT_MODELS: Dict[str, dict] = {
 }
 
 # Ensure every known role has an entry even if JSON is trimmed
-_FALLBACK_ROLE = {"model": "qwen2.5-coder:7b-2k", "ctx": 4096, "predict": 2048}
+_FALLBACK_ROLE = {"model": "qwen2.5-coder:14b-4k", "ctx": 4096, "predict": 4096}
 for _role in (
     "game_designer",
     "tech_architect",
@@ -45,11 +45,16 @@ for _role in (
     AGENT_MODELS.setdefault(_role, dict(_FALLBACK_ROLE))
 
 ESCALATION: List[str] = list(_CFG.get("escalation") or [
-    "qwen2.5-coder:3b",
-    "qwen2.5-coder:7b-2k",
     "qwen2.5-coder:14b-4k",
+    "qwen2.5-coder:14b-2k",
+    "qwen2.5-coder:14b",
 ])
 FALLBACK_ANY = bool(_CFG.get("fallback_any", True))
+WEEK_MODE: dict = dict(_CFG.get("week_mode") or {
+    "disable_micro_split": True,
+    "seed_first": True,
+    "validate_every_n_steps": 5,
+})
 
 
 def extract_agent_section(agents_md: str, owner: str) -> str:

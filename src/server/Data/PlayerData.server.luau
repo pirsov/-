@@ -2,15 +2,15 @@
 local DataStoreService = game:GetService("DataStoreService")
 local Players = game:GetService("Players")
 
-local playerDataStore = DataStoreService:GetDataStore("PlayerData")
+local playerDataStore = DataStoreService:GetDataStore("PlayerData_v2")
 
 local function savePlayerData(player: Player)
 	local success, result = pcall(function()
-		local score = player:GetAttribute("Score")
-		local checkpoint = player:GetAttribute("Checkpoint")
 		playerDataStore:SetAsync(player.UserId, {
-			Score = score,
-			Checkpoint = checkpoint,
+			Score = player:GetAttribute("Score"),
+			Checkpoint = player:GetAttribute("Checkpoint"),
+			Coins = player:GetAttribute("Coins"),
+			BestTime = player:GetAttribute("BestTime"),
 		})
 	end)
 	if not success then
@@ -25,12 +25,16 @@ local function onPlayerAdded(player: Player)
 	if success and typeof(result) == "table" then
 		player:SetAttribute("Score", result.Score or 0)
 		player:SetAttribute("Checkpoint", result.Checkpoint or 0)
+		player:SetAttribute("Coins", result.Coins or 0)
+		player:SetAttribute("BestTime", result.BestTime or 0)
 	else
 		if not success then
 			warn("Failed to load player data: " .. tostring(result))
 		end
 		player:SetAttribute("Score", 0)
 		player:SetAttribute("Checkpoint", 0)
+		player:SetAttribute("Coins", 0)
+		player:SetAttribute("BestTime", 0)
 	end
 
 	task.spawn(function()
@@ -41,12 +45,8 @@ local function onPlayerAdded(player: Player)
 	end)
 end
 
-local function onPlayerRemoving(player: Player)
-	savePlayerData(player)
-end
-
 Players.PlayerAdded:Connect(onPlayerAdded)
-Players.PlayerRemoving:Connect(onPlayerRemoving)
+Players.PlayerRemoving:Connect(savePlayerData)
 
 for _, player in ipairs(Players:GetPlayers()) do
 	task.spawn(onPlayerAdded, player)

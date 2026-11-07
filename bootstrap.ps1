@@ -73,13 +73,13 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 if ($Marathon) {
-    Write-Host "=== Starting marathon (max=$Max) ===" -ForegroundColor Magenta
-    & $py run.py --loop --max $Max
+    Write-Host "=== Starting WEEK mode (max=$Max) ===" -ForegroundColor Magenta
+    & $py run.py --week --max $Max
     exit $LASTEXITCODE
 }
 
 Write-Host ""
 Write-Host "Next:" -ForegroundColor Cyan
 Write-Host "  .\bootstrap.ps1 -Marathon"
-Write-Host "  python run.py --loop --max 500"
-Write-Host "  powershell -ExecutionPolicy Bypass -File .\run.ps1 -Loop"
+Write-Host "  python run.py --week"
+Write-Host "  python run.py --validate"

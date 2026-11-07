@@ -172,9 +172,13 @@ def validate_project_integrity(root: Path) -> Tuple[bool, List[str]]:
     for rel in (
         "src/server/Level/Generator.server.luau",
         "src/server/Gameplay/Checkpoints.server.luau",
+        "src/server/Gameplay/Coins.server.luau",
+        "src/server/Gameplay/Void.server.luau",
+        "src/server/Gameplay/Puzzles.server.luau",
         "src/client/HUD.client.luau",
         "src/client/Effects.client.luau",
         "src/server/Data/PlayerData.server.luau",
+        "src/shared/Content/LevelConfig.luau",
     ):
         p = root / rel
         if not p.exists():

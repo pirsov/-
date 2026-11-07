@@ -1,21 +1,27 @@
 {
-  "_comment": "Matched to user's ollama list (2026-11-07). Prefer roblox-coder for Luau, phi4-mini for design/QA prose, 14b-4k for hard refactors.",
+  "_comment": "Week mode: code roles stick to 14b-class. Small models only for prose. Never escalate code down to 3b/7b.",
   "agents": {
-    "game_designer":       { "model": "phi4-mini:4k",        "ctx": 4096, "predict": 2048 },
-    "tech_architect":      { "model": "qwen2.5-coder:7b-2k", "ctx": 2048, "predict": 2048 },
-    "gameplay_programmer": { "model": "roblox-coder:2k",     "ctx": 2048, "predict": 3072 },
-    "client_programmer":   { "model": "roblox-coder:2k",     "ctx": 2048, "predict": 3072 },
-    "qa_engineer":         { "model": "phi4-mini:8k",        "ctx": 8192, "predict": 3072 },
-    "refactorer":          { "model": "qwen2.5-coder:14b-4k","ctx": 4096, "predict": 4096 },
-    "builder":             { "model": "qwen2.5:1.5b-8k",     "ctx": 8192, "predict": 2048 },
-    "systems_designer":    { "model": "phi4-mini:8k",        "ctx": 8192, "predict": 3072 },
-    "content_author":      { "model": "noir:8k",             "ctx": 8192, "predict": 3072 },
-    "integrator":          { "model": "qwen2.5-coder:14b-2k","ctx": 2048, "predict": 4096 }
+    "game_designer":       { "model": "phi4-mini:8k",         "ctx": 8192, "predict": 2048 },
+    "systems_designer":    { "model": "phi4-mini:8k",         "ctx": 8192, "predict": 3072 },
+    "content_author":      { "model": "phi4-mini:8k",         "ctx": 8192, "predict": 2048 },
+    "qa_engineer":         { "model": "phi4-mini:8k",         "ctx": 8192, "predict": 3072 },
+    "builder":             { "model": "phi4-mini:4k",         "ctx": 4096, "predict": 2048 },
+    "tech_architect":      { "model": "qwen2.5-coder:14b-4k", "ctx": 4096, "predict": 3072 },
+    "gameplay_programmer": { "model": "qwen2.5-coder:14b-4k", "ctx": 4096, "predict": 4096 },
+    "client_programmer":   { "model": "qwen2.5-coder:14b-4k", "ctx": 4096, "predict": 4096 },
+    "refactorer":          { "model": "qwen2.5-coder:14b-4k", "ctx": 4096, "predict": 4096 },
+    "integrator":          { "model": "qwen2.5-coder:14b-4k", "ctx": 4096, "predict": 4096 }
   },
   "escalation": [
-    "roblox-coder:2k",
-    "qwen2.5-coder:7b-2k",
-    "qwen2.5-coder:14b-4k"
+    "qwen2.5-coder:14b-4k",
+    "qwen2.5-coder:14b-2k",
+    "qwen2.5-coder:14b"
   ],
-  "fallback_any": true
+  "fallback_any": true,
+  "week_mode": {
+    "disable_micro_split": true,
+    "seed_first": true,
+    "validate_every_n_steps": 5,
+    "max_predict_code": 4096
+  }
 }
