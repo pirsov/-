@@ -1,19 +1,24 @@
 --!strict
--- Studio-safe: unpublished places cannot use DataStore — fall back to attributes only.
+-- Studio playtests: never call GetDataStore (unpublished places hard-error in Output).
+-- Live servers: pcall + persist Score/Checkpoint/Coins/BestTime.
 local DataStoreService = game:GetService("DataStoreService")
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 
 local playerDataStore: DataStore? = nil
-do
+local allowStudioStore = game:GetAttribute("EnableStudioDataStore") == true
+
+if (not RunService:IsStudio()) or allowStudioStore then
 	local ok, store = pcall(function()
 		return DataStoreService:GetDataStore("PlayerData_v2")
 	end)
 	if ok then
 		playerDataStore = store
 	else
-		warn("[PlayerData] DataStore unavailable (publish place + enable Studio API Access). Using session attributes only.")
+		warn("[PlayerData] DataStore unavailable — session attributes only. " .. tostring(store))
 	end
+else
+	print("[PlayerData] Studio offline mode — no DataStore calls (playtest OK without publish).")
 end
 
 local function savePlayerData(player: Player)
@@ -95,8 +100,4 @@ Players.PlayerRemoving:Connect(onPlayerRemoving)
 
 for _, player in ipairs(Players:GetPlayers()) do
 	task.spawn(onPlayerAdded, player)
-end
-
-if RunService:IsStudio() and not playerDataStore then
-	print("[PlayerData] Studio offline mode OK — playtest without publish.")
 end

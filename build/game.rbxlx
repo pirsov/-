@@ -5,264 +5,809 @@
     </Properties>
     <Item class="Folder" referent="1">
       <Properties>
-        <string name="Name">Gameplay</string>
+        <string name="Name">Content</string>
       </Properties>
       <Item class="ModuleScript" referent="2">
         <Properties>
-          <string name="Name">Remotes</string>
-          <string name="Source">--!strict
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-
-local Remotes = {
-    Checkpoint = Instance.new("RemoteEvent"),
-    CheckpointReached = Instance.new("RemoteEvent"),
-    UpdateLeaderboard = Instance.new("RemoteEvent")
-}
-
-for name, remote in pairs(Remotes) do
-    remote.Parent = ReplicatedStorage
-end
-
-return Remotes</string>
-        </Properties>
-      </Item>
-    </Item>
-  </Item>
-  <Item class="ServerScriptService" referent="3">
-    <Properties>
-      <string name="Name">ServerScriptService</string>
-    </Properties>
-    <Item class="Folder" referent="4">
-      <Properties>
-        <string name="Name">Data</string>
-      </Properties>
-      <Item class="Script" referent="5">
-        <Properties>
-          <string name="Name">PlayerData</string>
-          <token name="RunContext">0</token>
+          <string name="Name">LevelConfig</string>
           <string name="Source"><![CDATA[--!strict
-local DataStoreService = game:GetService("DataStoreService")
-local playerDataStore = DataStoreService:GetDataStore("PlayerData")
-
-local function onPlayerAdded(player)
-    local success, result = pcall(function()
-        local data = playerDataStore:GetAsync(player.UserId)
-        if data then
-            player:SetAttribute("Score", data.Score)
-        else
-            player:SetAttribute("Score", 0)
-        end
-    end)
-    if not success then
-        warn("Failed to load player data: " .. result)
-    end
-
-    player.CharacterAdded:Connect(function(character)
-        local humanoid = character:WaitForChild("Humanoid")
-        humanoid.Died:Connect(function()
-            local score = player:GetAttribute("Score")
-            pcall(function()
-                playerDataStore:SetAsync(player.UserId, {Score = score})
-            end)
-        end)
-    end)
-end
-
-game.Players.PlayerAdded:Connect(onPlayerAdded)
+-- Gaps in studs (Z spacing), coin counts per section (week Day 2 targets).
+return {
+	sections = {
+		{ id = 1, gap = 50, coins = 5, puzzle = "Button" },
+		{ id = 2, gap = 70, coins = 5, puzzle = "PressurePlate" },
+		{ id = 3, gap = 90, coins = 5, puzzle = "Sequence" },
+		{ id = 4, gap = 110, coins = 5, puzzle = "Combo" },
+		{ id = 5, gap = 130, coins = 8, puzzle = "Boss" },
+	},
+}
 ]]></string>
         </Properties>
       </Item>
     </Item>
-    <Item class="Folder" referent="6">
+    <Item class="Folder" referent="3">
       <Properties>
         <string name="Name">Gameplay</string>
       </Properties>
-      <Item class="Script" referent="7">
+      <Item class="ModuleScript" referent="4">
         <Properties>
-          <string name="Name">Checkpoints</string>
-          <token name="RunContext">0</token>
-          <string name="Source">--!strict
+          <string name="Name">Remotes</string>
+          <string name="Source"><![CDATA[--!strict
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local Players = game:GetService("Players")
-local DataStoreService = game:GetService("DataStoreService")
 
-local CheckpointDataStore = DataStoreService:GetDataStore("CheckpointData")
-
-local Checkpoints = {}
-
-local function onPlayerAdded(player)
-    local checkpoints = Checkpoints
-    player.Checkpoints = checkpoints
-
-    for i, checkpoint in ipairs(checkpoints) do
-        checkpoint.Touched:Connect(function(hit)
-            local character = hit.Parent
-            if character and character:IsA("Model") and character:FindFirstChild("Humanoid") then
-                local humanoid = character:FindFirstChild("Humanoid")
-                if humanoid.Health &gt; 0 then
-                    local checkpointData = CheckpointDataStore:GetAsync(player.UserId)
-                    if not checkpointData then
-                        checkpointData = {}
-                    end
-
-                    checkpointData[i] = true
-                    CheckpointDataStore:SetAsync(player.UserId, checkpointData)
-
-                    ReplicatedStorage.Remotes.CheckpointReached:FireClient(player, i)
-                end
-            end
-        end)
-    end
-
-    player.CharacterAdded:Connect(function(character)
-        local humanoid = character:WaitForChild("Humanoid")
-        humanoid.Died:Connect(function()
-            local checkpointData = CheckpointDataStore:GetAsync(player.UserId)
-            if checkpointData then
-                for i = 1, #checkpoints do
-                    if checkpointData[i] then
-                        character:SetPrimaryPartCFrame(checkpoints[i].CFrame)
-                        break
-                    end
-                end
-            end
-        end)
-    end)
+local folder = ReplicatedStorage:FindFirstChild("Remotes")
+if not folder then
+	folder = Instance.new("Folder")
+	folder.Name = "Remotes"
+	folder.Parent = ReplicatedStorage
 end
 
-Players.PlayerAdded:Connect(onPlayerAdded)</string>
+local function getOrCreate(name: string): RemoteEvent
+	local r = folder:FindFirstChild(name)
+	if not r then
+		r = Instance.new("RemoteEvent")
+		r.Name = name
+		r.Parent = folder
+	end
+	return r :: RemoteEvent
+end
+
+return {
+	Checkpoint = getOrCreate("Checkpoint"),
+	CheckpointReached = getOrCreate("CheckpointReached"),
+	UpdateLeaderboard = getOrCreate("UpdateLeaderboard"),
+	CoinCollected = getOrCreate("CoinCollected"),
+}
+]]></string>
+        </Properties>
+      </Item>
+    </Item>
+  </Item>
+  <Item class="ServerScriptService" referent="5">
+    <Properties>
+      <string name="Name">ServerScriptService</string>
+    </Properties>
+    <Item class="Folder" referent="6">
+      <Properties>
+        <string name="Name">Data</string>
+      </Properties>
+      <Item class="Script" referent="7">
+        <Properties>
+          <string name="Name">PlayerData</string>
+          <token name="RunContext">0</token>
+          <string name="Source"><![CDATA[--!strict
+-- Studio playtests: never call GetDataStore (unpublished places hard-error in Output).
+-- Live servers: pcall + persist Score/Checkpoint/Coins/BestTime.
+local DataStoreService = game:GetService("DataStoreService")
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+
+local playerDataStore: DataStore? = nil
+local allowStudioStore = game:GetAttribute("EnableStudioDataStore") == true
+
+if (not RunService:IsStudio()) or allowStudioStore then
+	local ok, store = pcall(function()
+		return DataStoreService:GetDataStore("PlayerData_v2")
+	end)
+	if ok then
+		playerDataStore = store
+	else
+		warn("[PlayerData] DataStore unavailable — session attributes only. " .. tostring(store))
+	end
+else
+	print("[PlayerData] Studio offline mode — no DataStore calls (playtest OK without publish).")
+end
+
+local function savePlayerData(player: Player)
+	if not playerDataStore then
+		return
+	end
+	local success, result = pcall(function()
+		playerDataStore:SetAsync(player.UserId, {
+			Score = player:GetAttribute("Score"),
+			Checkpoint = player:GetAttribute("Checkpoint"),
+			Coins = player:GetAttribute("Coins"),
+			BestTime = player:GetAttribute("BestTime"),
+		})
+	end)
+	if not success then
+		warn("Failed to save player data: " .. tostring(result))
+	end
+end
+
+local function updateBestTime(player: Player)
+	local started = player:GetAttribute("RunStartedAt")
+	if typeof(started) ~= "number" then
+		return
+	end
+	local elapsed = os.clock() - (started :: number)
+	if elapsed < 0 then
+		return
+	end
+	local best = player:GetAttribute("BestTime")
+	if typeof(best) ~= "number" then
+		best = 0
+	end
+	if (best :: number) == 0 or elapsed < (best :: number) then
+		player:SetAttribute("BestTime", elapsed)
+	end
+end
+
+local function onPlayerAdded(player: Player)
+	local loaded = false
+	if playerDataStore then
+		local success, result = pcall(function()
+			return playerDataStore:GetAsync(player.UserId)
+		end)
+		if success and typeof(result) == "table" then
+			player:SetAttribute("Score", result.Score or 0)
+			player:SetAttribute("Checkpoint", result.Checkpoint or 0)
+			player:SetAttribute("Coins", result.Coins or 0)
+			player:SetAttribute("BestTime", result.BestTime or 0)
+			loaded = true
+		elseif not success then
+			warn("Failed to load player data: " .. tostring(result))
+		end
+	end
+	if not loaded then
+		player:SetAttribute("Score", 0)
+		player:SetAttribute("Checkpoint", 0)
+		player:SetAttribute("Coins", 0)
+		player:SetAttribute("BestTime", 0)
+	end
+	player:SetAttribute("RunStartedAt", os.clock())
+
+	if playerDataStore then
+		task.spawn(function()
+			while player.Parent do
+				task.wait(60)
+				savePlayerData(player)
+			end
+		end)
+	end
+end
+
+local function onPlayerRemoving(player: Player)
+	updateBestTime(player)
+	savePlayerData(player)
+end
+
+Players.PlayerAdded:Connect(onPlayerAdded)
+Players.PlayerRemoving:Connect(onPlayerRemoving)
+
+for _, player in ipairs(Players:GetPlayers()) do
+	task.spawn(onPlayerAdded, player)
+end
+]]></string>
         </Properties>
       </Item>
     </Item>
     <Item class="Folder" referent="8">
       <Properties>
-        <string name="Name">Level</string>
+        <string name="Name">Gameplay</string>
       </Properties>
       <Item class="Script" referent="9">
         <Properties>
+          <string name="Name">Checkpoints</string>
+          <token name="RunContext">0</token>
+          <string name="Source"><![CDATA[--!strict
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Remotes = require(ReplicatedStorage:WaitForChild("Gameplay"):WaitForChild("Remotes"))
+local folder = workspace:WaitForChild("Checkpoints")
+
+local DEBOUNCE: { [number]: number } = {}
+
+local function hookPart(part: BasePart)
+	local idx = tonumber(string.match(part.Name, "%d+"))
+	if not idx then
+		return
+	end
+	part.Touched:Connect(function(hit: BasePart)
+		local char = hit.Parent
+		if not char then
+			return
+		end
+		local plr = Players:GetPlayerFromCharacter(char)
+		if not plr then
+			return
+		end
+		local now = os.clock()
+		local last = DEBOUNCE[plr.UserId]
+		if last and now - last < 0.35 then
+			return
+		end
+		local current = plr:GetAttribute("Checkpoint") or 0
+		if typeof(current) ~= "number" then
+			current = 0
+		end
+		if idx > (current :: number) then
+			DEBOUNCE[plr.UserId] = now
+			plr:SetAttribute("Checkpoint", idx)
+			Remotes.CheckpointReached:FireClient(plr, idx)
+		end
+	end)
+end
+
+for _, part in ipairs(folder:GetChildren()) do
+	if part:IsA("BasePart") then
+		hookPart(part)
+	end
+end
+
+folder.ChildAdded:Connect(function(child)
+	if child:IsA("BasePart") then
+		hookPart(child)
+	end
+end)
+
+local function teleportToCheckpoint(plr: Player, char: Model)
+	local idx = plr:GetAttribute("Checkpoint") or 0
+	if typeof(idx) ~= "number" or (idx :: number) < 1 then
+		return
+	end
+	local cp = folder:FindFirstChild("Checkpoint" .. tostring(idx))
+	if not cp or not cp:IsA("BasePart") then
+		return
+	end
+	local hrp = char:FindFirstChild("HumanoidRootPart")
+	if hrp and hrp:IsA("BasePart") then
+		hrp.CFrame = CFrame.new(cp.Position + Vector3.new(0, 5, 0))
+	end
+end
+
+local function hookCharacter(plr: Player, char: Model)
+	-- Place at last checkpoint on (re)spawn
+	task.defer(function()
+		teleportToCheckpoint(plr, char)
+	end)
+	local hum = char:WaitForChild("Humanoid") :: Humanoid
+	hum.Died:Connect(function()
+		task.wait(0.1)
+		plr:LoadCharacter()
+	end)
+end
+
+local function hookPlayer(plr: Player)
+	plr.CharacterAdded:Connect(function(char)
+		hookCharacter(plr, char)
+	end)
+	if plr.Character then
+		hookCharacter(plr, plr.Character)
+	end
+end
+
+Players.PlayerAdded:Connect(hookPlayer)
+for _, plr in ipairs(Players:GetPlayers()) do
+	hookPlayer(plr)
+end
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="Script" referent="10">
+        <Properties>
+          <string name="Name">Coins</string>
+          <token name="RunContext">0</token>
+          <string name="Source"><![CDATA[--!strict
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Remotes = require(ReplicatedStorage:WaitForChild("Gameplay"):WaitForChild("Remotes"))
+
+local function award(plr: Player, amount: number)
+	local current = plr:GetAttribute("Coins") or 0
+	if typeof(current) ~= "number" then
+		current = 0
+	end
+	local nextVal = (current :: number) + amount
+	plr:SetAttribute("Coins", nextVal)
+	Remotes.CoinCollected:FireClient(plr, nextVal)
+end
+
+local function hookCoin(part: BasePart)
+	local taken = false
+	part.Touched:Connect(function(hit: BasePart)
+		if taken then
+			return
+		end
+		local char = hit.Parent
+		if not char then
+			return
+		end
+		local plr = Players:GetPlayerFromCharacter(char)
+		if not plr then
+			return
+		end
+		taken = true
+		award(plr, 1)
+		part:Destroy()
+	end)
+end
+
+local folder = workspace:FindFirstChild("Coins")
+if folder then
+	for _, child in ipairs(folder:GetChildren()) do
+		if child:IsA("BasePart") then
+			hookCoin(child)
+		end
+	end
+	folder.ChildAdded:Connect(function(child)
+		if child:IsA("BasePart") then
+			hookCoin(child)
+		end
+	end)
+end
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="Script" referent="11">
+        <Properties>
+          <string name="Name">Puzzles</string>
+          <token name="RunContext">0</token>
+          <string name="Source"><![CDATA[--!strict
+-- MVP pressure plate: stand on Plate opens Gate (Transparency + CanCollide).
+local Players = game:GetService("Players")
+
+local folder = workspace:FindFirstChild("Puzzles")
+if not folder then
+	folder = Instance.new("Folder")
+	folder.Name = "Puzzles"
+	folder.Parent = workspace
+end
+
+local plate = folder:FindFirstChild("PressurePlate")
+if not plate then
+	plate = Instance.new("Part")
+	plate.Name = "PressurePlate"
+	plate.Size = Vector3.new(6, 1, 6)
+	plate.Position = Vector3.new(12, 5, -30)
+	plate.Anchored = true
+	plate.Color = Color3.fromRGB(80, 80, 200)
+	plate.Parent = folder
+end
+
+local gate = folder:FindFirstChild("Gate")
+if not gate then
+	gate = Instance.new("Part")
+	gate.Name = "Gate"
+	gate.Size = Vector3.new(10, 12, 1)
+	gate.Position = Vector3.new(12, 11, -40)
+	gate.Anchored = true
+	gate.Color = Color3.fromRGB(180, 60, 60)
+	gate.Parent = folder
+end
+
+assert(plate:IsA("BasePart") and gate:IsA("BasePart"))
+
+local standing = 0
+local lastTouch = 0.0
+
+local function setOpen(open: boolean)
+	gate.CanCollide = not open
+	gate.Transparency = if open then 0.7 else 0
+end
+
+plate.Touched:Connect(function(hit: BasePart)
+	local char = hit.Parent
+	if not char then
+		return
+	end
+	local plr = Players:GetPlayerFromCharacter(char)
+	if not plr then
+		return
+	end
+	local now = os.clock()
+	if now - lastTouch < 0.05 then
+		return
+	end
+	lastTouch = now
+	standing += 1
+	setOpen(true)
+end)
+
+plate.TouchEnded:Connect(function(hit: BasePart)
+	local char = hit.Parent
+	if not char then
+		return
+	end
+	if not Players:GetPlayerFromCharacter(char) then
+		return
+	end
+	standing = math.max(0, standing - 1)
+	if standing == 0 then
+		setOpen(false)
+	end
+end)
+
+print("[Puzzles] pressure plate ready")
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="Script" referent="12">
+        <Properties>
+          <string name="Name">Void</string>
+          <token name="RunContext">0</token>
+          <string name="Source"><![CDATA[--!strict
+-- Soft void: if HRP falls below Y=-20, LoadCharacter (respawn uses Checkpoints hooks).
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+
+local VOID_Y = -20
+
+local function watch(plr: Player, char: Model)
+	local hrp = char:WaitForChild("HumanoidRootPart", 5)
+	if not hrp or not hrp:IsA("BasePart") then
+		return
+	end
+	local conn: RBXScriptConnection? = nil
+	conn = RunService.Heartbeat:Connect(function()
+		if not plr.Parent or not char.Parent then
+			if conn then
+				conn:Disconnect()
+			end
+			return
+		end
+		if hrp.Position.Y < VOID_Y then
+			if conn then
+				conn:Disconnect()
+			end
+			plr:LoadCharacter()
+		end
+	end)
+end
+
+local function hook(plr: Player)
+	plr.CharacterAdded:Connect(function(char)
+		watch(plr, char)
+	end)
+	if plr.Character then
+		watch(plr, plr.Character)
+	end
+end
+
+Players.PlayerAdded:Connect(hook)
+for _, plr in ipairs(Players:GetPlayers()) do
+	hook(plr)
+end
+]]></string>
+        </Properties>
+      </Item>
+    </Item>
+    <Item class="Script" referent="13">
+      <Properties>
+        <string name="Name">InitRemotes</string>
+        <token name="RunContext">0</token>
+        <string name="Source"><![CDATA[--!strict
+-- Ensure Remotes folder + events exist before any client WaitForChild("Remotes").
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Remotes = require(ReplicatedStorage:WaitForChild("Gameplay"):WaitForChild("Remotes"))
+print("[InitRemotes] ready:", Remotes.CheckpointReached ~= nil, Remotes.CoinCollected ~= nil)
+]]></string>
+      </Properties>
+    </Item>
+    <Item class="Folder" referent="14">
+      <Properties>
+        <string name="Name">Level</string>
+      </Properties>
+      <Item class="Script" referent="15">
+        <Properties>
           <string name="Name">Generator</string>
           <token name="RunContext">0</token>
-          <string name="Source">--!strict
+          <string name="Source"><![CDATA[--!strict
+-- Spawns checkpoints + coins from LevelConfig. No death logic here.
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local DataStoreService = game:GetService("DataStoreService")
 
-local CheckpointDataStore = DataStoreService:GetDataStore("CheckpointData")
+local LevelConfig = require(ReplicatedStorage:WaitForChild("Content"):WaitForChild("LevelConfig"))
 
-local function generateLevel()
-    local checkpoints = {}
-    local gap = 50
-
-    for i = 1, 10 do
-        local checkpoint = Instance.new("Part")
-        checkpoint.Name = "Checkpoint" .. i
-        checkpoint.Size = Vector3.new(10, 1, 1)
-        checkpoint.Position = Vector3.new(0, 0, -i * gap)
-        checkpoint.Anchored = true
-        checkpoint.Parent = workspace.Checkpoints
-
-        table.insert(checkpoints, checkpoint)
-    end
-
-    return checkpoints
+local function ensureFolder(name: string): Folder
+	local f = workspace:FindFirstChild(name)
+	if f and f:IsA("Folder") then
+		return f
+	end
+	if f then
+		f:Destroy()
+	end
+	local folder = Instance.new("Folder")
+	folder.Name = name
+	folder.Parent = workspace
+	return folder
 end
 
-local function onPlayerAdded(player)
-    local checkpoints = generateLevel()
-    player.Checkpoints = checkpoints
+local cpFolder = ensureFolder("Checkpoints")
+local coinFolder = ensureFolder("Coins")
 
-    for i, checkpoint in ipairs(checkpoints) do
-        checkpoint.Touched:Connect(function(hit)
-            local character = hit.Parent
-            if character and character:IsA("Model") and character:FindFirstChild("Humanoid") then
-                local humanoid = character:FindFirstChild("Humanoid")
-                if humanoid.Health &gt; 0 then
-                    local checkpointData = CheckpointDataStore:GetAsync(player.UserId)
-                    if not checkpointData then
-                        checkpointData = {}
-                    end
-
-                    checkpointData[i] = true
-                    CheckpointDataStore:SetAsync(player.UserId, checkpointData)
-
-                    Remotes.CheckpointReached:FireClient(player, i)
-                end
-            end
-        end)
-    end
+for _, child in ipairs(cpFolder:GetChildren()) do
+	child:Destroy()
+end
+for _, child in ipairs(coinFolder:GetChildren()) do
+	child:Destroy()
 end
 
-game.Players.PlayerAdded:Connect(onPlayerAdded)</string>
+local z = 0
+local sections = LevelConfig.sections
+if typeof(sections) ~= "table" then
+	sections = {
+		{ id = 1, gap = 50, coins = 3 },
+		{ id = 2, gap = 70, coins = 3 },
+		{ id = 3, gap = 90, coins = 3 },
+		{ id = 4, gap = 110, coins = 3 },
+		{ id = 5, gap = 130, coins = 3 },
+	}
+end
+
+for _, section in ipairs(sections) do
+	local gap = section.gap or 50
+	local coinCount = section.coins or 3
+	local id = section.id or 1
+	z -= gap
+
+	local p = Instance.new("Part")
+	p.Name = "Checkpoint" .. tostring(id)
+	p.Size = Vector3.new(10, 1, 10)
+	p.Position = Vector3.new(0, 5, z)
+	p.Anchored = true
+	p.Material = Enum.Material.Neon
+	p.Color = Color3.fromRGB(0, 200, 0)
+	p.Parent = cpFolder
+
+	for c = 1, math.min(coinCount, 8) do
+		local coin = Instance.new("Part")
+		coin.Name = "Coin_" .. tostring(id) .. "_" .. tostring(c)
+		coin.Shape = Enum.PartType.Cylinder
+		coin.Size = Vector3.new(0.4, 2, 2)
+		coin.Position = Vector3.new((c - (coinCount + 1) / 2) * 3, 7, z + 15)
+		coin.Anchored = true
+		coin.Material = Enum.Material.Neon
+		coin.Color = Color3.fromRGB(255, 215, 0)
+		coin.Parent = coinFolder
+	end
+end
+
+local ids = {}
+for _, section in ipairs(sections) do
+	table.insert(ids, tostring(section.id or "?"))
+end
+print("[Generator] section ids:", table.concat(ids, ","))
+print("[Generator] spawned", #cpFolder:GetChildren(), "checkpoints and", #coinFolder:GetChildren(), "coins")
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="Script" referent="16">
+        <Properties>
+          <string name="Name">MovingPlatforms</string>
+          <token name="RunContext">0</token>
+          <string name="Source"><![CDATA[--!strict
+-- One anchored platform tweening along Z between -20 and -80.
+local TweenService = game:GetService("TweenService")
+
+local folder = workspace:FindFirstChild("Moving")
+if not folder then
+	folder = Instance.new("Folder")
+	folder.Name = "Moving"
+	folder.Parent = workspace
+end
+
+local platform = folder:FindFirstChild("Mover1")
+if not platform then
+	platform = Instance.new("Part")
+	platform.Name = "Mover1"
+	platform.Size = Vector3.new(12, 1, 8)
+	platform.Position = Vector3.new(-15, 5, -20)
+	platform.Anchored = true
+	platform.Color = Color3.fromRGB(120, 120, 120)
+	platform.Parent = folder
+end
+
+assert(platform:IsA("BasePart"))
+
+local function loop()
+	while platform.Parent do
+		local toFar = TweenService:Create(
+			platform,
+			TweenInfo.new(4, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut),
+			{ Position = Vector3.new(platform.Position.X, platform.Position.Y, -80) }
+		)
+		toFar:Play()
+		toFar.Completed:Wait()
+		local toNear = TweenService:Create(
+			platform,
+			TweenInfo.new(4, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut),
+			{ Position = Vector3.new(platform.Position.X, platform.Position.Y, -20) }
+		)
+		toNear:Play()
+		toNear.Completed:Wait()
+	end
+end
+
+task.spawn(loop)
+print("[MovingPlatforms] Mover1 looping")
+]]></string>
         </Properties>
       </Item>
     </Item>
   </Item>
-  <Item class="StarterPlayer" referent="10">
+  <Item class="StarterPlayer" referent="17">
     <Properties>
       <string name="Name">StarterPlayer</string>
     </Properties>
-    <Item class="StarterPlayerScripts" referent="11">
+    <Item class="StarterPlayerScripts" referent="18">
       <Properties>
         <string name="Name">StarterPlayerScripts</string>
       </Properties>
-      <Item class="LocalScript" referent="12">
+      <Item class="LocalScript" referent="19">
         <Properties>
           <string name="Name">Effects</string>
           <string name="Source"><![CDATA[--!strict
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local SoundService = game:GetService("SoundService")
 local TweenService = game:GetService("TweenService")
 
-local Effects = {}
+local Remotes = require(ReplicatedStorage:WaitForChild("Gameplay"):WaitForChild("Remotes"))
 
-function Effects.PlaySound(soundId)
-    local sound = Instance.new("Sound")
-    sound.SoundId = soundId
-    sound.Parent = ReplicatedStorage
-    sound:Play()
-    sound.Ended:Connect(function()
-        sound:Destroy()
-    end)
+local function play(soundId: string, volume: number)
+	local s = Instance.new("Sound")
+	s.SoundId = soundId
+	s.Volume = volume
+	s.Parent = SoundService
+	s:Play()
+	s.Ended:Connect(function()
+		s:Destroy()
+	end)
 end
 
-function Effects.UpdateHUD(player, checkpointCount, timeLeft)
-    local playerGui = player:FindFirstChild("PlayerGui")
-    if playerGui then
-        local HUD = playerGui:FindFirstChild("HUD")
-        if HUD then
-            HUD.CheckpointCount.Text = "Checkpoints: " .. checkpointCount
-            HUD.Timer.Text = "Time: " .. string.format("%.2f", timeLeft) .. "s"
+Remotes.CheckpointReached.OnClientEvent:Connect(function()
+	play("rbxassetid://9112854440", 0.5)
+	local gui = game:GetService("Players").LocalPlayer:FindFirstChild("PlayerGui")
+	if not gui then
+		return
+	end
+	local hud = gui:FindFirstChild("HUD")
+	if not hud then
+		return
+	end
+	local cp = hud:FindFirstChild("CheckpointCount")
+	if cp and cp:IsA("GuiObject") then
+		local tween = TweenService:Create(
+			cp,
+			TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+			{ BackgroundTransparency = 0.1 }
+		)
+		tween:Play()
+		tween.Completed:Connect(function()
+			TweenService:Create(
+				cp,
+				TweenInfo.new(0.3),
+				{ BackgroundTransparency = 0.5 }
+			):Play()
+		end)
+	end
+end)
 
-            local tweenInfo = TweenInfo.new(0.5, Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
-            local tween = TweenService:Create(HUD, tweenInfo, {Position = HUD.Position + Vector2.new(0, 10)})
-            tween:Play()
-        end
-    end
+if Remotes.CoinCollected then
+	Remotes.CoinCollected.OnClientEvent:Connect(function()
+		play("rbxassetid://9114224690", 0.4)
+		local gui = game:GetService("Players").LocalPlayer:FindFirstChild("PlayerGui")
+		local hud = gui and gui:FindFirstChild("HUD")
+		local coin = hud and hud:FindFirstChild("CoinCount")
+		if coin and coin:IsA("GuiObject") then
+			local tween = TweenService:Create(
+				coin,
+				TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+				{ BackgroundTransparency = 0.1 }
+			)
+			tween:Play()
+			tween.Completed:Connect(function()
+				TweenService:Create(coin, TweenInfo.new(0.3), { BackgroundTransparency = 0.5 }):Play()
+			end)
+		end
+	end)
 end
-
-return Effects
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="13">
+      <Item class="LocalScript" referent="20">
         <Properties>
           <string name="Name">HUD</string>
-          <string name="Source">--!strict
+          <string name="Source"><![CDATA[--!strict
+local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local Remotes = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("CheckpointReached")
 
-local function onCheckpointReached(player, checkpointIndex)
-    -- Handle checkpoint reached logic here
+local player = Players.LocalPlayer
+local gui = player:WaitForChild("PlayerGui")
+
+local screen = Instance.new("ScreenGui")
+screen.Name = "HUD"
+screen.ResetOnSpawn = false
+screen.Parent = gui
+
+local function makeLabel(name: string, text: string, y: number): TextLabel
+	local label = Instance.new("TextLabel")
+	label.Name = name
+	label.Text = text
+	label.Size = UDim2.new(0, 200, 0, 40)
+	label.Position = UDim2.new(0.5, -100, 0, y)
+	label.BackgroundTransparency = 0.5
+	label.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+	label.TextColor3 = Color3.new(1, 1, 1)
+	label.TextScaled = true
+	label.Parent = screen
+	return label
 end
 
-Remotes.CheckpointReached.OnClientEvent:Connect(onCheckpointReached)
+local timer = makeLabel("Timer", "Time: 0s", 10)
+local cpLabel = makeLabel("CheckpointCount", "CP: 0", 60)
+local coinLabel = makeLabel("CoinCount", "Coins: 0", 110)
+local bestLabel = makeLabel("BestTime", "Best: --", 160)
 
-local function updateHUD()
-    while true do
-        -- Update HUD logic here
-        task.wait(1)
-    end
+task.spawn(function()
+	local start = tick()
+	while true do
+		task.wait(1)
+		timer.Text = string.format("Time: %ds", math.floor(tick() - start))
+		local best = player:GetAttribute("BestTime")
+		if typeof(best) == "number" and (best :: number) > 0 then
+			bestLabel.Text = string.format("Best: %ds", math.floor(best :: number))
+		end
+	end
+end)
+
+local Remotes = require(ReplicatedStorage:WaitForChild("Gameplay"):WaitForChild("Remotes"))
+Remotes.CheckpointReached.OnClientEvent:Connect(function(idx)
+	cpLabel.Text = "CP: " .. tostring(idx)
+end)
+if Remotes.CoinCollected then
+	Remotes.CoinCollected.OnClientEvent:Connect(function(total)
+		coinLabel.Text = "Coins: " .. tostring(total)
+	end)
 end
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="LocalScript" referent="21">
+        <Properties>
+          <string name="Name">Leaderboard</string>
+          <string name="Source"><![CDATA[--!strict
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-updateHUD()</string>
+local player = Players.LocalPlayer
+local gui = player:WaitForChild("PlayerGui")
+
+local screen = Instance.new("ScreenGui")
+screen.Name = "LeaderboardGui"
+screen.ResetOnSpawn = false
+screen.Parent = gui
+
+local label = Instance.new("TextLabel")
+label.Name = "Leaderboard"
+label.Size = UDim2.new(0, 220, 0, 120)
+label.Position = UDim2.new(0, 10, 0.5, -60)
+label.BackgroundTransparency = 0.4
+label.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+label.TextColor3 = Color3.new(1, 1, 1)
+label.TextXAlignment = Enum.TextXAlignment.Left
+label.TextYAlignment = Enum.TextYAlignment.Top
+label.TextScaled = false
+label.TextSize = 16
+label.Text = "Leaderboard\n(waiting...)"
+label.Parent = screen
+
+local Remotes = require(ReplicatedStorage:WaitForChild("Gameplay"):WaitForChild("Remotes"))
+if Remotes.UpdateLeaderboard then
+	Remotes.UpdateLeaderboard.OnClientEvent:Connect(function(payload)
+		if typeof(payload) == "string" then
+			label.Text = "Leaderboard\n" .. payload
+		elseif typeof(payload) == "table" then
+			local lines = { "Leaderboard" }
+			for i, row in ipairs(payload) do
+				table.insert(lines, string.format("%d. %s", i, tostring(row)))
+			end
+			label.Text = table.concat(lines, "\n")
+		end
+	end)
+end
+]]></string>
         </Properties>
       </Item>
     </Item>

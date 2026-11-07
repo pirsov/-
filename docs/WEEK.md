@@ -31,10 +31,26 @@ python run.py --validate
 ```
 
 ## Studio playtest (important)
-1. Prefer **Rojo sync** (`rojo serve` + Rojo plugin Connect) — do **not** rely on old `build/game.rbxlx` alone.
-2. DataStore warning *"publish this place"* is normal for unpublished places. PlayerData now runs in **offline Studio mode** (attributes only).
-3. Optional real DataStore: publish the place → Game Settings → Security → **Enable Studio Access to API Services**.
-4. If you see `WaitForChild("Remotes")` infinite yield — you are on **stale client scripts**; git pull + Rojo resync.
+Those red DataStore / `WaitForChild("Remotes")` errors mean you opened an **old** place file. Current `src/` is Studio-safe.
+
+**Preferred:**
+```powershell
+git pull
+rojo serve
+# Studio → Rojo plugin → Connect (live sync from src/)
+```
+
+**Or rebuild the place file first:**
+```powershell
+git pull
+.\scripts\rebuild-place.ps1
+# Studio → File → Open from File → build/game.rbxlx
+```
+
+Notes:
+1. PlayerData **does not call DataStore in Studio** (offline attributes). No publish needed for smoke.
+2. Optional live DataStore: publish place → enable Studio API Access → `game:SetAttribute("EnableStudioDataStore", true)`.
+3. If Output still shows old DataStore stacks — you are not on the rebuilt place / not Connected to Rojo.
 
 ## Start the week
 ```powershell
