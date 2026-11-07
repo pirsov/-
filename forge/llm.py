@@ -90,14 +90,16 @@ def _openai_compat_generate(
             raise AuthError(
                 f"LLM auth failed HTTP {e.code}: {e.reason}\n{detail}\n"
                 f"Key in use: {_mask_key(api_key)}\n"
-                "Fix:\n"
-                "  OpenRouter → https://openrouter.ai/keys  then:\n"
-                "    $env:FORGE_BACKEND='openrouter'\n"
-                "    $env:OPENROUTER_API_KEY='sk-or-v1-...'\n"
-                "  Space Bunny (hosted) → https://spacebunnymodel.com/get-jev  then:\n"
-                "    $env:FORGE_BACKEND='spacebunny'\n"
-                "    $env:SPACE_BUNNY_API_KEY='sb_live_...'\n"
-                "  Do not put quotes inside the value. Re-open the terminal after setting User env vars."
+                "OpenRouter 'User not found' = key revoked / wrong account / truncated.\n"
+                "Fix NOW (local Ollama — no cloud key):\n"
+                "  $env:FORGE_BACKEND = 'ollama'\n"
+                "  Remove-Item Env:OPENROUTER_API_KEY -ErrorAction SilentlyContinue\n"
+                "  Remove-Item Env:SPACE_BUNNY_API_KEY -ErrorAction SilentlyContinue\n"
+                "  ollama serve\n"
+                "  python run.py --week\n"
+                "Or new OpenRouter key: https://openrouter.ai/keys (must start sk-or-v1-)\n"
+                "Or Space Bunny: https://spacebunnymodel.com/get-jev → SPACE_BUNNY_API_KEY=sb_live_...\n"
+                "If OPENROUTER_API_KEY is set in Windows User env, remove it in System Properties → Environment Variables."
             ) from e
         raise RuntimeError(f"LLM HTTP {e.code}: {e.reason}\n{detail}") from e
     except urllib.error.URLError as e:
