@@ -28,12 +28,20 @@ python run.py --week
 
 If doctor says **auth FAIL**: wrong key for that backend, expired key, or quotes baked into the env value. Fix key, new PowerShell window, `--doctor` again. Do **not** keep running `--week` on 401.
 
-### Backend B — local Ollama (default if no cloud key)
+### Backend C — local Ollama
+Force Ollama even if cloud keys are still in the environment:
+
 ```powershell
 ollama serve
+$env:FORGE_BACKEND = "ollama"
+# unset cloud backends for this window (optional but clearer):
+Remove-Item Env:OPENROUTER_API_KEY -ErrorAction SilentlyContinue
+Remove-Item Env:SPACE_BUNNY_API_KEY -ErrorAction SilentlyContinue
 python run.py --doctor
-python run.py --validate
+python run.py --week
 ```
+
+Doctor must list your tags (e.g. `qwen2.5-coder:14b-4k`). Code roles use 14b; design/QA use phi4-mini.
 
 ## Studio playtest (important)
 Those red DataStore / `WaitForChild("Remotes")` errors mean you opened an **old** place file. Current `src/` is Studio-safe.

@@ -1,6 +1,6 @@
 ﻿# LAST_UPDATE: 2026-11-07 (agent sprint reopened — LLM writes game)
 # FORGE: Cursor maintains forge only. Game code/docs = run.py --week + model.
-# RUN:  $env:FORGE_BACKEND='openrouter'   # or SPACE_BUNNY_API_KEY
+# RUN:  $env:FORGE_BACKEND='ollama'       # local (or openrouter / spacebunny)
 #       python run.py --doctor
 #       python run.py --week
 # YOU: Studio smoke only on @human; answer y/n when asked.
