@@ -1,10 +1,25 @@
 --!strict
+-- Studio-safe: unpublished places cannot use DataStore — fall back to attributes only.
 local DataStoreService = game:GetService("DataStoreService")
 local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
 
-local playerDataStore = DataStoreService:GetDataStore("PlayerData_v2")
+local playerDataStore: DataStore? = nil
+do
+	local ok, store = pcall(function()
+		return DataStoreService:GetDataStore("PlayerData_v2")
+	end)
+	if ok then
+		playerDataStore = store
+	else
+		warn("[PlayerData] DataStore unavailable (publish place + enable Studio API Access). Using session attributes only.")
+	end
+end
 
 local function savePlayerData(player: Player)
+	if not playerDataStore then
+		return
+	end
 	local success, result = pcall(function()
 		playerDataStore:SetAsync(player.UserId, {
 			Score = player:GetAttribute("Score"),
@@ -37,18 +52,22 @@ local function updateBestTime(player: Player)
 end
 
 local function onPlayerAdded(player: Player)
-	local success, result = pcall(function()
-		return playerDataStore:GetAsync(player.UserId)
-	end)
-	if success and typeof(result) == "table" then
-		player:SetAttribute("Score", result.Score or 0)
-		player:SetAttribute("Checkpoint", result.Checkpoint or 0)
-		player:SetAttribute("Coins", result.Coins or 0)
-		player:SetAttribute("BestTime", result.BestTime or 0)
-	else
-		if not success then
+	local loaded = false
+	if playerDataStore then
+		local success, result = pcall(function()
+			return playerDataStore:GetAsync(player.UserId)
+		end)
+		if success and typeof(result) == "table" then
+			player:SetAttribute("Score", result.Score or 0)
+			player:SetAttribute("Checkpoint", result.Checkpoint or 0)
+			player:SetAttribute("Coins", result.Coins or 0)
+			player:SetAttribute("BestTime", result.BestTime or 0)
+			loaded = true
+		elseif not success then
 			warn("Failed to load player data: " .. tostring(result))
 		end
+	end
+	if not loaded then
 		player:SetAttribute("Score", 0)
 		player:SetAttribute("Checkpoint", 0)
 		player:SetAttribute("Coins", 0)
@@ -56,12 +75,14 @@ local function onPlayerAdded(player: Player)
 	end
 	player:SetAttribute("RunStartedAt", os.clock())
 
-	task.spawn(function()
-		while player.Parent do
-			task.wait(60)
-			savePlayerData(player)
-		end
-	end)
+	if playerDataStore then
+		task.spawn(function()
+			while player.Parent do
+				task.wait(60)
+				savePlayerData(player)
+			end
+		end)
+	end
 end
 
 local function onPlayerRemoving(player: Player)
@@ -74,4 +95,8 @@ Players.PlayerRemoving:Connect(onPlayerRemoving)
 
 for _, player in ipairs(Players:GetPlayers()) do
 	task.spawn(onPlayerAdded, player)
+end
+
+if RunService:IsStudio() and not playerDataStore then
+	print("[PlayerData] Studio offline mode OK — playtest without publish.")
 end

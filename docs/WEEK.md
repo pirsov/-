@@ -8,6 +8,12 @@ python run.py --doctor
 python run.py --validate
 ```
 
+## Studio playtest (important)
+1. Prefer **Rojo sync** (`rojo serve` + Rojo plugin Connect) — do **not** rely on old `build/game.rbxlx` alone.
+2. DataStore warning *"publish this place"* is normal for unpublished places. PlayerData now runs in **offline Studio mode** (attributes only).
+3. Optional real DataStore: publish the place → Game Settings → Security → **Enable Studio Access to API Services**.
+4. If you see `WaitForChild("Remotes")` infinite yield — you are on **stale client scripts**; git pull + Rojo resync.
+
 ## Start the week
 ```powershell
 python run.py --week
