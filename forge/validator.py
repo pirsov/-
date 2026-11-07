@@ -17,6 +17,12 @@ def validate_file(path: Path) -> Tuple[bool, List[str]]:
     if not content or len(content.strip()) < 10:
         errors.append("empty or nearly empty file")
 
+    # QA hallucination guard: old report invented PlayerRespawn — reject copy-paste
+    if name == "QA_REPORT.md" and re.search(r"PlayerRespawn", content):
+        errors.append("QA_REPORT cites PlayerRespawn (not in sources) — re-read actual .luau files")
+    if name == "QA_REPORT.md" and not re.search(r"(?im)^##\s*SCORE", content):
+        errors.append("QA_REPORT missing ## SCORE section")
+
     if re.search(r"\.(server|client)\.luau$", name):
         lines = [ln for ln in content.splitlines() if ln.strip()]
         if lines and re.match(r"^return\s", lines[-1].strip()):

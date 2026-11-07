@@ -60,8 +60,8 @@ def extract_agent_section(agents_md: str, owner: str) -> str:
     return universal + "\n" + section
 
 
-def relevant_paths(root: Path, task: Task) -> List[Path]:
-    """Prefer files related to the task; fall back to src/ + docs/ + project json."""
+def relevant_paths(root: Path, task: Task, owner: str = "") -> List[Path]:
+    """Prefer files related to the task; QA/refactor always get all src/*.luau first."""
     picks: List[Path] = []
     seen: Set[str] = set()
 
@@ -72,10 +72,28 @@ def relevant_paths(root: Path, task: Task) -> List[Path]:
         seen.add(key)
         picks.append(p)
 
+    # Roles that MUST see game code (P30.1 failed because only docs were included)
+    needs_all_src = owner in {
+        "qa_engineer",
+        "refactorer",
+        "integrator",
+        "gameplay_programmer",
+        "client_programmer",
+    } or any(
+        k in (task.description or "").lower()
+        for k in ("qa", "static review", "fix", "integrity", "score")
+    )
+
+    src = root / "src"
+    if needs_all_src and src.is_dir():
+        for p in sorted(src.rglob("*.luau")):
+            add(p)
+
     if task.target_path:
         add(root / task.target_path)
+        # only add siblings for non-docs targets (docs/* siblings ate the budget)
         parent = (root / task.target_path).parent
-        if parent.is_dir():
+        if parent.is_dir() and parent.name != "docs":
             for child in sorted(parent.glob("*")):
                 add(child)
 
@@ -88,11 +106,9 @@ def relevant_paths(root: Path, task: Task) -> List[Path]:
     ):
         add(root / rel)
 
-    if len(picks) < 4:
-        src = root / "src"
-        if src.is_dir():
-            for p in sorted(src.rglob("*.luau")):
-                add(p)
+    if len(picks) < 4 and src.is_dir():
+        for p in sorted(src.rglob("*.luau")):
+            add(p)
 
     return picks
 
@@ -166,7 +182,7 @@ def build_prompt(
         elif "- [x]" in line or "- [-]" in line:
             compact.append(line)
     tz_compact = "\n".join(compact)
-    files = render_files(relevant_paths(root, task), root)
+    files = render_files(relevant_paths(root, task, owner), root)
 
     feedback = ""
     if validator_feedback:
