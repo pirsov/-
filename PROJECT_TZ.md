@@ -19,7 +19,7 @@
 - [ ] A2 | REWRITE Effects.client.luau: replace broken sound ids with working rbxassetid OR silent pcall; keep flash tweens | @client_programmer | → src/client/Effects.client.luau
 - [ ] A3 | APPEND GDD #map-layout: studs for path width, floor Y, obstacle sizes from A1 | @game_designer | → docs/GDD.md#map-layout
 - [ ] A4 | REWRITE LevelConfig: coins 5,5,5,5,8 and gaps 50,70,90,110,130 | @content_author | → src/shared/Content/LevelConfig.luau
-- [ ] A5 | QA SCORE after A1–A4; list real bugs only; SCORE number | @qa_engineer | → docs/QA_REPORT.md
+- [ ] A5 | REWRITE QA_REPORT.md with headings ## BUGS ## SUGGESTIONS ## TEST CASES ## SCORE; under SCORE put "- overall: 86" | @qa_engineer | → docs/QA_REPORT.md
 - [ ] A6 | Fix HIGH/CRIT from A5 only; if only LOW — NOTE no FILE | @refactorer
 
 ## HUMAN GATES (after agent sprint — Studio y/n)

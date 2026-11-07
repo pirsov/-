@@ -49,7 +49,9 @@ Server scripts. Keep Touched/Died/FireClient. Keep walkable Map floor when editi
 LocalScripts only. TweenService for flashes. Fix invalid SoundIds.
 
 ### @qa_engineer
-docs/QA_REPORT.md with BUGS / SUGGESTIONS / TEST CASES / SCORE.
+REWRITE docs/QA_REPORT.md. Must include these headings exactly:
+`## BUGS` / `## SUGGESTIONS` / `## TEST CASES` / `## SCORE`
+Under `## SCORE` put a line like `- overall: 86` (integer 0–100).
 No invented PlayerRespawn CRIT.
 
 ### @refactorer

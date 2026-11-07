@@ -236,6 +236,22 @@ def build_prompt(
             f"\nThis is attempt {attempt}. Previous output was rejected. "
             "Follow the format EXACTLY. Begin with <DONE>. Include <FILE> tags.\n"
         )
+    qa_template = ""
+    if owner == "qa_engineer":
+        qa_template = """
+=== QA_REPORT TEMPLATE (copy structure; fill real bugs) ===
+## BUGS
+- [LOW] example only if real
+
+## SUGGESTIONS
+- one concrete suggestion
+
+## TEST CASES
+- one Studio test
+
+## SCORE
+- overall: 86
+"""
 
     return f"""You are the agent @{owner} inside Quality Forge.
 You WRITE the game (Luau / design docs). A human only playtests later.
@@ -249,7 +265,7 @@ Follow AGENTS.md. Do the task for real — do not reply NOTE-only when a FILE is
 
 === Existing project files (relevant) ===
 {files}
-{feedback}
+{feedback}{qa_template}
 === YOUR TASK ===
 {task.raw.strip()}
 

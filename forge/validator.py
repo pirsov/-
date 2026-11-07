@@ -43,8 +43,18 @@ def validate_file(path: Path) -> Tuple[bool, List[str]]:
                     "QA_REPORT lists PlayerRespawn as a bug — that remote/API is not in sources"
                 )
                 break
-        if not re.search(r"(?im)^##\s*SCORE", content):
-            errors.append("QA_REPORT missing ## SCORE section")
+        # Accept ## SCORE / # SCORE / SCORE: 86 / **SCORE**
+        if not re.search(
+            r"(?im)^(?:#{1,3}\s*SCORE\b|\*\*SCORE\*\*\s*:?|SCORE\s*[:：]\s*\d+)",
+            content,
+        ):
+            errors.append(
+                "QA_REPORT missing ## SCORE section "
+                "(need a heading '## SCORE' and a number 0-100)"
+            )
+        elif not re.search(r"(?im)(?:overall\s*:\s*\d{1,3}|\bSCORE\b[^\n]*\b(\d{1,3})\b)", content):
+            if not re.search(r"(?im)^##\s*SCORE\s*$[\s\S]{0,80}?\b(\d{1,3})\b", content):
+                errors.append("QA_REPORT ## SCORE must include a numeric score 0-100")
 
     if re.search(r"\.(server|client)\.luau$", name):
         lines = [ln for ln in content.splitlines() if ln.strip()]
