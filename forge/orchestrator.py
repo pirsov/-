@@ -572,6 +572,7 @@ class Orchestrator:
 
         max_attempts = 3
         validator_feedback = None
+        repair_draft: Optional[str] = None  # last rejected model body — fix in place, don't restart
         stamp = now_stamp()
         logs = self.root / "logs"
 
@@ -581,6 +582,8 @@ class Orchestrator:
             prior = None
             if task.target_path and (self.root / task.target_path).is_file():
                 prior = (self.root / task.target_path).read_text(encoding="utf-8")
+            if repair_draft:
+                print("   repair mode: fixing previous draft (not rewriting from seed)")
 
             prompt = build_prompt(
                 self.root,
@@ -589,6 +592,7 @@ class Orchestrator:
                 attempt=attempt,
                 validator_feedback=validator_feedback,
                 prior_snapshot=prior,
+                repair_draft=repair_draft,
             )
             (logs / f"{stamp}-{task.task_id}-prompt.txt").write_text(prompt, encoding="utf-8")
 
@@ -658,6 +662,7 @@ class Orchestrator:
             # Validate each written file
             all_valid = True
             err_msgs: List[str] = []
+            rejected_for_repair: Optional[str] = None
             for rel in written:
                 ok, errs = validate_file(self.root / rel)
                 if ok:
@@ -666,17 +671,25 @@ class Orchestrator:
                     print(f"  VALIDATOR FAIL [{Path(rel).name}]: {'; '.join(errs)}")
                     all_valid = False
                     err_msgs.extend(errs)
+                    # Keep the draft for the next attempt to PATCH (user's 7b→fix loop).
+                    try:
+                        rejected_for_repair = (self.root / rel).read_text(encoding="utf-8")
+                    except OSError:
+                        rejected_for_repair = None
                     restore_snapshot(self.root, rel)
-                    print(f"   rolled back {rel}")
+                    print(f"   rolled back disk to seed; draft kept in memory for repair")
 
             if written and not all_valid:
+                repair_draft = rejected_for_repair or repair_draft
                 validator_feedback = (
-                    "Fix these validator errors:\n- "
+                    "REPAIR your previous draft (do not start over).\n"
+                    "Fix ONLY these validator errors:\n- "
                     + "\n- ".join(err_msgs)
-                    + "\nFILE path must be the real target path, never relative/path.ext."
+                    + "\nKeep the rest of the file identical."
+                    "\nFILE path must be the real target path, never relative/path.ext."
                     "\n*.server.luau must NOT use top-level return. Use GetService(\"Players\")."
                 )
-                print("   VALIDATOR REJECTED - retrying with feedback")
+                print("   VALIDATOR REJECTED — next attempt is repair-only")
                 continue
 
             if task.requires_file and not written:

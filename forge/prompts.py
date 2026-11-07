@@ -200,6 +200,7 @@ def build_prompt(
     attempt: int = 1,
     validator_feedback: Optional[str] = None,
     prior_snapshot: Optional[str] = None,
+    repair_draft: Optional[str] = None,
 ) -> str:
     agents = extract_agent_section((root / "AGENTS.md").read_text(encoding="utf-8"), owner)
     tz = (root / "PROJECT_TZ.md").read_text(encoding="utf-8")
@@ -215,8 +216,17 @@ def build_prompt(
 
     feedback = ""
     if validator_feedback:
-        feedback = f"\n=== VALIDATOR FEEDBACK (fix this) ===\n{validator_feedback}\n"
-    if prior_snapshot and task.mode == WriteMode.APPEND:
+        feedback = f"\n=== VALIDATOR FEEDBACK (fix ONLY these issues) ===\n{validator_feedback}\n"
+    if repair_draft:
+        feedback += (
+            "\n=== REPAIR MODE ===\n"
+            "Below is YOUR previous draft (almost done). Do NOT rewrite from scratch.\n"
+            "Change the minimum lines needed to fix the validator errors "
+            "(e.g. one wrong Roblox API call, a missing Name=\"Path\", Checkpoint_ → Checkpoint..id).\n"
+            "Return the FULL file with those small fixes applied.\n"
+            f"{repair_draft}\n"
+        )
+    elif prior_snapshot and task.mode == WriteMode.APPEND:
         feedback += (
             f"\n=== CURRENT FILE CONTENT (append AFTER this, do not repeat) ===\n"
             f"{prior_snapshot}\n"
@@ -233,7 +243,8 @@ def build_prompt(
     retry_note = ""
     if attempt > 1:
         retry_note = (
-            f"\nThis is attempt {attempt}. Previous output was rejected. "
+            f"\nThis is attempt {attempt}. Previous output was rejected.\n"
+            "If REPAIR MODE is present: patch that draft, do not start a new design.\n"
             "Follow the format EXACTLY. Begin with <DONE>. Include <FILE> tags.\n"
         )
     qa_template = ""

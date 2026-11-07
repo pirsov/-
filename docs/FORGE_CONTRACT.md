@@ -19,3 +19,8 @@ Cursor / cloud coding agents maintain **only** the forge (orchestrator, validato
 1. Add `- [ ] … @role` tasks in `PROJECT_TZ.md` (agent tasks **above** `@human` gates)
 2. `python run.py --week` with Space Bunny / OpenRouter / Ollama
 3. Human only answers HITL `y/n` after Studio smoke
+
+## Repair loop (local models)
+If the model writes almost-good code and the validator fails (wrong Roblox call, bad name, missing `## SCORE`):
+the next attempt is **REPAIR MODE** — same draft in the prompt, “fix only these errors”, not a greenfield rewrite.
+Disk is rolled back to the last good seed so Studio stays playable; the draft stays in memory for the model.
