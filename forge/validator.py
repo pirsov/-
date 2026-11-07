@@ -105,9 +105,12 @@ def validate_file(path: Path) -> Tuple[bool, List[str]]:
         ):
             errors.append("uses Remotes. without `local Remotes = ...`")
 
-        if re.search(r"\bscreen\b", content) and name.endswith(".client.luau"):
-            if not re.search(r"\blocal\s+screen\b|\bscreen\s*=", content):
-                errors.append("uses 'screen' but never defines it (likely APPEND overwrite)")
+        if name.endswith(".client.luau"):
+            code_only = re.sub(r"--[^\n]*", "", content)
+            # Match identifier `screen`, not flashScreen / screenGui / comment "Flash screen"
+            if re.search(r"(?<![A-Za-z_])screen(?![A-Za-z_])", code_only):
+                if not re.search(r"\blocal\s+screen\b|\bscreen\s*=", code_only):
+                    errors.append("uses 'screen' but never defines it (likely APPEND overwrite)")
         if (
             re.search(r"PlayerAdded|GetPlayerFromCharacter|LocalPlayer", content)
             and not re.search(r"GetService\(\s*[\"']Players[\"']\s*\)", content)
