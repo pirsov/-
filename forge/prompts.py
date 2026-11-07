@@ -229,11 +229,12 @@ STRICT RULES:
 - NEVER list PlayerRespawn / PlayerRespawned as a BUG. That API is not in this project.
   (You may mention it only under FALSE POSITIVES / "do not invent".)
 - For Checkpoints: look for Touched, SetAttribute, FireClient, Died/LoadCharacter — report only what you see.
+- FILE path must be the real target (e.g. {task.target_path or "src/..."}), NEVER relative/path.ext.
 
 Format:
 <DONE>{task.task_id}</DONE>
 <NOTE>one short sentence</NOTE>
-<FILE path="relative/path.ext">
+<FILE path="{task.target_path or "src/server/Example.server.luau"}">
 file content
 </FILE>
 """

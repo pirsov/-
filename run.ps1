@@ -217,9 +217,10 @@ STRICT RULES:
 Format:
 <DONE>$taskId</DONE>
 <NOTE>one short sentence</NOTE>
-<FILE path="relative/path.ext">
+<FILE path="$(if ($target) { $target } else { 'src/server/Example.server.luau' })">
 file content
 </FILE>
+Never use path relative/path.ext — always the real target path.
 "@
 }
 
