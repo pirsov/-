@@ -210,6 +210,44 @@ class TestModelResolve(unittest.TestCase):
         self.assertEqual(resolve_model("qwen2.5-coder:3b-8k", installed), "qwen2.5-coder:3b-8k")
 
 
+class TestLlmBackend(unittest.TestCase):
+    def test_auto_spacebunny_when_key_set(self):
+        import os
+        from forge import llm
+
+        old = {k: os.environ.get(k) for k in ("FORGE_BACKEND", "SPACE_BUNNY_API_KEY", "OPENROUTER_API_KEY")}
+        try:
+            os.environ.pop("FORGE_BACKEND", None)
+            os.environ.pop("OPENROUTER_API_KEY", None)
+            os.environ["SPACE_BUNNY_API_KEY"] = "sb_live_test"
+            self.assertEqual(llm.backend_name(), "spacebunny")
+            self.assertEqual(llm.resolve_model("anything"), "space-bunny-alpha")
+            self.assertTrue(llm.ping())
+        finally:
+            for k, v in old.items():
+                if v is None:
+                    os.environ.pop(k, None)
+                else:
+                    os.environ[k] = v
+
+    def test_explicit_openrouter(self):
+        import os
+        from forge import llm
+
+        old = {k: os.environ.get(k) for k in ("FORGE_BACKEND", "SPACE_BUNNY_API_KEY", "OPENROUTER_API_KEY")}
+        try:
+            os.environ["FORGE_BACKEND"] = "openrouter"
+            os.environ["OPENROUTER_API_KEY"] = "sk-or-test"
+            self.assertEqual(llm.backend_name(), "openrouter")
+            self.assertEqual(llm.resolve_model("x"), "stealth/space-bunny-alpha")
+        finally:
+            for k, v in old.items():
+                if v is None:
+                    os.environ.pop(k, None)
+                else:
+                    os.environ[k] = v
+
+
 class TestValidatorGuards(unittest.TestCase):
     def test_reject_stub_checkpoints_and_playerrespawn(self):
         from forge.validator import validate_file

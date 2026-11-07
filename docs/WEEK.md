@@ -4,6 +4,28 @@
 ```powershell
 cd C:\Users\sv244\Desktop\--cursor-quality-forge-orchestrator-9409
 git pull
+```
+
+### Backend A — Space Bunny Alpha (recommended, 1M context, free)
+Get a key: https://spacebunnymodel.com/get-jev  
+Docs: https://github.com/codaaiteam/awesome-space-bunny
+
+```powershell
+$env:SPACE_BUNNY_API_KEY = "sb_live_..."   # or set permanently in System env
+# optional: $env:FORGE_BACKEND = "spacebunny"
+python run.py --doctor
+python run.py --validate
+```
+
+OpenRouter alternative:
+```powershell
+$env:OPENROUTER_API_KEY = "sk-or-..."
+$env:FORGE_BACKEND = "openrouter"   # model: stealth/space-bunny-alpha
+```
+
+### Backend B — local Ollama (default if no cloud key)
+```powershell
+ollama serve
 python run.py --doctor
 python run.py --validate
 ```
@@ -17,7 +39,9 @@ python run.py --validate
 ## Start the week
 ```powershell
 python run.py --week
-# = loop max 200, sleep 30s, validate every 5 steps, no micro-split, 14b for code
+# Space Bunny: every role → space-bunny-alpha (1M ctx)
+# Ollama: code → qwen2.5-coder:14b-4k; design → phi4-mini
+# loop max 200, sleep 30s, validate every 5 steps, no micro-split
 ```
 
 When it prints `HITL` / waiting human:
@@ -29,7 +53,7 @@ When it prints `HITL` / waiting human:
 ## What changed in the system
 - **Seeds first:** Generator, Coins, Void, Puzzles, HUD coins, Remotes+CoinCollected already valid
 - **Day 1–7 TZ:** tiny APPEND / NOTE-only tasks, not giant rewrites
-- **Models:** code roles → `qwen2.5-coder:14b-4k` only; design/QA → phi4-mini
+- **Models:** prefer Space Bunny Alpha (`SPACE_BUNNY_API_KEY`); else Ollama 14b code / phi design
 - **No micro-split:** failed code task is SKIPPED, seed kept, pipeline continues
 - **Gate:** every 5 steps `--validate` or stop
 

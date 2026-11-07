@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import shutil
 import sys
@@ -24,8 +25,16 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
-from . import ollama_client
-from .prompts import AGENT_MODELS, ESCALATION, FALLBACK_ANY, WEEK_MODE, build_prompt
+from . import llm
+from .prompts import (
+    AGENT_MODELS,
+    ESCALATION,
+    FALLBACK_ANY,
+    OPENROUTER_CFG,
+    SPACEBUNNY_CFG,
+    WEEK_MODE,
+    build_prompt,
+)
 from .task_parser import Task, WriteMode, find_pending_tasks, parse_task_line
 from .validator import validate_file, validate_project_integrity
 
@@ -317,11 +326,27 @@ def quality_score(root: Path) -> Tuple[int, List[str]]:
 def installed_models(force: bool = False) -> List[str]:
     global _INSTALLED_CACHE
     if force or _INSTALLED_CACHE is None:
-        _INSTALLED_CACHE = ollama_client.list_models()
+        _INSTALLED_CACHE = llm.list_models()
     return list(_INSTALLED_CACHE or [])
 
 
 def pick_model(owner: str, attempt: int, escalate: bool) -> dict:
+    be = llm.backend_name()
+    if be == "spacebunny":
+        cfg = SPACEBUNNY_CFG or {}
+        return {
+            "model": cfg.get("model") or "space-bunny-alpha",
+            "ctx": int(cfg.get("ctx") or 1_000_000),
+            "predict": int(cfg.get("predict") or 8192),
+        }
+    if be == "openrouter":
+        cfg = OPENROUTER_CFG or {}
+        return {
+            "model": cfg.get("model") or "stealth/space-bunny-alpha",
+            "ctx": int(cfg.get("ctx") or 1_000_000),
+            "predict": int(cfg.get("predict") or 8192),
+        }
+
     base = dict(AGENT_MODELS.get(owner, AGENT_MODELS["refactorer"]))
     preferred = base["model"]
     if escalate and attempt >= 2:
@@ -330,45 +355,58 @@ def pick_model(owner: str, attempt: int, escalate: bool) -> dict:
         base["predict"] = max(base.get("predict", 2048), 4096)
 
     installed = installed_models()
-    resolved = ollama_client.resolve_model(preferred, installed, allow_any=FALLBACK_ANY)
+    resolved = llm.resolve_model(preferred, installed, allow_any=FALLBACK_ANY)
     if resolved:
         if resolved != preferred:
             print(f"   model remap: {preferred} -> {resolved}")
         base["model"] = resolved
     else:
-        base["model"] = preferred  # will 404 with a clear hint
+        base["model"] = preferred
     return base
 
 
 def doctor(root: Path) -> int:
     print("Quality Forge doctor")
     print(f"  root: {root}")
-    ok_ping = ollama_client.ping()
+    be = llm.backend_name()
+    print(f"  backend: {be}")
+    if be == "spacebunny":
+        key = bool(os.environ.get("SPACE_BUNNY_API_KEY"))
+        print(f"  SPACE_BUNNY_API_KEY set: {key}")
+        if not key:
+            print("  FIX: https://spacebunnymodel.com/get-jev  then set SPACE_BUNNY_API_KEY")
+            return 1
+        print("  model: space-bunny-alpha (1M ctx)")
+        print("  Ready. Run: python run.py --week")
+        return 0
+    if be == "openrouter":
+        key = bool(os.environ.get("OPENROUTER_API_KEY"))
+        print(f"  OPENROUTER_API_KEY set: {key}")
+        if not key:
+            print("  FIX: set OPENROUTER_API_KEY for stealth/space-bunny-alpha")
+            return 1
+        print("  model: stealth/space-bunny-alpha")
+        print("  Ready. Run: python run.py --week")
+        return 0
+
+    ok_ping = llm.ping()
     print(f"  ollama reachable: {ok_ping}")
     if not ok_ping:
-        print("  FIX: start Ollama (ollama serve) then re-run: python run.py --doctor")
+        print("  FIX: start Ollama, OR set SPACE_BUNNY_API_KEY for Space Bunny backend")
         return 1
     installed = installed_models(force=True)
     print(f"  installed models ({len(installed)}):")
     for n in installed:
         print(f"    - {n}")
     if not installed:
-        print("  FIX: ollama pull qwen2.5-coder:7b-2k")
-        print("       (or whatever tag you use — then edit forge/models.json)")
+        print("  FIX: ollama pull qwen2.5-coder:14b-4k  OR  use Space Bunny")
         return 1
     print("  role → resolved model:")
-    missing = 0
     for role, cfg in sorted(AGENT_MODELS.items()):
         pref = cfg["model"]
-        got = ollama_client.resolve_model(pref, installed, allow_any=FALLBACK_ANY)
-        mark = "OK" if got else "MISSING"
-        if not got:
-            missing += 1
-        print(f"    @{role}: {pref} -> {got or '?'} [{mark}]")
-    if missing:
-        print("  FIX: ollama pull <preferred>  OR  set fallback_any true in forge/models.json")
-        return 1
-    print("  Ready. Run: python run.py --loop --max 500")
+        got = llm.resolve_model(pref, installed, allow_any=FALLBACK_ANY)
+        print(f"    @{role}: {pref} -> {got or '?'} [{'OK' if got else 'MISSING'}]")
+    print("  Ready. Run: python run.py --week")
     return 0
 
 
@@ -401,7 +439,7 @@ class Orchestrator:
             return out
         if self.dry_run:
             return ""
-        return ollama_client.generate(
+        return llm.generate(
             cfg["model"],
             prompt,
             num_ctx=cfg["ctx"],
@@ -737,17 +775,20 @@ def main(argv: Optional[List[str]] = None) -> int:
         sleep_s = args.sleep
         validate_every = 0
 
-    print(f"Quality Forge | root={root} | max_steps={max_steps} | sleep={sleep_s}s | gate_every={validate_every}")
+    be = llm.backend_name()
+    print(
+        f"Quality Forge | backend={be} | root={root} | max_steps={max_steps} | "
+        f"sleep={sleep_s}s | gate_every={validate_every}"
+    )
     if not args.dry_run:
-        if not ollama_client.ping():
-            print("ERROR: Ollama not reachable at localhost:11434")
-            print("  Start it, then: python run.py --doctor")
+        if not llm.ping():
+            print(f"ERROR: backend '{be}' not ready")
+            print("  Ollama: start ollama serve")
+            print("  Space Bunny: set SPACE_BUNNY_API_KEY (https://spacebunnymodel.com/get-jev)")
+            print("  OpenRouter: set OPENROUTER_API_KEY + FORGE_BACKEND=openrouter")
             return 1
         installed = installed_models(force=True)
-        if not installed:
-            print("ERROR: Ollama has no models. Example: ollama pull qwen2.5-coder:14b-4k")
-            return 1
-        print(f"Ollama models: {', '.join(installed)}")
+        print(f"Models: {', '.join(installed) if installed else '(cloud)'}")
 
     completed = run_loop(
         root,

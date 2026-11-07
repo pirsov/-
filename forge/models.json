@@ -1,5 +1,5 @@
 {
-  "_comment": "Week mode: code roles stick to 14b-class. Small models only for prose. Never escalate code down to 3b/7b.",
+  "_comment": "Default local Ollama week profile. With FORGE_BACKEND=spacebunny every role uses space-bunny-alpha (1M ctx).",
   "agents": {
     "game_designer":       { "model": "phi4-mini:8k",         "ctx": 8192, "predict": 2048 },
     "systems_designer":    { "model": "phi4-mini:8k",         "ctx": 8192, "predict": 3072 },
@@ -17,11 +17,23 @@
     "qwen2.5-coder:14b-2k",
     "qwen2.5-coder:14b"
   ],
+  "spacebunny": {
+    "model": "space-bunny-alpha",
+    "ctx": 1000000,
+    "predict": 8192,
+    "escalation": ["space-bunny-alpha"]
+  },
+  "openrouter": {
+    "model": "stealth/space-bunny-alpha",
+    "ctx": 1000000,
+    "predict": 8192,
+    "escalation": ["stealth/space-bunny-alpha"]
+  },
   "fallback_any": true,
   "week_mode": {
     "disable_micro_split": true,
     "seed_first": true,
     "validate_every_n_steps": 5,
-    "max_predict_code": 4096
+    "max_predict_code": 8192
   }
 }

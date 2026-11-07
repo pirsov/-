@@ -55,6 +55,8 @@ WEEK_MODE: dict = dict(_CFG.get("week_mode") or {
     "seed_first": True,
     "validate_every_n_steps": 5,
 })
+SPACEBUNNY_CFG: dict = dict(_CFG.get("spacebunny") or {})
+OPENROUTER_CFG: dict = dict(_CFG.get("openrouter") or {})
 
 
 def extract_agent_section(agents_md: str, owner: str) -> str:

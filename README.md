@@ -5,12 +5,16 @@ Leave the agent running for days; quality grows via **seeds + tiny tasks + daily
 ## Start
 ```powershell
 git pull
+# Recommended: Space Bunny Alpha (1M ctx, free) — https://spacebunnymodel.com/get-jev
+$env:SPACE_BUNNY_API_KEY = "sb_live_..."
 python run.py --doctor
 python run.py --validate
 python run.py --week
 ```
 
-Details: [docs/WEEK.md](docs/WEEK.md)
+Without a cloud key the forge falls back to local Ollama (`qwen2.5-coder:14b-4k`).
+
+Details: [docs/WEEK.md](docs/WEEK.md) · Space Bunny: [awesome-space-bunny](https://github.com/codaaiteam/awesome-space-bunny)
 
 ## What you get out of the box
 Playable MVP skeleton already in `src/`:

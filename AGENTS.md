@@ -22,36 +22,41 @@ Reply:
 only if the task needs a file
 </FILE>
 
+## Models
+- **Space Bunny** (`SPACE_BUNNY_API_KEY`): all roles → `space-bunny-alpha` (1M ctx). Preferred.
+- **OpenRouter** (`FORGE_BACKEND=openrouter`): `stealth/space-bunny-alpha`.
+- **Ollama** (default without key): design/QA → phi4-mini; code → qwen2.5-coder:14b-4k.
+
 ## Roles
-### @game_designer — phi4-mini
+### @game_designer
 Markdown only. Concrete studs/times. APPEND sections.
 
-### @systems_designer — phi4-mini
+### @systems_designer
 docs/SYSTEMS.md specs. No code.
 
-### @content_author — phi4-mini
+### @content_author
 LevelConfig numbers. Full `return { sections = {...} }` if REWRITE.
 
-### @tech_architect — 14b
+### @tech_architect
 Paths must match existing tree: `src/server/Gameplay/`, `src/shared/Content/`, `src/client/`. No fictional `Plus/` folders.
 
-### @gameplay_programmer — 14b-4k
+### @gameplay_programmer
 Server scripts. Keep Touched/Died/FireClient patterns from seeds.
 
-### @client_programmer — 14b-4k
+### @client_programmer
 LocalScripts only. TweenService for flashes.
 
-### @qa_engineer — phi4-mini
+### @qa_engineer
 docs/QA_REPORT.md with BUGS / SUGGESTIONS / TEST CASES / SCORE.
 Do not list FIXED items as CRIT. No PlayerRespawn bugs.
 
-### @refactorer — 14b-4k
+### @refactorer
 HIGH/CRIT only. If only LOW — NOTE no FILE.
 
-### @integrator — 14b-4k
+### @integrator
 Prefer NOTE-only if Remotes already match. Never `return Folder`.
 
-### @builder — phi4
+### @builder
 docs/RELEASE.md only.
 
 ### @human
