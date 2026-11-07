@@ -18,6 +18,24 @@ local function savePlayerData(player: Player)
 	end
 end
 
+local function updateBestTime(player: Player)
+	local started = player:GetAttribute("RunStartedAt")
+	if typeof(started) ~= "number" then
+		return
+	end
+	local elapsed = os.clock() - (started :: number)
+	if elapsed < 0 then
+		return
+	end
+	local best = player:GetAttribute("BestTime")
+	if typeof(best) ~= "number" then
+		best = 0
+	end
+	if (best :: number) == 0 or elapsed < (best :: number) then
+		player:SetAttribute("BestTime", elapsed)
+	end
+end
+
 local function onPlayerAdded(player: Player)
 	local success, result = pcall(function()
 		return playerDataStore:GetAsync(player.UserId)
@@ -36,6 +54,7 @@ local function onPlayerAdded(player: Player)
 		player:SetAttribute("Coins", 0)
 		player:SetAttribute("BestTime", 0)
 	end
+	player:SetAttribute("RunStartedAt", os.clock())
 
 	task.spawn(function()
 		while player.Parent do
@@ -45,8 +64,13 @@ local function onPlayerAdded(player: Player)
 	end)
 end
 
+local function onPlayerRemoving(player: Player)
+	updateBestTime(player)
+	savePlayerData(player)
+end
+
 Players.PlayerAdded:Connect(onPlayerAdded)
-Players.PlayerRemoving:Connect(savePlayerData)
+Players.PlayerRemoving:Connect(onPlayerRemoving)
 
 for _, player in ipairs(Players:GetPlayers()) do
 	task.spawn(onPlayerAdded, player)

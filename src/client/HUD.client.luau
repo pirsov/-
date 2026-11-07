@@ -27,12 +27,17 @@ end
 local timer = makeLabel("Timer", "Time: 0s", 10)
 local cpLabel = makeLabel("CheckpointCount", "CP: 0", 60)
 local coinLabel = makeLabel("CoinCount", "Coins: 0", 110)
+local bestLabel = makeLabel("BestTime", "Best: --", 160)
 
 task.spawn(function()
 	local start = tick()
 	while true do
 		task.wait(1)
 		timer.Text = string.format("Time: %ds", math.floor(tick() - start))
+		local best = player:GetAttribute("BestTime")
+		if typeof(best) == "number" and (best :: number) > 0 then
+			bestLabel.Text = string.format("Best: %ds", math.floor(best :: number))
+		end
 	end
 end)
 

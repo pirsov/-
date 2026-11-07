@@ -22,3 +22,25 @@
 6. HUD: timer, coin count, current checkpoint number
 7. Save and autosave: checkpoint progress + best score
 8. Mobile touch controls in addition to PC keyboard
+
+## Week Goals
+- Checkpoint gaps (studs along −Z): **50 / 70 / 90 / 110 / 130**
+- Coin spawn height: **Y = 7**
+- Coin counts per section (Day 2): **5 / 5 / 5 / 5 / 8**
+- Void soft-fail below **Y = −20** → LoadCharacter
+- Pressure plate: see Puzzle Layout
+
+## Sections (playable layout)
+1. Intro platform → Checkpoint1 (gap 50)
+2. Pressure-plate lane → Checkpoint2 (gap 70)
+3. Coin field → Checkpoint3 (gap 90)
+4. Combo stretch → Checkpoint4 (gap 110)
+5. Final approach → Checkpoint5 (gap 130)
+
+## Puzzle Layout
+- **PressurePlate** Part at position `(12, 5, −30)`, size `(6, 1, 6)`, color blue
+- **Gate** Part at `(12, 11, −40)`, size `(10, 12, 1)`; opens (CanCollide=false, Transparency=0.7) while player stands on plate
+
+## Juice
+- CheckpointReached: HUD CheckpointCount flash (BackgroundTransparency 0.1→0.5) + sound `9112854440`
+- CoinCollected: CoinCount flash + sound `9114224690`

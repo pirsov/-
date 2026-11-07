@@ -47,5 +47,19 @@ end)
 if Remotes.CoinCollected then
 	Remotes.CoinCollected.OnClientEvent:Connect(function()
 		play("rbxassetid://9114224690", 0.4)
+		local gui = game:GetService("Players").LocalPlayer:FindFirstChild("PlayerGui")
+		local hud = gui and gui:FindFirstChild("HUD")
+		local coin = hud and hud:FindFirstChild("CoinCount")
+		if coin and coin:IsA("GuiObject") then
+			local tween = TweenService:Create(
+				coin,
+				TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+				{ BackgroundTransparency = 0.1 }
+			)
+			tween:Play()
+			tween.Completed:Connect(function()
+				TweenService:Create(coin, TweenInfo.new(0.3), { BackgroundTransparency = 0.5 }):Play()
+			end)
+		end
 	end)
 end

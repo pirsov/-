@@ -34,6 +34,7 @@ end
 assert(plate:IsA("BasePart") and gate:IsA("BasePart"))
 
 local standing = 0
+local lastTouch = 0.0
 
 local function setOpen(open: boolean)
 	gate.CanCollide = not open
@@ -49,6 +50,11 @@ plate.Touched:Connect(function(hit: BasePart)
 	if not plr then
 		return
 	end
+	local now = os.clock()
+	if now - lastTouch < 0.05 then
+		return
+	end
+	lastTouch = now
 	standing += 1
 	setOpen(true)
 end)

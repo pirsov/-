@@ -1,23 +1,28 @@
 ## BUGS
-- [LOW] src/shared/Gameplay/Remotes.luau — `Checkpoint` remote reserved/unused.
-- [LOW] src/client/HUD.client.luau — timer does not reset on respawn (may be intended).
+- [LOW] UpdateLeaderboard remote unused (Leaderboard UI is backlog W9.2).
+- [LOW] HUD timer is local-only; BestTime uses server RunStartedAt (acceptable).
+- [LOW] Pressure plate standing counter can desync if character is destroyed mid-touch (rare).
 
-## RESOLVED (do not re-fix)
-- death teleport / LoadCharacter path — already in Checkpoints.server.luau
-- Touched debounce 0.35s — already in Checkpoints.server.luau
+## RESOLVED
+- Checkpoint death teleport via LoadCharacter
+- CoinCollected remote + HUD coins
+- Generator LevelConfig gaps
+- Void soft fail
+- Remotes getOrCreate table (not Folder)
 
 ## FALSE POSITIVES
-- PlayerRespawn — not in sources; never invent it.
+- PlayerRespawn — not in project; never invent.
 
 ## SUGGESTIONS
-- Phase 32+: coins, puzzles, LevelConfig (gaps 50/70/90 studs).
-- Integrator: leave Remotes.luau as getOrCreate table return — do not `return Folder`.
+- Studio smoke all @human gates before calling week done.
+- Moving platforms / leaderboard UI only after Day 7 freeze.
 
 ## TEST CASES
-- Touch Checkpoint3 then 1 — attribute stays 3 (number); HUD CP: 3.
-- Die after Checkpoint2 — LoadCharacter then teleport to Checkpoint2 +Y5.
-- Remotes module returns table; HUD/Effects require works.
+- Touch CP3 then CP1 — attribute stays 3; HUD CP: 3
+- Pick coin — Coins attribute and HUD increment; sound plays
+- Fall below Y=-20 — respawn at last CP
+- Stand on blue plate — red gate opens; step off — closes
 
 ## SCORE
-- overall: 82
-- note: No open HIGH/CRIT. Refactorer should NO-OP if only LOW remain.
+- overall: 86
+- note: No open HIGH/CRIT after seed week pass. Human Studio gates still required.

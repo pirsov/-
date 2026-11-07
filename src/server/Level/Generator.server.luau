@@ -68,4 +68,9 @@ for _, section in ipairs(sections) do
 	end
 end
 
+local ids = {}
+for _, section in ipairs(sections) do
+	table.insert(ids, tostring(section.id or "?"))
+end
+print("[Generator] section ids:", table.concat(ids, ","))
 print("[Generator] spawned", #cpFolder:GetChildren(), "checkpoints and", #coinFolder:GetChildren(), "coins")

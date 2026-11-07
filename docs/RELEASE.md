@@ -1,23 +1,23 @@
-# Release Checklist
+# Release Checklist (Week build)
 
-## Rojo Build Command
+## Rojo Build
 ```sh
-rojo build --manifest default.project.json --output build/game.rbxlx
+rojo build default.project.json --output build/game.rbxlx
 ```
 
-## Publish Checklist
-1. **Build the Game**: Run the Rojo build command to generate the game package.
-2. **Upload to Hosting**: Upload the `build/game.rbxlx` file to your hosting service.
-3. **Update Version**: Update the version number in `default.project.json` and `docs/ARCHITECTURE.md`.
-4. **Notify Stakeholders**: Inform relevant stakeholders about the release.
-5. **Verify Deployment**: Ensure the game is accessible and functioning correctly on the hosting service.
-6. **Document Release**: Update the `docs/RELEASE.md` file with the release notes and any important changes.
-7. **Clean Up**: Remove any unnecessary files or artifacts from the build directory.
+## Smoke before publish
+1. **Checkpoints** — touch CP1..CP5; HUD CP updates; death respawns at last CP
+2. **Coins** — yellow cylinders; HUD Coins increments; pickup sound
+3. **Void** — fall below Y=-20 respawns (no Health=0 hacks)
+4. **Pressure plate** — blue plate at (12,5,-30) opens red gate at (12,11,-40)
+5. **Output** — no red errors from Remotes/HUD/Generator
 
-## Post-Release Steps
-1. **Monitor Performance**: Monitor the game's performance and address any issues that arise.
-2. **Collect Feedback**: Gather feedback from players and stakeholders to identify areas for improvement.
-3. **Update Documentation**: Update the game's documentation to reflect any changes or improvements made during the release.
-4. **Prepare for Next Release**: Plan for the next release cycle and update the project's roadmap.
+## Publish
+1. Build `build/game.rbxlx`
+2. Upload / publish place
+3. Bump notes in this file
+4. Keep `PROJECT_TZ.md` Day 7 human gate checked
 
-By following these steps, you can ensure a smooth and successful release of your game.
+## Post-release
+- Watch DataStore warnings in live servers
+- Collect whether BestTime persists across sessions
