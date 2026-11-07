@@ -410,6 +410,44 @@ def doctor(root: Path) -> int:
     return 0
 
 
+def ask_yn(prompt: str, *, default: Optional[str] = None) -> bool:
+    """Ask y/n on stdin. Returns True for y, False for n. Loops until valid."""
+    hint = " [y/n]"
+    if default == "y":
+        hint = " [Y/n]"
+    elif default == "n":
+        hint = " [y/N]"
+    while True:
+        try:
+            raw = input(f"{prompt}{hint}: ").strip().lower()
+        except EOFError:
+            print()
+            return False
+        if not raw and default in {"y", "n"}:
+            raw = default
+        if raw in {"y", "yes"}:
+            return True
+        if raw in {"n", "no"}:
+            return False
+        print("   type y or n")
+
+
+def resolve_hitl_choice(*, auto: Optional[str] = None) -> Optional[bool]:
+    """None = ask interactively; True/False = forced from flag/env."""
+    if auto is not None:
+        a = auto.strip().lower()
+        if a in {"y", "yes", "1", "true"}:
+            return True
+        if a in {"n", "no", "0", "false"}:
+            return False
+    env = (os.environ.get("FORGE_HITL_AUTO") or "").strip().lower()
+    if env in {"y", "yes", "1", "true"}:
+        return True
+    if env in {"n", "no", "0", "false"}:
+        return False
+    return None
+
+
 class Orchestrator:
     def __init__(
         self,
@@ -417,10 +455,12 @@ class Orchestrator:
         *,
         dry_run: bool = False,
         mock_responses: Optional[Dict[str, List[str]]] = None,
+        hitl_auto: Optional[str] = None,
     ):
         self.root = root
         self.dry_run = dry_run
         self.mock_responses = mock_responses or {}
+        self.hitl_auto = hitl_auto
         self._mock_idx: Dict[str, int] = {}
         ensure_dirs(root)
 
@@ -447,6 +487,50 @@ class Orchestrator:
             num_predict=cfg["predict"],
         )
 
+    def _handle_hitl(self, task: Task) -> StepResult:
+        title = (task.description or task.raw or task.task_id).strip()
+        print()
+        print("=" * 60)
+        print(f"HITL: {task.task_id} needs YOU")
+        print(f"   {title}")
+        print("   1) Open place in Studio (Rojo sync preferred)")
+        print("   2) Smoke-test what the task asks")
+        print("   3) Answer below")
+        print("=" * 60)
+        write_heartbeat(self.root, {"status": "waiting_human", "task": task.task_id})
+
+        forced = resolve_hitl_choice(auto=self.hitl_auto)
+        if forced is True:
+            print("   FORGE_HITL_AUTO/y: marking done and continuing")
+            confirmed = True
+        elif forced is False:
+            print("   FORGE_HITL_AUTO/n: stopping")
+            confirmed = False
+        elif self.dry_run:
+            print("   dry-run: would ask [y/n] — treating as n")
+            confirmed = False
+        elif not sys.stdin.isatty():
+            print("   stdin is not a TTY — cannot ask y/n. Re-run in a terminal, or:")
+            print("     $env:FORGE_HITL_AUTO='y'   # auto-confirm")
+            print("     $env:FORGE_HITL_AUTO='n'   # stop")
+            confirmed = False
+        else:
+            confirmed = ask_yn(
+                f"Studio done for {task.task_id}? Mark [x] and continue",
+                default=None,
+            )
+
+        if confirmed:
+            if not self.dry_run:
+                mark_tz_done(self.root, task.task_id, "human confirmed via y/n prompt")
+            print(f"   marked {task.task_id} done — continuing")
+            write_heartbeat(self.root, {"status": "human_done", "task": task.task_id})
+            return StepResult(ok=True, task_id=task.task_id, note="human ok", reason="human_ok")
+
+        print(f"   stopped on {task.task_id}. When ready, re-run and answer y.")
+        print(f"   Or manually: change '- [ ] {task.task_id}' to '- [x]' in PROJECT_TZ.md")
+        return StepResult(ok=False, task_id=task.task_id, reason="human")
+
     def invoke_step(self) -> StepResult:
         task = self.next_task()
         if not task:
@@ -460,10 +544,7 @@ class Orchestrator:
             return StepResult(ok=False, task_id="", reason="no_tasks")
 
         if task.owner == "human":
-            print(f"HITL: {task.task_id} needs human action.")
-            print(f"   Edit PROJECT_TZ.md, change '- [ ] {task.task_id}' to '- [x]', then re-run.")
-            write_heartbeat(self.root, {"status": "waiting_human", "task": task.task_id})
-            return StepResult(ok=False, task_id=task.task_id, reason="human")
+            return self._handle_hitl(task)
 
         print(f"[{task.task_id}] -> @{task.owner}  mode={task.mode.value}")
         write_heartbeat(self.root, {"status": "running", "task": task.task_id, "owner": task.owner})
@@ -705,8 +786,14 @@ def run_loop(
     mock_responses: Optional[Dict[str, List[str]]] = None,
     stop_on_human: bool = True,
     validate_every: int = 0,
+    hitl_auto: Optional[str] = None,
 ) -> int:
-    orch = Orchestrator(root, dry_run=dry_run, mock_responses=mock_responses)
+    orch = Orchestrator(
+        root,
+        dry_run=dry_run,
+        mock_responses=mock_responses,
+        hitl_auto=hitl_auto,
+    )
     completed = 0
     for i in range(max_steps):
         result = orch.invoke_step()
@@ -742,6 +829,17 @@ def main(argv: Optional[List[str]] = None) -> int:
     parser.add_argument("--score", action="store_true", help="Print quality score and exit")
     parser.add_argument("--validate", action="store_true", help="Validate all src files and exit")
     parser.add_argument("--doctor", action="store_true", help="Check Ollama + model tags, then exit")
+    parser.add_argument(
+        "--yes",
+        action="store_true",
+        help="Auto-answer y on HITL prompts (same as FORGE_HITL_AUTO=y)",
+    )
+    parser.add_argument(
+        "--hitl",
+        choices=["ask", "y", "n"],
+        default="ask",
+        help="HITL behavior: ask (default y/n), y=auto-confirm, n=stop",
+    )
     args = parser.parse_args(argv)
 
     root = Path(args.root).resolve()
@@ -790,18 +888,25 @@ def main(argv: Optional[List[str]] = None) -> int:
         installed = installed_models(force=True)
         print(f"Models: {', '.join(installed) if installed else '(cloud)'}")
 
+    hitl_auto: Optional[str] = None
+    if args.yes:
+        hitl_auto = "y"
+    elif args.hitl in {"y", "n"}:
+        hitl_auto = args.hitl
+
     completed = run_loop(
         root,
         max_steps=max_steps,
         sleep_s=sleep_s,
         dry_run=args.dry_run,
         validate_every=validate_every,
+        hitl_auto=hitl_auto,
     )
     print(f"Completed {completed} step(s).")
     score, notes = quality_score(root)
     print(f"Final quality score: {score}/100")
     if week:
-        print("Next: if HITL, do Studio smoke, mark @human [x] in PROJECT_TZ.md, re-run --week")
+        print("HITL: when asked, type y after Studio smoke (or n to stop).")
     return 0
 
 

@@ -44,11 +44,13 @@ python run.py --week
 # loop max 200, sleep 30s, validate every 5 steps, no micro-split
 ```
 
-When it prints `HITL` / waiting human:
+When it prints `HITL` and asks `y/n`:
 1. Open place in Studio (Rojo or `build/game.rbxlx`)
-2. Touch checkpoint, pick coin, stand on blue plate, fall into void
-3. In `PROJECT_TZ.md` change that day's `- [ ] W… @human` to `- [x]`
-4. `python run.py --week` again
+2. Smoke-test what the task says (checkpoint, coin, plate, void, …)
+3. Back in the terminal type `y` → marks the task `[x]` and continues the week
+4. Or type `n` → stops; re-run `--week` later
+
+Non-interactive / CI: `python run.py --week --yes` or `$env:FORGE_HITL_AUTO='y'`
 
 ## What changed in the system
 - **Seeds first:** Generator, Coins, Void, Puzzles, HUD coins, Remotes+CoinCollected already valid

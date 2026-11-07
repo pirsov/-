@@ -210,6 +210,60 @@ class TestModelResolve(unittest.TestCase):
         self.assertEqual(resolve_model("qwen2.5-coder:3b-8k", installed), "qwen2.5-coder:3b-8k")
 
 
+class TestHitlPrompt(unittest.TestCase):
+    def test_resolve_hitl_choice(self):
+        from forge.orchestrator import resolve_hitl_choice
+        import os
+
+        old = os.environ.get("FORGE_HITL_AUTO")
+        try:
+            os.environ.pop("FORGE_HITL_AUTO", None)
+            self.assertIsNone(resolve_hitl_choice(auto=None))
+            self.assertTrue(resolve_hitl_choice(auto="y"))
+            self.assertFalse(resolve_hitl_choice(auto="n"))
+            os.environ["FORGE_HITL_AUTO"] = "y"
+            self.assertTrue(resolve_hitl_choice(auto=None))
+        finally:
+            if old is None:
+                os.environ.pop("FORGE_HITL_AUTO", None)
+            else:
+                os.environ["FORGE_HITL_AUTO"] = old
+
+    def test_hitl_y_marks_done(self):
+        from forge.orchestrator import Orchestrator
+
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            (root / "PROJECT_TZ.md").write_text(
+                "# TZ\n- [ ] W1.5 | Studio smoke | @human\n- [ ] W2.1 | next | @game_designer\n",
+                encoding="utf-8",
+            )
+            (root / "src").mkdir()
+            orch = Orchestrator(root, hitl_auto="y")
+            result = orch.invoke_step()
+            self.assertTrue(result.ok)
+            self.assertEqual(result.reason, "human_ok")
+            tz = (root / "PROJECT_TZ.md").read_text(encoding="utf-8")
+            self.assertIn("- [x] W1.5", tz)
+
+    def test_hitl_n_stops(self):
+        from forge.orchestrator import Orchestrator
+
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            (root / "PROJECT_TZ.md").write_text(
+                "# TZ\n- [ ] W1.5 | Studio smoke | @human\n",
+                encoding="utf-8",
+            )
+            (root / "src").mkdir()
+            orch = Orchestrator(root, hitl_auto="n")
+            result = orch.invoke_step()
+            self.assertFalse(result.ok)
+            self.assertEqual(result.reason, "human")
+            tz = (root / "PROJECT_TZ.md").read_text(encoding="utf-8")
+            self.assertIn("- [ ] W1.5", tz)
+
+
 class TestLlmBackend(unittest.TestCase):
     def test_auto_spacebunny_when_key_set(self):
         import os
