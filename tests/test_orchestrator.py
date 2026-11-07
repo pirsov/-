@@ -244,6 +244,31 @@ class TestValidatorGuards(unittest.TestCase):
             ok, errs = validate_file(p)
             self.assertTrue(ok, errs)
 
+    def test_qa_allows_playerrespawn_disclaimer_not_bug(self):
+        from forge.validator import validate_file
+
+        with tempfile.TemporaryDirectory() as td:
+            good = Path(td) / "QA_REPORT.md"
+            good.write_text(
+                "## BUGS\n- [LOW] unused Checkpoint remote\n\n"
+                "## SCORE\n- overall: 82\n"
+                "- note: Do NOT invent PlayerRespawn\n",
+                encoding="utf-8",
+            )
+            ok, errs = validate_file(good)
+            self.assertTrue(ok, errs)
+
+            bad = Path(td) / "QA_REPORT.md"
+            bad.write_text(
+                "## BUGS\n"
+                "- [CRIT] PlayerRespawn event does not handle death\n\n"
+                "## SCORE\n- overall: 50\n",
+                encoding="utf-8",
+            )
+            ok2, errs2 = validate_file(bad)
+            self.assertFalse(ok2)
+            self.assertTrue(any("PlayerRespawn" in e for e in errs2))
+
 
 if __name__ == "__main__":
     unittest.main()

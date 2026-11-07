@@ -24,6 +24,17 @@ if ($name -match '\.luau$' -and $name -notmatch '\.(server|client)\.luau$') {
     }
 }
 
+# QA: only reject PlayerRespawn when listed as a real bug line, not disclaimers
+if ($name -eq 'QA_REPORT.md') {
+    foreach ($line in ($content -split "`n")) {
+        if ($line -match 'PlayerRespawn' -and $line -match '\[(CRIT|HIGH|MED|LOW)\]' -and $line -notmatch '(?i)false|ignore|not real|do not|never invent|hallucin') {
+            $errors += "QA_REPORT lists PlayerRespawn as a bug — not in sources"
+            break
+        }
+    }
+}
+
+
 # 4. Forbidden deprecated/nonexistent API
 if ($content -match 'game\.Players\.PlayerRespawned')  { $errors += "PlayerRespawned does not exist" }
 if ($content -match ':BreakJoints\(\)')                { $errors += "BreakJoints is deprecated" }

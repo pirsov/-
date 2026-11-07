@@ -226,6 +226,9 @@ STRICT RULES:
 - *.luau ModuleScripts MUST end with return <table>.
 - You MUST include at least one <FILE path="...">...</FILE> when the task has a → path.
 - Reply MUST begin with <DONE>{task.task_id}</DONE>. Never output <BLOCKED>.
+- NEVER list PlayerRespawn / PlayerRespawned as a BUG. That API is not in this project.
+  (You may mention it only under FALSE POSITIVES / "do not invent".)
+- For Checkpoints: look for Touched, SetAttribute, FireClient, Died/LoadCharacter — report only what you see.
 
 Format:
 <DONE>{task.task_id}</DONE>

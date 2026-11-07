@@ -27,11 +27,24 @@ def validate_file(path: Path) -> Tuple[bool, List[str]]:
     if not content or len(content.strip()) < 10:
         errors.append("empty or nearly empty file")
 
-    # QA hallucination guard
-    if name == "QA_REPORT.md" and re.search(r"PlayerRespawn", content):
-        errors.append("QA_REPORT cites PlayerRespawn (not in sources) — re-read actual .luau files")
-    if name == "QA_REPORT.md" and not re.search(r"(?im)^##\s*SCORE", content):
-        errors.append("QA_REPORT missing ## SCORE section")
+    # QA hallucination guard: only reject if PlayerRespawn is claimed as a real bug.
+    # Allow warnings like "FALSE POSITIVES — PlayerRespawn" / "Do NOT invent PlayerRespawn".
+    if name == "QA_REPORT.md":
+        for line in content.splitlines():
+            if "PlayerRespawn" not in line:
+                continue
+            is_bug = re.search(r"\[(CRIT|HIGH|MED|LOW)\]", line) is not None
+            is_disclaimer = re.search(
+                r"(?i)false\s*positive|ignore|not real|do not|don't|never invent|not in (the )?sources|hallucin",
+                line,
+            )
+            if is_bug and not is_disclaimer:
+                errors.append(
+                    "QA_REPORT lists PlayerRespawn as a bug — that remote/API is not in sources"
+                )
+                break
+        if not re.search(r"(?im)^##\s*SCORE", content):
+            errors.append("QA_REPORT missing ## SCORE section")
 
     if re.search(r"\.(server|client)\.luau$", name):
         lines = [ln for ln in content.splitlines() if ln.strip()]
