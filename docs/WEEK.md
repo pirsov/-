@@ -52,12 +52,15 @@ Notes:
 2. Optional live DataStore: publish place → enable Studio API Access → `game:SetAttribute("EnableStudioDataStore", true)`.
 3. If Output still shows old DataStore stacks — you are not on the rebuilt place / not Connected to Rojo.
 
+## Who writes the game
+See [FORGE_CONTRACT.md](FORGE_CONTRACT.md): **LLM via `--week`**, not Cursor hand-edits.
+First pending lines in `PROJECT_TZ.md` are **AGENT SPRINT** (`A1`…). Human `y/n` gates come after.
+
 ## Start the week
 ```powershell
+$env:FORGE_BACKEND = "openrouter"   # or SPACE_BUNNY_API_KEY
 python run.py --week
-# Space Bunny: every role → space-bunny-alpha (1M ctx)
-# Ollama: code → qwen2.5-coder:14b-4k; design → phi4-mini
-# loop max 200, sleep 30s, validate every 5 steps, no micro-split
+# model writes A1, A2, … then pauses on @human for Studio y/n
 ```
 
 When it prints `HITL` and asks `y/n`:

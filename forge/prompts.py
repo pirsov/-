@@ -60,9 +60,13 @@ OPENROUTER_CFG: dict = dict(_CFG.get("openrouter") or {})
 
 
 def extract_agent_section(agents_md: str, owner: str) -> str:
-    universal_end = agents_md.find("## @")
-    universal = agents_md[: universal_end if universal_end >= 0 else len(agents_md)]
-    m = re.search(rf"(?ms)## @{re.escape(owner)}\b.*?(?=## @|\Z)", agents_md)
+    # Roles are "### @owner" (or "## @owner"); keep universal rules above first role.
+    role_start = re.search(r"(?m)^#{2,3} @\w+", agents_md)
+    universal = agents_md[: role_start.start() if role_start else len(agents_md)]
+    m = re.search(
+        rf"(?ms)^#{{2,3}} @{re.escape(owner)}\b.*?(?=^#{{2,3}} @|\Z)",
+        agents_md,
+    )
     section = m.group(0) if m else ""
     return universal + "\n" + section
 
@@ -120,7 +124,25 @@ def relevant_paths(root: Path, task: Task, owner: str = "") -> List[Path]:
     return picks
 
 
-def render_files(paths: Sequence[Path], root: Path, budget_chars: int = 24000) -> str:
+def file_budget_chars() -> int:
+    """Cloud 1M-ctx backends can take full src/; local Ollama stays tight."""
+    try:
+        from . import llm
+
+        if llm.backend_name() in {"spacebunny", "openrouter"}:
+            return int(
+                (SPACEBUNNY_CFG.get("file_budget") if llm.backend_name() == "spacebunny" else None)
+                or (OPENROUTER_CFG.get("file_budget") if llm.backend_name() == "openrouter" else None)
+                or 180_000
+            )
+    except Exception:
+        pass
+    return 24_000
+
+
+def render_files(paths: Sequence[Path], root: Path, budget_chars: Optional[int] = None) -> str:
+    if budget_chars is None:
+        budget_chars = file_budget_chars()
     parts: List[str] = []
     used = 0
     for p in paths:
@@ -207,7 +229,9 @@ def build_prompt(
             "Follow the format EXACTLY. Begin with <DONE>. Include <FILE> tags.\n"
         )
 
-    return f"""You are the agent @{owner}. Follow AGENTS.md protocol exactly.
+    return f"""You are the agent @{owner} inside Quality Forge.
+You WRITE the game (Luau / design docs). A human only playtests later.
+Follow AGENTS.md. Do the task for real — do not reply NOTE-only when a FILE is required.
 {retry_note}
 === AGENTS.md ===
 {agents}
@@ -227,16 +251,17 @@ STRICT RULES:
 - Do ONLY this one task. Do not touch other tasks.
 - Do NOT block due to task ordering. Prerequisites are already done.
 - If task says '-> path/file.md#section', '#' is a section name, NOT part of the filename.
-- No stubs, no TODOs. Real, complete content.
+- No stubs, no empty TODOs. Ship playable / readable content.
 - NEVER use wait() — always task.wait().
 - *.server.luau / *.client.luau MUST NOT end with return.
 - *.luau ModuleScripts MUST end with return <table>.
 - You MUST include at least one <FILE path="...">...</FILE> when the task has a → path.
 - Reply MUST begin with <DONE>{task.task_id}</DONE>. Never output <BLOCKED>.
 - NEVER list PlayerRespawn / PlayerRespawned as a BUG. That API is not in this project.
-  (You may mention it only under FALSE POSITIVES / "do not invent".)
-- For Checkpoints: look for Touched, SetAttribute, FireClient, Died/LoadCharacter — report only what you see.
+- For Checkpoints: Touched, SetAttribute, FireClient, Died/LoadCharacter — report only what you see.
 - FILE path must be the real target (e.g. {task.target_path or "src/..."}), NEVER relative/path.ext.
+- Keep Map/Path + Spawn if editing Generator; extend, do not delete the floor.
+- Remotes: require Gameplay.Remotes ModuleScript; never return a Folder.
 
 Format:
 <DONE>{task.task_id}</DONE>

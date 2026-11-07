@@ -50,6 +50,18 @@ class TestTaskParser(unittest.TestCase):
         self.assertEqual(t.task_id, "W1.5")
         self.assertEqual(t.owner, "human")
 
+    def test_agent_sprint_id_parsed(self):
+        line = (
+            "- [ ] A1 | REWRITE Generator.server.luau: add obstacles | "
+            "@gameplay_programmer | → src/server/Level/Generator.server.luau"
+        )
+        t = parse_task_line(line)
+        assert t is not None
+        self.assertEqual(t.task_id, "A1")
+        self.assertEqual(t.owner, "gameplay_programmer")
+        self.assertEqual(t.mode, WriteMode.REWRITE)
+        self.assertEqual(t.target_path, "src/server/Level/Generator.server.luau")
+
 
 class TestAppendNeverOverwrites(unittest.TestCase):
     def test_append_preserves_prefix(self):

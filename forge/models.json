@@ -21,12 +21,14 @@
     "model": "space-bunny-alpha",
     "ctx": 1000000,
     "predict": 8192,
+    "file_budget": 180000,
     "escalation": ["space-bunny-alpha"]
   },
   "openrouter": {
     "model": "stealth/space-bunny-alpha",
     "ctx": 1000000,
     "predict": 8192,
+    "file_budget": 180000,
     "escalation": ["stealth/space-bunny-alpha"]
   },
   "fallback_any": true,

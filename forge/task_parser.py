@@ -28,8 +28,8 @@ class Task:
     description: str = ""
 
 
-# Week ids (W1.5) and legacy phase ids (P30.1, P20.20.a)
-_TASK_ID = r"([PW]\d+(?:\.\d+)*(?:\.[a-z])?)"
+# Sprint ids (A1), week ids (W1.5), legacy phase ids (P30.1, P20.20.a)
+_TASK_ID = r"((?:A\d+)|(?:[PW]\d+(?:\.\d+)*(?:\.[a-z])?))"
 _TASK_RE = re.compile(
     rf"^\s*- \[ \] {_TASK_ID}\s*\|\s*(.+?)\s*\|\s*@(\w+)(?:\s*\|\s*→\s*(.+))?\s*$"
 )

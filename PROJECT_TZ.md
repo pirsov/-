@@ -1,64 +1,44 @@
-﻿# LAST_UPDATE: 2026-11-07 14:00:00
-# FORGE: WEEK MODE — agent days 1–7 code/docs closed; human Studio gates remain
-# RUN:  python run.py --validate
-#       python run.py --week   (will pause on first @human)
-# YOU: mark each @human [x] after Studio smoke, then re-run --week
+﻿# LAST_UPDATE: 2026-11-07 (agent sprint reopened — LLM writes game)
+# FORGE: Cursor maintains forge only. Game code/docs = run.py --week + model.
+# RUN:  $env:FORGE_BACKEND='openrouter'   # or SPACE_BUNNY_API_KEY
+#       python run.py --doctor
+#       python run.py --week
+# YOU: Studio smoke only on @human; answer y/n when asked.
 
 ## LEGEND
-- [ ] pending | [x] done | @human = you ~10 min in Studio
+- [ ] pending | [x] done | @human = you in Studio | other @ = LLM agent
 
 ## QUALITY GATES
-- `python run.py --validate` must stay OK
-- Studio: CP, coins, void, pressure plate, no red Output
+- `python run.py --validate` must stay OK after agent FILE writes
+- Studio: walkable floor, CP, coins, void, plate, no red Output (fix sounds if red)
 
 ---
 
-## BASELINE
-- [x] W0.1 | Seeds shipped | @human
-- [x] W0.2 | Historical MVP | @human
+## AGENT SPRINT A — LLM must do these (do not hand-write)
+- [ ] A1 | REWRITE Generator.server.luau: keep Map/Path+Spawn; add 3 obstacle Parts between CPs; print section ids | @gameplay_programmer | → src/server/Level/Generator.server.luau
+- [ ] A2 | REWRITE Effects.client.luau: replace broken sound ids with working rbxassetid OR silent pcall; keep flash tweens | @client_programmer | → src/client/Effects.client.luau
+- [ ] A3 | APPEND GDD #map-layout: studs for path width, floor Y, obstacle sizes from A1 | @game_designer | → docs/GDD.md#map-layout
+- [ ] A4 | REWRITE LevelConfig: coins 5,5,5,5,8 and gaps 50,70,90,110,130 | @content_author | → src/shared/Content/LevelConfig.luau
+- [ ] A5 | QA SCORE after A1–A4; list real bugs only; SCORE number | @qa_engineer | → docs/QA_REPORT.md
+- [ ] A6 | Fix HIGH/CRIT from A5 only; if only LOW — NOTE no FILE | @refactorer
 
-## DAY 1 — LOCK BASELINE
-- [x] W1.1 | Week goals concrete studs in GDD | @game_designer | → docs/GDD.md#week-goals
-- [x] W1.2 | SYSTEMS remotes + attributes | @systems_designer | → docs/SYSTEMS.md
-- [x] W1.3 | QA SCORE 86, no false PlayerRespawn CRIT | @qa_engineer | → docs/QA_REPORT.md
-- [x] W1.4 | Only LOW — no code changes | @refactorer
-- [ ] W1.5 | Studio smoke baseline (CP, coin, void, plate) | @human
-
-## DAY 2 — GENERATOR TUNE
-- [x] W2.1 | Generator prints section ids | @gameplay_programmer | → src/server/Level/Generator.server.luau
-- [x] W2.2 | LevelConfig coins 5,5,5,5,8 | @content_author | → src/shared/Content/LevelConfig.luau
-- [x] W2.3 | Remotes has CoinCollected (confirmed) | @integrator
+## HUMAN GATES (after agent sprint — Studio y/n)
+- [ ] W1.5 | Studio smoke baseline (floor, CP, coin, void, plate) | @human
 - [ ] W2.4 | Studio: coins appear between checkpoints | @human
-
-## DAY 3 — HUD / FX
-- [x] W3.1 | CoinCount flash on CoinCollected | @client_programmer | → src/client/Effects.client.luau
-- [x] W3.2 | BestTime label on HUD | @client_programmer | → src/client/HUD.client.luau
-- [x] W3.3 | QA after client polish | @qa_engineer | → docs/QA_REPORT.md
-- [ ] W3.4 | Studio: coin sound + HUD coins update | @human
-
-## DAY 4 — PUZZLE
-- [x] W4.1 | Plate debounce + non-negative standing | @gameplay_programmer | → src/server/Gameplay/Puzzles.server.luau
-- [x] W4.2 | Puzzle layout coords in GDD | @game_designer | → docs/GDD.md#puzzle-layout
+- [ ] W3.4 | Studio: coin/CP feedback without red sound errors | @human
 - [ ] W4.3 | Studio: stand on plate opens gate | @human
-
-## DAY 5 — DATA
-- [x] W5.1 | BestTime on PlayerRemoving via RunStartedAt | @gameplay_programmer | → src/server/Data/PlayerData.server.luau
-- [x] W5.2 | BestTime notes in SYSTEMS | @systems_designer | → docs/SYSTEMS.md
-- [x] W5.3 | QA SCORE | @qa_engineer | → docs/QA_REPORT.md
-- [x] W5.4 | No HIGH/CRIT — NOTE only | @refactorer
-
-## DAY 6 — POLISH
-- [x] W6.1 | Juice documented in GDD | @game_designer | → docs/GDD.md#juice
-- [x] W6.2 | RELEASE smoke includes coins+plate+void | @builder | → docs/RELEASE.md
-- [x] W6.3 | Integrator remotes cross-check OK | @integrator
 - [ ] W6.4 | Studio full smoke 10 min | @human
-
-## DAY 7 — FREEZE
-- [x] W7.1 | Full QA SCORE 86 | @qa_engineer | → docs/QA_REPORT.md
-- [x] W7.2 | No HIGH/CRIT to fix | @refactorer
-- [x] W7.3 | SCORE ≥ 80 documented | @qa_engineer | → docs/QA_REPORT.md
 - [ ] W7.4 | Human final accept / ship | @human
 
-## BACKLOG (done early — optional Studio check)
-- [x] W9.1 | MovingPlatforms Mover1 Z -20↔-80 | @gameplay_programmer | → src/server/Level/MovingPlatforms.server.luau
-- [x] W9.2 | Leaderboard.client stub UI | @client_programmer | → src/client/Leaderboard.client.luau
+## BOOTSTRAP SEEDS (already in src — agent improves, does not delete)
+- Remotes getOrCreate + CoinCollected
+- InitRemotes require Remotes
+- PlayerData Studio offline (no GetDataStore in Studio)
+- Checkpoints Touched + LoadCharacter
+- Coins + Void + Puzzles pressure plate
+- Generator Map/Path + Spawn (agent A1 extends with obstacles)
+- HUD / Effects / Leaderboard stubs
+
+## CLOSED HISTORICAL (do not reopen)
+- [x] W0.1 | Seeds shipped | @human
+- [x] W0.2 | Historical MVP | @human
