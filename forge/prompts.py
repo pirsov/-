@@ -221,6 +221,14 @@ def build_prompt(
             f"\n=== CURRENT FILE CONTENT (append AFTER this, do not repeat) ===\n"
             f"{prior_snapshot}\n"
         )
+    elif prior_snapshot and task.mode in {WriteMode.REWRITE, WriteMode.CREATE}:
+        feedback += (
+            "\n=== BASELINE FILE (REWRITE from THIS — do not invent a new architecture) ===\n"
+            "Preserve: Map folder, Name=\"Path\" floor, SpawnPlaza, SpawnLocation, "
+            'checkpoint Name = "Checkpoint" .. tostring(id) (NO underscore), coins, print section ids.\n'
+            "Only apply the task delta (e.g. add Obstacle parts).\n"
+            f"{prior_snapshot}\n"
+        )
 
     retry_note = ""
     if attempt > 1:
@@ -261,6 +269,7 @@ STRICT RULES:
 - For Checkpoints: Touched, SetAttribute, FireClient, Died/LoadCharacter — report only what you see.
 - FILE path must be the real target (e.g. {task.target_path or "src/..."}), NEVER relative/path.ext.
 - Keep Map/Path + Spawn if editing Generator; extend, do not delete the floor.
+- Generator checkpoint names: "Checkpoint" .. tostring(id) — NEVER "Checkpoint_".
 - Remotes: require Gameplay.Remotes ModuleScript; never return a Folder.
 
 Format:

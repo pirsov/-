@@ -15,7 +15,7 @@
 ---
 
 ## AGENT SPRINT A — LLM must do these (do not hand-write)
-- [ ] A1 | REWRITE Generator.server.luau: keep Map/Path+Spawn; add 3 obstacle Parts between CPs; print section ids | @gameplay_programmer | → src/server/Level/Generator.server.luau
+- [ ] A1 | REWRITE Generator from baseline: KEEP Path+SpawnPlaza+SpawnLocation+Checkpoint..id; ADD 3 Obstacle Parts per section between CPs; keep print section ids | @gameplay_programmer | → src/server/Level/Generator.server.luau
 - [ ] A2 | REWRITE Effects.client.luau: replace broken sound ids with working rbxassetid OR silent pcall; keep flash tweens | @client_programmer | → src/client/Effects.client.luau
 - [ ] A3 | APPEND GDD #map-layout: studs for path width, floor Y, obstacle sizes from A1 | @game_designer | → docs/GDD.md#map-layout
 - [ ] A4 | REWRITE LevelConfig: coins 5,5,5,5,8 and gaps 50,70,90,110,130 | @content_author | → src/shared/Content/LevelConfig.luau

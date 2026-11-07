@@ -72,6 +72,9 @@ First pending lines in `PROJECT_TZ.md` are **AGENT SPRINT** (`A1`…). Human `y/
 ### If log said `malformed (no DONE)` on A1/A2…
 Old forge regex only accepted `P…`/`W…` ids, so `<DONE>A1</DONE>` was ignored. Pull latest, ensure sprint lines are still `- [ ]` (not `[x]` from a false KEEP), then `--week` again.
 
+### If A1 VALIDATOR FAIL (no Path / Spawn / Checkpoint_)
+14b often rewrites Generator from scratch. Latest forge injects the **baseline file** into the REWRITE prompt. Re-pull and re-run. If it still fails, upload `logs/*-A1-attempt*-response.txt`.
+
 ## Start the week
 ```powershell
 $env:FORGE_BACKEND = "openrouter"   # or SPACE_BUNNY_API_KEY
