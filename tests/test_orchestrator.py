@@ -187,5 +187,15 @@ class TestParseOutput(unittest.TestCase):
         self.assertIsNone(blocked)
 
 
+class TestModelResolve(unittest.TestCase):
+    def test_remap_bare_tag_to_custom(self):
+        from forge.ollama_client import resolve_model
+
+        installed = ["qwen2.5-coder:7b-2k", "qwen2.5-coder:3b-8k", "qwen2.5-coder:14b-4k"]
+        self.assertEqual(resolve_model("qwen2.5-coder:7b", installed), "qwen2.5-coder:7b-2k")
+        self.assertEqual(resolve_model("qwen2.5-coder:14b", installed), "qwen2.5-coder:14b-4k")
+        self.assertEqual(resolve_model("qwen2.5-coder:3b-8k", installed), "qwen2.5-coder:3b-8k")
+
+
 if __name__ == "__main__":
     unittest.main()

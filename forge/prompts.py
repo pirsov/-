@@ -1,35 +1,55 @@
 """Prompt builder with context budget (fixes 39KB prompt blowups)."""
 from __future__ import annotations
 
+import json
 import re
 from pathlib import Path
-from typing import Iterable, List, Optional, Sequence, Set
+from typing import Dict, List, Optional, Sequence, Set
 
 from .task_parser import Task, WriteMode
 
 SKIP_NAMES = {"run.ps1", "run.py", "PROJECT_TZ.md", "AGENTS.md"}
 SKIP_DIRS = {"logs", ".git", "forge", "build", ".forge", "__pycache__", "tests"}
 
+_MODELS_PATH = Path(__file__).resolve().parent / "models.json"
 
-AGENT_MODELS = {
-    "game_designer": {"model": "qwen2.5-coder:7b", "ctx": 8192, "predict": 2048},
-    "tech_architect": {"model": "qwen2.5-coder:7b", "ctx": 8192, "predict": 2048},
-    "gameplay_programmer": {"model": "qwen2.5-coder:14b", "ctx": 8192, "predict": 4096},
-    "client_programmer": {"model": "qwen2.5-coder:7b", "ctx": 8192, "predict": 3072},
-    "qa_engineer": {"model": "qwen2.5-coder:7b", "ctx": 8192, "predict": 3072},
-    "refactorer": {"model": "qwen2.5-coder:14b", "ctx": 8192, "predict": 4096},
-    "builder": {"model": "qwen2.5-coder:7b", "ctx": 8192, "predict": 2048},
-    "systems_designer": {"model": "qwen2.5-coder:7b", "ctx": 8192, "predict": 3072},
-    "content_author": {"model": "qwen2.5-coder:7b", "ctx": 8192, "predict": 3072},
-    "integrator": {"model": "qwen2.5-coder:14b", "ctx": 8192, "predict": 4096},
+
+def load_model_config() -> dict:
+    if _MODELS_PATH.is_file():
+        return json.loads(_MODELS_PATH.read_text(encoding="utf-8"))
+    return {"agents": {}, "escalation": [], "fallback_any": True}
+
+
+_CFG = load_model_config()
+
+# Defaults match the user's original Ollama tags (7b-2k / 14b-4k / 3b-8k), NOT bare :7b/:14b
+AGENT_MODELS: Dict[str, dict] = {
+    name: dict(cfg)
+    for name, cfg in (_CFG.get("agents") or {}).items()
 }
 
-# Escalation ladder when a task fails repeatedly
-ESCALATION = [
-    "qwen2.5-coder:7b",
-    "qwen2.5-coder:14b",
-    "qwen2.5-coder:32b",
-]
+# Ensure every known role has an entry even if JSON is trimmed
+_FALLBACK_ROLE = {"model": "qwen2.5-coder:7b-2k", "ctx": 4096, "predict": 2048}
+for _role in (
+    "game_designer",
+    "tech_architect",
+    "gameplay_programmer",
+    "client_programmer",
+    "qa_engineer",
+    "refactorer",
+    "builder",
+    "systems_designer",
+    "content_author",
+    "integrator",
+):
+    AGENT_MODELS.setdefault(_role, dict(_FALLBACK_ROLE))
+
+ESCALATION: List[str] = list(_CFG.get("escalation") or [
+    "qwen2.5-coder:3b",
+    "qwen2.5-coder:7b-2k",
+    "qwen2.5-coder:14b-4k",
+])
+FALLBACK_ANY = bool(_CFG.get("fallback_any", True))
 
 
 def extract_agent_section(agents_md: str, owner: str) -> str:
@@ -54,13 +74,11 @@ def relevant_paths(root: Path, task: Task) -> List[Path]:
 
     if task.target_path:
         add(root / task.target_path)
-        # siblings in same folder
         parent = (root / task.target_path).parent
         if parent.is_dir():
             for child in sorted(parent.glob("*")):
                 add(child)
 
-    # Always include remotes + project config for gameplay tasks
     for rel in (
         "default.project.json",
         "src/shared/Gameplay/Remotes.luau",
@@ -70,7 +88,6 @@ def relevant_paths(root: Path, task: Task) -> List[Path]:
     ):
         add(root / rel)
 
-    # If still sparse, include all src files
     if len(picks) < 4:
         src = root / "src"
         if src.is_dir():
@@ -91,7 +108,6 @@ def render_files(paths: Sequence[Path], root: Path, budget_chars: int = 24000) -
         text = p.read_text(encoding="utf-8", errors="replace")
         chunk = f"=== {rel} ===\n{text}\n\n"
         if used + len(chunk) > budget_chars:
-            # include truncated
             remain = max(0, budget_chars - used - 80)
             if remain > 200:
                 parts.append(f"=== {rel} ===\n{text[:remain]}\n...(truncated)\n\n")
@@ -142,7 +158,6 @@ def build_prompt(
 ) -> str:
     agents = extract_agent_section((root / "AGENTS.md").read_text(encoding="utf-8"), owner)
     tz = (root / "PROJECT_TZ.md").read_text(encoding="utf-8")
-    # Shrink TZ: keep legend + pending tasks + recent DONE notes
     tz_lines = tz.splitlines()
     compact: List[str] = []
     for i, line in enumerate(tz_lines):
@@ -190,8 +205,6 @@ STRICT RULES:
 - Do NOT block due to task ordering. Prerequisites are already done.
 - If task says '-> path/file.md#section', '#' is a section name, NOT part of the filename.
 - No stubs, no TODOs. Real, complete content.
-- You already have needed files above. Do NOT say you need to read files.
-- FILE path must be an actual FILE with extension. Never a directory.
 - NEVER use wait() — always task.wait().
 - *.server.luau / *.client.luau MUST NOT end with return.
 - *.luau ModuleScripts MUST end with return <table>.

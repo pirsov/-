@@ -25,12 +25,13 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 from . import ollama_client
-from .prompts import AGENT_MODELS, ESCALATION, build_prompt
+from .prompts import AGENT_MODELS, ESCALATION, FALLBACK_ANY, build_prompt
 from .task_parser import Task, WriteMode, find_pending_tasks, parse_task_line
 from .validator import validate_file, validate_project_integrity
 
 
 ROOT_DEFAULT = Path(__file__).resolve().parent.parent
+_INSTALLED_CACHE: Optional[List[str]] = None
 
 
 @dataclass
@@ -233,14 +234,62 @@ def quality_score(root: Path) -> Tuple[int, List[str]]:
     return max(0, score), notes
 
 
+def installed_models(force: bool = False) -> List[str]:
+    global _INSTALLED_CACHE
+    if force or _INSTALLED_CACHE is None:
+        _INSTALLED_CACHE = ollama_client.list_models()
+    return list(_INSTALLED_CACHE or [])
+
+
 def pick_model(owner: str, attempt: int, escalate: bool) -> dict:
     base = dict(AGENT_MODELS.get(owner, AGENT_MODELS["refactorer"]))
+    preferred = base["model"]
     if escalate and attempt >= 2:
         idx = min(attempt - 1, len(ESCALATION) - 1)
-        base["model"] = ESCALATION[idx]
-        base["ctx"] = max(base.get("ctx", 4096), 8192)
+        preferred = ESCALATION[idx]
         base["predict"] = max(base.get("predict", 2048), 4096)
+
+    installed = installed_models()
+    resolved = ollama_client.resolve_model(preferred, installed, allow_any=FALLBACK_ANY)
+    if resolved:
+        if resolved != preferred:
+            print(f"   model remap: {preferred} -> {resolved}")
+        base["model"] = resolved
+    else:
+        base["model"] = preferred  # will 404 with a clear hint
     return base
+
+
+def doctor(root: Path) -> int:
+    print("Quality Forge doctor")
+    print(f"  root: {root}")
+    ok_ping = ollama_client.ping()
+    print(f"  ollama reachable: {ok_ping}")
+    if not ok_ping:
+        print("  FIX: start Ollama (ollama serve) then re-run: python run.py --doctor")
+        return 1
+    installed = installed_models(force=True)
+    print(f"  installed models ({len(installed)}):")
+    for n in installed:
+        print(f"    - {n}")
+    if not installed:
+        print("  FIX: ollama pull qwen2.5-coder:7b-2k")
+        print("       (or whatever tag you use — then edit forge/models.json)")
+        return 1
+    print("  role → resolved model:")
+    missing = 0
+    for role, cfg in sorted(AGENT_MODELS.items()):
+        pref = cfg["model"]
+        got = ollama_client.resolve_model(pref, installed, allow_any=FALLBACK_ANY)
+        mark = "OK" if got else "MISSING"
+        if not got:
+            missing += 1
+        print(f"    @{role}: {pref} -> {got or '?'} [{mark}]")
+    if missing:
+        print("  FIX: ollama pull <preferred>  OR  set fallback_any true in forge/models.json")
+        return 1
+    print("  Ready. Run: python run.py --loop --max 500")
+    return 0
 
 
 class Orchestrator:
@@ -470,10 +519,14 @@ def main(argv: Optional[List[str]] = None) -> int:
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--score", action="store_true", help="Print quality score and exit")
     parser.add_argument("--validate", action="store_true", help="Validate all src files and exit")
+    parser.add_argument("--doctor", action="store_true", help="Check Ollama + model tags, then exit")
     args = parser.parse_args(argv)
 
     root = Path(args.root).resolve()
     ensure_dirs(root)
+
+    if args.doctor:
+        return doctor(root)
 
     if args.score:
         score, notes = quality_score(root)
@@ -491,8 +544,16 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     max_steps = args.max if args.max is not None else (500 if args.loop else 1)
     print(f"Quality Forge | root={root} | max_steps={max_steps}")
-    if not args.dry_run and not ollama_client.ping():
-        print("WARNING: Ollama not reachable at localhost:11434 — steps will fail unless mocked.")
+    if not args.dry_run:
+        if not ollama_client.ping():
+            print("ERROR: Ollama not reachable at localhost:11434")
+            print("  Start it, then: python run.py --doctor")
+            return 1
+        installed = installed_models(force=True)
+        if not installed:
+            print("ERROR: Ollama has no models. Example: ollama pull qwen2.5-coder:7b-2k")
+            return 1
+        print(f"Ollama models: {', '.join(installed)}")
 
     completed = run_loop(root, max_steps=max_steps, sleep_s=args.sleep, dry_run=args.dry_run)
     print(f"Completed {completed} step(s).")

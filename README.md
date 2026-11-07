@@ -19,15 +19,23 @@ python run.py --validate
 python run.py --score
 ```
 
-Windows PowerShell (same mechanic):
+Windows PowerShell:
 
 ```powershell
-.\run.ps1
-.\run.ps1 -Loop -Max 500
+# unlock scripts + check models + optional marathon
+powershell -ExecutionPolicy Bypass -File .\bootstrap.ps1
+powershell -ExecutionPolicy Bypass -File .\bootstrap.ps1 -Marathon
+
+# or directly:
+python run.py --doctor
+python run.py --loop --max 500
 ```
 
-Requires [Ollama](https://ollama.com) at `http://localhost:11434` with coder models
-(`qwen2.5-coder:7b` / `14b`). Unit tests do not need Ollama:
+If you see `HTTP Error 404: Not Found` — the model tag is missing.
+Run `ollama list`, then either `ollama pull <tag>` or edit `forge/models.json`
+to match your installed names (this repo prefers `7b-2k` / `14b-4k` / `3b-8k`).
+
+Requires [Ollama](https://ollama.com) at `http://localhost:11434`. Unit tests do not need Ollama:
 
 ```bash
 python -m unittest tests.test_orchestrator -v

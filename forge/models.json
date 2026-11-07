@@ -1,0 +1,21 @@
+{
+  "_comment": "Preferred Ollama tags. Orchestrator remaps to whatever is installed via /api/tags.",
+  "agents": {
+    "game_designer":       { "model": "qwen2.5-coder:3b",     "ctx": 4096, "predict": 2048 },
+    "tech_architect":      { "model": "qwen2.5-coder:7b-2k",  "ctx": 2048, "predict": 2048 },
+    "gameplay_programmer": { "model": "qwen2.5-coder:7b-2k",  "ctx": 2048, "predict": 3072 },
+    "client_programmer":   { "model": "qwen2.5-coder:7b-2k",  "ctx": 2048, "predict": 3072 },
+    "qa_engineer":         { "model": "qwen2.5-coder:3b-8k",  "ctx": 8192, "predict": 3072 },
+    "refactorer":          { "model": "qwen2.5-coder:14b-4k", "ctx": 4096, "predict": 4096 },
+    "builder":             { "model": "qwen2.5-coder:3b-8k",  "ctx": 8192, "predict": 2048 },
+    "systems_designer":    { "model": "qwen2.5-coder:3b-8k",  "ctx": 8192, "predict": 3072 },
+    "content_author":      { "model": "qwen2.5-coder:3b",     "ctx": 4096, "predict": 3072 },
+    "integrator":          { "model": "qwen2.5-coder:7b-2k",  "ctx": 2048, "predict": 4096 }
+  },
+  "escalation": [
+    "qwen2.5-coder:3b",
+    "qwen2.5-coder:7b-2k",
+    "qwen2.5-coder:14b-4k"
+  ],
+  "fallback_any": true
+}

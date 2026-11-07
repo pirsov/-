@@ -18,25 +18,52 @@ if (-not (Test-Path .\logs)) { New-Item -ItemType Directory .\logs -Force | Out-
 if (-not (Test-Path .\.forge\snapshots)) { New-Item -ItemType Directory .\.forge\snapshots -Force | Out-Null }
 if (-not (Test-Path .\.forge\state)) { New-Item -ItemType Directory .\.forge\state -Force | Out-Null }
 
+function Get-InstalledOllamaModels {
+    try {
+        $resp = Invoke-RestMethod -Uri 'http://localhost:11434/api/tags' -Method Get -TimeoutSec 5
+        return @($resp.models | ForEach-Object { $_.name })
+    } catch {
+        return @()
+    }
+}
+
+function Resolve-OllamaModel([string]$preferred, [string[]]$installed) {
+    if (-not $installed -or $installed.Count -eq 0) { return $preferred }
+    if ($installed -contains $preferred) { return $preferred }
+    $base = ($preferred -split ':')[0]
+    $hit = $installed | Where-Object { $_ -like "$base*" } | Select-Object -First 1
+    if ($hit) { return $hit }
+    $coder = $installed | Where-Object { $_ -match 'coder' } | Select-Object -First 1
+    if ($coder) { return $coder }
+    return $installed[0]
+}
+
 function Get-AgentConfig([string]$owner, [int]$attempt) {
+    # Prefer the user's original custom tags (7b-2k / 14b-4k / 3b-8k), not bare :7b/:14b
     $base = switch ($owner) {
-        'game_designer'       { @{ model = 'qwen2.5-coder:7b';  ctx = 8192; predict = 2048 } }
-        'tech_architect'      { @{ model = 'qwen2.5-coder:7b';  ctx = 8192; predict = 2048 } }
-        'gameplay_programmer' { @{ model = 'qwen2.5-coder:14b'; ctx = 8192; predict = 4096 } }
-        'client_programmer'   { @{ model = 'qwen2.5-coder:7b';  ctx = 8192; predict = 3072 } }
-        'qa_engineer'         { @{ model = 'qwen2.5-coder:7b';  ctx = 8192; predict = 3072 } }
-        'refactorer'          { @{ model = 'qwen2.5-coder:14b'; ctx = 8192; predict = 4096 } }
-        'builder'             { @{ model = 'qwen2.5-coder:7b';  ctx = 8192; predict = 2048 } }
-        'systems_designer'    { @{ model = 'qwen2.5-coder:7b';  ctx = 8192; predict = 3072 } }
-        'content_author'      { @{ model = 'qwen2.5-coder:7b';  ctx = 8192; predict = 3072 } }
-        'integrator'          { @{ model = 'qwen2.5-coder:14b'; ctx = 8192; predict = 4096 } }
+        'game_designer'       { @{ model = 'qwen2.5-coder:3b';     ctx = 4096; predict = 2048 } }
+        'tech_architect'      { @{ model = 'qwen2.5-coder:7b-2k';  ctx = 2048; predict = 2048 } }
+        'gameplay_programmer' { @{ model = 'qwen2.5-coder:7b-2k';  ctx = 2048; predict = 3072 } }
+        'client_programmer'   { @{ model = 'qwen2.5-coder:7b-2k';  ctx = 2048; predict = 3072 } }
+        'qa_engineer'         { @{ model = 'qwen2.5-coder:3b-8k';  ctx = 8192; predict = 3072 } }
+        'refactorer'          { @{ model = 'qwen2.5-coder:14b-4k'; ctx = 4096; predict = 4096 } }
+        'builder'             { @{ model = 'qwen2.5-coder:3b-8k';  ctx = 8192; predict = 2048 } }
+        'systems_designer'    { @{ model = 'qwen2.5-coder:3b-8k';  ctx = 8192; predict = 3072 } }
+        'content_author'      { @{ model = 'qwen2.5-coder:3b';     ctx = 4096; predict = 3072 } }
+        'integrator'          { @{ model = 'qwen2.5-coder:7b-2k';  ctx = 2048; predict = 4096 } }
         default { throw "Unknown owner: $owner" }
     }
     if ($attempt -ge 2) {
-        $ladder = @('qwen2.5-coder:7b','qwen2.5-coder:14b','qwen2.5-coder:32b')
+        $ladder = @('qwen2.5-coder:3b','qwen2.5-coder:7b-2k','qwen2.5-coder:14b-4k')
         $idx = [Math]::Min($attempt - 1, $ladder.Count - 1)
         $base.model = $ladder[$idx]
         $base.predict = [Math]::Max($base.predict, 4096)
+    }
+    $installed = Get-InstalledOllamaModels
+    $resolved = Resolve-OllamaModel $base.model $installed
+    if ($resolved -ne $base.model) {
+        Write-Host "   model remap: $($base.model) -> $resolved" -ForegroundColor DarkYellow
+        $base.model = $resolved
     }
     return $base
 }
