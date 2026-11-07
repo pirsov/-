@@ -6,6 +6,16 @@ from pathlib import Path
 from typing import List, Tuple
 
 
+_STUB_MARKERS = (
+    r"--\s*Respawn logic here",
+    r"--\s*Update checkpoint data here",
+    r"--\s*Handle checkpoint logic",
+    r"--\s*TODO\b",
+    r"--\s*real code here",
+    r"\bpass\s*--\s*implement",
+)
+
+
 def validate_file(path: Path) -> Tuple[bool, List[str]]:
     errors: List[str] = []
     name = path.name
@@ -17,7 +27,7 @@ def validate_file(path: Path) -> Tuple[bool, List[str]]:
     if not content or len(content.strip()) < 10:
         errors.append("empty or nearly empty file")
 
-    # QA hallucination guard: old report invented PlayerRespawn — reject copy-paste
+    # QA hallucination guard
     if name == "QA_REPORT.md" and re.search(r"PlayerRespawn", content):
         errors.append("QA_REPORT cites PlayerRespawn (not in sources) — re-read actual .luau files")
     if name == "QA_REPORT.md" and not re.search(r"(?im)^##\s*SCORE", content):
@@ -29,48 +39,75 @@ def validate_file(path: Path) -> Tuple[bool, List[str]]:
             errors.append("top-level return in Script/LocalScript")
 
     if name.endswith(".luau") and not re.search(r"\.(server|client)\.luau$", name):
-        # Allow multi-line `return { ... }` — require a top-level return statement
         if not re.search(r"(?m)^return\b", content):
             errors.append("ModuleScript must end with return")
+        # Remotes module must return a TABLE of events, not a Folder Instance
+        if name == "Remotes.luau":
+            if re.search(r"(?m)^return\s+Remotes\s*$", content):
+                errors.append("Remotes.luau must return { Checkpoint=..., ... } table, not Folder")
+            if "getOrCreate" not in content and "FindFirstChild" not in content:
+                errors.append("Remotes.luau must create-or-reuse RemoteEvents (getOrCreate/FindFirstChild)")
+            if "CheckpointReached" not in content:
+                errors.append("Remotes.luau missing CheckpointReached")
 
     forbidden = [
         (r"game\.Players\.PlayerRespawned", "PlayerRespawned does not exist"),
+        (r"Remotes\.PlayerRespawn\b", "PlayerRespawn remote is not in the contract — do not invent it"),
         (r":BreakJoints\(\)", "BreakJoints is deprecated"),
         (r"Humanoid\.Parent\s*=\s*nil", "setting Humanoid.Parent=nil breaks character"),
         (r"Humanoid\.Health\s*=\s*0", "killing player (Humanoid.Health=0) not allowed"),
         (r"require\([^)]*ReplicatedStorage[^)]*src\.", "wrong require path (src.* not in ReplicatedStorage)"),
         (r"(?<![\w.])wait\s*\(", "use task.wait, not wait"),
+        (r"CheckpointReached\.OnServerEvent", "CheckpointReached is Server→Client; use FireClient, not OnServerEvent"),
     ]
     for pat, msg in forbidden:
         if re.search(pat, content):
             errors.append(msg)
 
-    if "APPEND" not in content:  # balance only for code-ish files
-        if path.suffix in {".luau", ".lua", ".json", ".ps1", ".py"} or name.endswith(".luau"):
-            opens = content.count("(")
-            closes = content.count(")")
-            if abs(opens - closes) > 2:
-                errors.append(f"unbalanced parentheses ({opens} vs {closes})")
+    for pat in _STUB_MARKERS:
+        if re.search(pat, content, re.I):
+            errors.append("stub/placeholder comment — write real code")
+            break
 
-    # Integrity: referenced locals must be defined for common broken APPEND residue
+    if name.endswith(".luau"):
+        opens = content.count("(")
+        closes = content.count(")")
+        if abs(opens - closes) > 2:
+            errors.append(f"unbalanced parentheses ({opens} vs {closes})")
+
     if name.endswith(".luau"):
         if re.search(r"\bfolder\b", content) and not re.search(
-            r"\blocal\s+folder\b|folder\s*=", content
+            r"\blocal\s+folder\b|\bfolder\s*=", content
         ):
             errors.append("uses 'folder' but never defines it (likely APPEND overwrite)")
-        if re.search(r"\bRemotes\b", content) and not re.search(
-            r"\blocal\s+Remotes\b|Remotes\s*=", content
+
+        # Only flag undefined Remotes when used as a local identifier (Remotes.X),
+        # not when it appears as a path segment (ReplicatedStorage.Remotes.X).
+        if re.search(r"(?<![\w.])Remotes\.", content) and not re.search(
+            r"\blocal\s+Remotes\b", content
         ):
-            if "getOrCreate" not in content:
-                errors.append("uses 'Remotes' but never defines it (likely APPEND overwrite)")
+            errors.append("uses Remotes. without `local Remotes = ...`")
+
         if re.search(r"\bscreen\b", content) and name.endswith(".client.luau"):
-            if not re.search(r"\blocal\s+screen\b|screen\s*=", content):
+            if not re.search(r"\blocal\s+screen\b|\bscreen\s*=", content):
                 errors.append("uses 'screen' but never defines it (likely APPEND overwrite)")
-        if re.search(r"\bPlayers\b", content) and not re.search(
-            r"GetService\(\s*[\"']Players[\"']\s*\)|local\s+Players\b", content
+        if (
+            re.search(r"PlayerAdded|GetPlayerFromCharacter|LocalPlayer", content)
+            and not re.search(r"GetService\(\s*[\"']Players[\"']\s*\)", content)
+            and not re.search(r"\blocal\s+Players\b", content)
         ):
-            if "LocalPlayer" in content or "PlayerAdded" in content or "GetPlayerFromCharacter" in content:
-                errors.append("uses Players service without GetService")
+            errors.append("uses Players service without GetService")
+
+    # Checkpoints must keep touch + death wiring (P30.2 attempt3 deleted both)
+    if name == "Checkpoints.server.luau":
+        if "Touched" not in content:
+            errors.append("Checkpoints.server.luau missing Touched handlers")
+        if "Died" not in content:
+            errors.append("Checkpoints.server.luau missing Humanoid.Died handling")
+        if "SetAttribute" not in content or "Checkpoint" not in content:
+            errors.append("Checkpoints.server.luau must SetAttribute('Checkpoint', idx)")
+        if "FireClient" not in content:
+            errors.append("Checkpoints.server.luau must FireClient CheckpointReached")
 
     return len(errors) == 0, errors
 
@@ -84,10 +121,9 @@ def validate_project_integrity(root: Path) -> Tuple[bool, List[str]]:
         for need in ("getOrCreate", "CheckpointReached", "return"):
             if need not in text:
                 errors.append(f"Remotes.luau missing '{need}'")
-        if "top-level return" not in " ".join(errors):
-            ok, errs = validate_file(remotes)
-            if not ok:
-                errors.extend(f"Remotes: {e}" for e in errs)
+        ok, errs = validate_file(remotes)
+        if not ok:
+            errors.extend(f"Remotes: {e}" for e in errs)
 
     for rel in (
         "src/server/Level/Generator.server.luau",

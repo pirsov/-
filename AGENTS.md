@@ -105,6 +105,10 @@ Rules:
 - Fix only bugs from QA_REPORT.md with severity HIGH or CRIT (unless task says otherwise).
 - Return full new content of each touched file (REWRITE) unless task says APPEND.
 - Do not add features unless the task explicitly asks.
+- NEVER invent remotes (no PlayerRespawn). Only use Checkpoint / CheckpointReached / UpdateLeaderboard / CoinCollected.
+- CheckpointReached is Server→Client via FireClient. Never OnServerEvent on it.
+- Keep existing Touched + Died/respawn behavior when editing Checkpoints — do not delete working systems.
+- No stubs, no "-- logic here" comments. No BreakJoints.
 
 ## @integrator — model: qwen2.5-coder:14b
 Rules:

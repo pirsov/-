@@ -203,5 +203,47 @@ class TestModelResolve(unittest.TestCase):
         self.assertEqual(resolve_model("qwen2.5-coder:3b-8k", installed), "qwen2.5-coder:3b-8k")
 
 
+class TestValidatorGuards(unittest.TestCase):
+    def test_reject_stub_checkpoints_and_playerrespawn(self):
+        from forge.validator import validate_file
+
+        with tempfile.TemporaryDirectory() as td:
+            p = Path(td) / "Checkpoints.server.luau"
+            p.write_text(
+                "--!strict\n"
+                "local Remotes = require(game.ReplicatedStorage.Gameplay.Remotes)\n"
+                "Remotes.PlayerRespawn.OnServerEvent:Connect(function()\n"
+                "  -- Respawn logic here\n"
+                "end)\n"
+                "Remotes.CheckpointReached.OnServerEvent:Connect(function() end)\n",
+                encoding="utf-8",
+            )
+            ok, errs = validate_file(p)
+            self.assertFalse(ok)
+            joined = " ".join(errs)
+            self.assertIn("PlayerRespawn", joined)
+            self.assertIn("stub", joined.lower())
+            self.assertIn("Touched", joined)
+
+    def test_remotes_path_segment_not_false_positive(self):
+        from forge.validator import validate_file
+
+        with tempfile.TemporaryDirectory() as td:
+            p = Path(td) / "Remotes.luau"
+            p.write_text(
+                "--!strict\n"
+                "local folder = game.ReplicatedStorage:FindFirstChild(\"Remotes\")\n"
+                "local function getOrCreate(name) return Instance.new(\"RemoteEvent\") end\n"
+                "return {\n"
+                "  Checkpoint = getOrCreate(\"Checkpoint\"),\n"
+                "  CheckpointReached = getOrCreate(\"CheckpointReached\"),\n"
+                "  UpdateLeaderboard = getOrCreate(\"UpdateLeaderboard\"),\n"
+                "}\n",
+                encoding="utf-8",
+            )
+            ok, errs = validate_file(p)
+            self.assertTrue(ok, errs)
+
+
 if __name__ == "__main__":
     unittest.main()
