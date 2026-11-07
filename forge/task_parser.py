@@ -39,9 +39,12 @@ def detect_mode(description: str) -> WriteMode:
         return WriteMode.APPEND
     if re.search(r"\brewrite\b|\bfrom scratch\b|\bwith exactly\b", d):
         return WriteMode.REWRITE
+    # "Fix HIGH/CRIT..." and integrator passes rewrite existing files
+    if re.search(r"\bfix\b|\bverify\b|\bmismatch|\bedit\b|\bpatch\b", d):
+        return WriteMode.REWRITE
     if re.search(r"\bcreate\b|\bwrite\b", d):
         return WriteMode.CREATE
-    if re.search(r"\breview\b|\bqa\b|\breport\b", d):
+    if re.search(r"\breview\b|\bqa\b|\breport\b|\bscore\b", d):
         return WriteMode.REVIEW
     if ".md" in d:
         return WriteMode.DOCS
@@ -94,10 +97,11 @@ def parse_task_line(line: str) -> Optional[Task]:
         if mode == WriteMode.CREATE:
             mode = WriteMode.APPEND
 
+    # Require <FILE> when a concrete path is given, or CREATE/APPEND (must produce a file).
+    # REWRITE/Fix without → path may emit 0..N files (e.g. "no HIGH bugs" = NOTE only).
     requires = bool(target) or mode in {
         WriteMode.CREATE,
         WriteMode.APPEND,
-        WriteMode.REWRITE,
         WriteMode.DOCS,
     }
     return Task(

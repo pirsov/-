@@ -30,6 +30,12 @@ class TestTaskParser(unittest.TestCase):
         assert t is not None
         self.assertEqual(t.mode, WriteMode.REWRITE)
 
+    def test_fix_mode_is_rewrite(self):
+        line = '- [ ] P30.2 | Fix HIGH/CRIT from latest QA_REPORT | @refactorer'
+        t = parse_task_line(line)
+        assert t is not None
+        self.assertEqual(t.mode, WriteMode.REWRITE)
+
     def test_section_anchor(self):
         line = '- [ ] P1.1 | Define genre | @game_designer | → docs/GDD.md#core-loop'
         t = parse_task_line(line)
