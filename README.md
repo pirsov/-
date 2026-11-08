@@ -13,8 +13,8 @@ python run.py --validate
 python run.py --week
 ```
 
-First pending tasks are **AGENT SPRINT** (`A1`…) — the model edits the game.  
-`@human` Studio gates come after; answer `y`/`n` in the terminal.
+**Greenfield:** `src/` starts empty. Sprint **G1–G15** makes the LLM CREATE Remotes → Generator → gameplay → HUD.  
+Then `@human` H1–H4 with terminal `y`/`n`.
 
 Local fallback without a cloud key: Ollama `qwen2.5-coder:14b-4k`.
 

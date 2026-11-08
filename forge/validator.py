@@ -197,6 +197,7 @@ def validate_project_integrity(root: Path) -> Tuple[bool, List[str]]:
         if not ok:
             errors.extend(f"Remotes: {e}" for e in errs)
 
+    # Greenfield: missing files are OK (agent creates them). Only validate what exists.
     for rel in (
         "src/server/Level/Generator.server.luau",
         "src/server/Gameplay/Checkpoints.server.luau",
@@ -210,7 +211,6 @@ def validate_project_integrity(root: Path) -> Tuple[bool, List[str]]:
     ):
         p = root / rel
         if not p.exists():
-            errors.append(f"missing {rel}")
             continue
         ok, errs = validate_file(p)
         if not ok:

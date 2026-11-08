@@ -122,23 +122,14 @@ def is_placeholder_path(path: str) -> bool:
     return False
 
 
+# Greenfield: no packaged game seeds. Only optional QA template for failed QA writes.
 KNOWN_SEEDS = {
-    "src/server/Gameplay/Coins.server.luau": "src/server/Gameplay/Coins.server.luau",
-    "src/shared/Gameplay/Remotes.luau": "src/shared/Gameplay/Remotes.luau",
-    "src/shared/Content/LevelConfig.luau": "src/shared/Content/LevelConfig.luau",
-    "src/server/Level/Generator.server.luau": "src/server/Level/Generator.server.luau",
-    "src/server/Gameplay/Void.server.luau": "src/server/Gameplay/Void.server.luau",
-    "src/server/Gameplay/Puzzles.server.luau": "src/server/Gameplay/Puzzles.server.luau",
-    "src/server/Gameplay/Checkpoints.server.luau": "src/server/Gameplay/Checkpoints.server.luau",
-    "src/client/HUD.client.luau": "src/client/HUD.client.luau",
-    "src/client/Effects.client.luau": "src/client/Effects.client.luau",
-    "src/server/Data/PlayerData.server.luau": "src/server/Data/PlayerData.server.luau",
     "docs/QA_REPORT.md": "docs/QA_REPORT.seed.md",
 }
 
 
-# Sprint A1/B2/Z3, human H1, week W1.5, legacy P30.1 / P20.20.a
-_DONE_ID = r"((?:[ABHZ]\d+)|(?:[PW]\d+(?:\.\d+)*(?:\.[a-z])?))"
+# Sprint A1/B2/Z3/G10, human H1, week W1.5, legacy P30.1 / P20.20.a
+_DONE_ID = r"((?:[ABHZG]\d+)|(?:[PW]\d+(?:\.\d+)*(?:\.[a-z])?))"
 
 
 def parse_agent_output(text: str, expected_id: str) -> Tuple[Optional[str], str, List[FileOp], Optional[str]]:

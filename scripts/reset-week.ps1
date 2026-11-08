@@ -1,4 +1,5 @@
-# Fresh week: clear forge runtime state. Does NOT wipe src/ seeds.
+# Fresh greenfield week: clear forge runtime. Optional -WipeSrc clears all *.luau under src/
+param([switch]$WipeSrc)
 $ErrorActionPreference = "Stop"
 Set-Location $PSScriptRoot\..
 
@@ -11,14 +12,14 @@ if (Test-Path .forge\state) {
     Write-Host "cleared .forge/state"
 }
 if (Test-Path logs) {
-    Get-ChildItem logs -File | Remove-Item -Force
+    Get-ChildItem logs -File -ErrorAction SilentlyContinue | Remove-Item -Force
     Write-Host "cleared logs/"
 }
+if ($WipeSrc -and (Test-Path src)) {
+    Get-ChildItem src -Recurse -Filter *.luau -File | Remove-Item -Force
+    Write-Host "wiped src/**/*.luau (greenfield)"
+}
 
-# Ensure TZ is the fresh Z-sprint from repo copy if present next to script — user may overwrite PROJECT_TZ.md
 Write-Host "FORGE_BACKEND=$env:FORGE_BACKEND"
-Write-Host "Next:"
-Write-Host "  python run.py --doctor"
-Write-Host "  python run.py --validate"
-Write-Host "  python run.py --week"
-Write-Host "After agent: rojo serve + Studio Connect (not a stale .rbxlx alone)"
+Write-Host "Next: python run.py --doctor ; python run.py --week"
+Write-Host "After G*: rojo serve + Studio Connect"

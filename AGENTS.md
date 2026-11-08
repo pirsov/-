@@ -6,7 +6,7 @@ Cursor humans maintain the forge only — see `docs/FORGE_CONTRACT.md`.
 Prefer **APPEND** for docs. For code tasks that say **REWRITE**, return the full file.
 
 ## WEEK RULES
-1. Bootstrap seeds in `src/` exist so Studio boots. Improve them; do not delete Map/Path/Spawn or Remotes.
+1. Greenfield: `src/` may be empty. CREATE full working files when tasks say CREATE. Prefer real playable Luau over stubs.
 2. `*.server.luau` / `*.client.luau` — NO top-level `return`.
 3. ModuleScripts `*.luau` — end with `return { ... }`, getOrCreate for remotes.
 4. NEVER invent PlayerRespawn. NEVER BreakJoints. NEVER `wait()` — use `task.wait()`.
