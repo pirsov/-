@@ -415,9 +415,133 @@ end
     coins_template = ""
     if task.target_path and "Coins.server.luau" in task.target_path.replace("\\", "/"):
         coins_template = """
-=== COINS RULES ===
-require(ReplicatedStorage:WaitForChild("Gameplay"):WaitForChild("Remotes"))
-Hook GetChildren + ChildAdded. On touch: Destroy the coin Part (the hooked part), FireClient CoinCollected.
+=== COINS TEMPLATE (Script — NO top-level return) ===
+--!strict
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Remotes = require(ReplicatedStorage:WaitForChild("Gameplay"):WaitForChild("Remotes"))
+local function hook(coin: BasePart)
+	coin.Touched:Connect(function(hit: BasePart)
+		local char = hit.Parent
+		if not char then return end
+		local plr = Players:GetPlayerFromCharacter(char)
+		if not plr then return end
+		coin:Destroy()
+		Remotes.CoinCollected:FireClient(plr, 1)
+	end)
+end
+local function ensureCoinsFolder(): Folder
+	local f = workspace:FindFirstChild("Coins")
+	if f and f:IsA("Folder") then return f end
+	local created = Instance.new("Folder")
+	created.Name = "Coins"
+	created.Parent = workspace
+	return created
+end
+local coinsFolder = ensureCoinsFolder()
+for _, child in ipairs(coinsFolder:GetChildren()) do
+	if child:IsA("BasePart") then hook(child) end
+end
+coinsFolder.ChildAdded:Connect(function(child)
+	if child:IsA("BasePart") then hook(child) end
+end)
+"""
+    levelconfig_template = ""
+    if task.target_path and "LevelConfig.luau" in task.target_path.replace("\\", "/"):
+        levelconfig_template = """
+=== LEVELCONFIG TEMPLATE (ModuleScript — Luau `=` NOT JS `:`) ===
+--!strict
+return {
+	{ id = 1, gap = 50, coins = 5 },
+	{ id = 2, gap = 70, coins = 5 },
+	{ id = 3, gap = 90, coins = 5 },
+	{ id = 4, gap = 110, coins = 5 },
+	{ id = 5, gap = 130, coins = 8 },
+}
+-- Generator does: for i, section in ipairs(LevelConfig) do … section.gap / section.coins
+-- NEVER write JavaScript: return { sections: { id: 0 } }
+"""
+    hud_template = ""
+    if task.target_path and "HUD.client.luau" in task.target_path.replace("\\", "/"):
+        hud_template = """
+=== HUD TEMPLATE (LocalScript — create UI; use player.CharacterAdded) ===
+--!strict
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Remotes = require(ReplicatedStorage:WaitForChild("Gameplay"):WaitForChild("Remotes"))
+local player = Players.LocalPlayer
+local gui = Instance.new("ScreenGui")
+gui.Name = "HUD"
+gui.ResetOnSpawn = false
+gui.Parent = player:WaitForChild("PlayerGui")
+local function makeLabel(name: string, y: number): TextLabel
+	local t = Instance.new("TextLabel")
+	t.Name = name
+	t.Size = UDim2.new(0, 220, 0, 24)
+	t.Position = UDim2.new(0, 12, 0, y)
+	t.BackgroundTransparency = 0.4
+	t.TextColor3 = Color3.new(1, 1, 1)
+	t.TextXAlignment = Enum.TextXAlignment.Left
+	t.Parent = gui
+	return t
+end
+local timeL = makeLabel("Time", 12)
+local cpL = makeLabel("CheckpointCount", 40)
+local coinL = makeLabel("CoinCount", 68)
+local bestL = makeLabel("BestTime", 96)
+local coins = 0
+local cp = 0
+local t0 = os.clock()
+local best = math.huge
+local function paint()
+	timeL.Text = string.format("Time: %.1f", os.clock() - t0)
+	cpL.Text = "CP: " .. tostring(cp)
+	coinL.Text = "Coins: " .. tostring(coins)
+	bestL.Text = if best < math.huge then string.format("Best: %.1f", best) else "Best: --"
+end
+Remotes.CheckpointReached.OnClientEvent:Connect(function(idx)
+	cp = tonumber(idx) or cp
+	paint()
+end)
+Remotes.CoinCollected.OnClientEvent:Connect(function()
+	coins += 1
+	paint()
+end)
+player.CharacterAdded:Connect(function()
+	t0 = os.clock()
+	coins = 0
+	paint()
+end)
+paint()
+-- NEVER write bare characterAdded:Connect — always player.CharacterAdded
+"""
+    leaderboard_template = ""
+    if task.target_path and "Leaderboard.client.luau" in task.target_path.replace("\\", "/"):
+        leaderboard_template = """
+=== LEADERBOARD TEMPLATE (stub — create GUI; Remotes.UpdateLeaderboard only) ===
+--!strict
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Remotes = require(ReplicatedStorage:WaitForChild("Gameplay"):WaitForChild("Remotes"))
+local player = Players.LocalPlayer
+local gui = Instance.new("ScreenGui")
+gui.Name = "LeaderboardGui"
+gui.ResetOnSpawn = false
+gui.Parent = player:WaitForChild("PlayerGui")
+local label = Instance.new("TextLabel")
+label.Name = "LeaderboardLabel"
+label.Size = UDim2.new(0, 260, 0, 28)
+label.Position = UDim2.new(1, -280, 0, 12)
+label.BackgroundTransparency = 0.35
+label.TextColor3 = Color3.new(1, 1, 1)
+label.Text = "Leaderboard (waiting...)"
+label.Parent = gui
+if Remotes.UpdateLeaderboard then
+	Remotes.UpdateLeaderboard.OnClientEvent:Connect(function(payload)
+		label.Text = tostring(payload or "Leaderboard updated")
+	end)
+end
+-- NEVER WaitForChild("LeaderboardFrame"); NEVER invent RequestLeaderboard / LeaderboardUpdated
 """
     void_template = ""
     if task.target_path and "Void.server.luau" in task.target_path.replace("\\", "/"):
@@ -446,7 +570,7 @@ Follow AGENTS.md. Do the task for real — do not reply NOTE-only when a FILE is
 
 === Existing project files (relevant) ===
 {files}
-{feedback}{qa_template}{remotes_template}{checkpoints_template}{effects_template}{generator_template}{coins_template}{void_template}{puzzles_template}
+{feedback}{qa_template}{remotes_template}{checkpoints_template}{effects_template}{generator_template}{coins_template}{levelconfig_template}{hud_template}{leaderboard_template}{void_template}{puzzles_template}
 === YOUR TASK ===
 {task.raw.strip()}
 
@@ -468,7 +592,10 @@ STRICT RULES:
 - Generator: CREATE Map/Path/Spawn (Instance.new); never WaitForChild Map first.
 - Generator checkpoint names: "Checkpoint" .. tostring(id) — NEVER "Checkpoint_".
 - Remotes: require Gameplay.Remotes ModuleScript; never return a Folder.
-- Coins: no ReplicatedStorage.shared; ChildAdded; destroy coin Part.
+- LevelConfig: Luau `id = n` only — NEVER JavaScript `id: n`. return array for ipairs.
+- Coins: coin:Destroy(); FireClient(player); FindFirstChild Coins + ChildAdded.
+- HUD: create ScreenGui; player.CharacterAdded — never bare characterAdded.
+- Leaderboard: create UI; UpdateLeaderboard only — no LeaderboardFrame WaitForChild.
 - Void: Heartbeat Y<-20 LoadCharacter. Puzzles: TouchEnded not .Left.
 
 Format:

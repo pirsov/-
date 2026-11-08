@@ -183,10 +183,69 @@ def validate_file(path: Path) -> Tuple[bool, List[str]]:
             errors.append("Coins must FireClient CoinCollected")
         if "ChildAdded" not in content:
             errors.append("Coins must ChildAdded on Coins folder (Generator may spawn later)")
-        if re.search(r"hit:Destroy\(\)", content) and not re.search(
-            r"(coin|part):Destroy\(\)", content, re.I
+        # Destroy character / limb is fatal; must Destroy the coin Part
+        if re.search(r"hit\.Parent:Destroy\(\)|hit:Destroy\(\)", content):
+            errors.append("Coins must Destroy the coin Part, not hit / hit.Parent (character)")
+        if not re.search(r"(coin|part|child)\s*:Destroy\(\)", content, re.I):
+            errors.append("Coins must call coin:Destroy() (or part/child:Destroy) on the coin Part")
+        if "FireClient" in content and "GetPlayerFromCharacter" not in content:
+            errors.append("Coins FireClient needs Players:GetPlayerFromCharacter(char), not FireClient(character)")
+        # Prefer FindFirstChild + poll/ChildAdded; bare WaitForChild("Coins") hangs if Generator failed
+        if re.search(r'WaitForChild\(\s*["\']Coins["\']', content) and not re.search(
+            r'FindFirstChild\(\s*["\']Coins["\']', content
         ):
-            errors.append("Coins must Destroy the coin Part, not hit (limb)")
+            errors.append(
+                'Coins: use FindFirstChild("Coins") + ChildAdded/poll — '
+                'bare WaitForChild("Coins") infinite-yields if Generator failed'
+            )
+
+    if name == "LevelConfig.luau":
+        # Luau uses `id = 1`, never JS/TS `id: 1` (Studio: Expected identifier… got '{')
+        if re.search(r"\b(id|gap|coins|sections)\s*:", content):
+            errors.append(
+                "LevelConfig must use Luau `id = n, gap = n, coins = n` — "
+                "NOT JavaScript `id: n` / `sections: {`"
+            )
+        if not re.search(r"(?m)^return\s*\{", content):
+            errors.append("LevelConfig must `return { { id = …, gap = …, coins = … }, … }`")
+        # Generator does ipairs(LevelConfig) — need array of tables, not a single object
+        if not re.search(r"\{\s*\{\s*id\s*=", content) and not re.search(
+            r"\{\s*id\s*=\s*\d+", content
+        ):
+            errors.append(
+                "LevelConfig must return an ARRAY of section tables: "
+                "return { { id = 1, gap = 50, coins = 5 }, … }"
+            )
+        for field in ("gap", "coins"):
+            if field not in content:
+                errors.append(f"LevelConfig missing field `{field}`")
+
+    if name == "HUD.client.luau":
+        code_hud = re.sub(r"--[^\n]*", "", content)
+        if re.search(r"(?<![A-Za-z_.])characterAdded(?![A-Za-z_])", code_hud) and not re.search(
+            r"\blocal\s+characterAdded\b", code_hud
+        ):
+            errors.append(
+                "HUD: undefined `characterAdded` — use player.CharacterAdded:Connect(...)"
+            )
+        if "CheckpointReached" not in content or "CoinCollected" not in content:
+            errors.append("HUD must Connect CheckpointReached and CoinCollected OnClientEvent")
+        if "Instance.new" not in content and "TextLabel" not in content and "ScreenGui" not in content:
+            errors.append("HUD must create ScreenGui/TextLabel UI (not only comments)")
+
+    if name == "Leaderboard.client.luau":
+        if re.search(r'WaitForChild\(\s*["\']LeaderboardFrame["\']', content):
+            errors.append(
+                'Leaderboard must Instance.new ScreenGui/Frame — '
+                'do not WaitForChild("LeaderboardFrame") that never exists'
+            )
+        if "LeaderboardUpdated" in content or "RequestLeaderboard" in content:
+            errors.append(
+                "Leaderboard: use Remotes.UpdateLeaderboard only "
+                "(no LeaderboardUpdated / RequestLeaderboard)"
+            )
+        if "UpdateLeaderboard" not in content and "TextLabel" not in content:
+            errors.append("Leaderboard stub must show TextLabel or listen UpdateLeaderboard")
 
     if name == "Void.server.luau":
         if "LoadCharacter" not in content:
