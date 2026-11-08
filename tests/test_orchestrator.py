@@ -62,6 +62,15 @@ class TestTaskParser(unittest.TestCase):
         self.assertEqual(t.mode, WriteMode.REWRITE)
         self.assertEqual(t.target_path, "src/server/Level/Generator.server.luau")
 
+    def test_z_sprint_id_parsed(self):
+        line = (
+            "- [ ] Z1 | REWRITE Generator from baseline seed | "
+            "@gameplay_programmer | → src/server/Level/Generator.server.luau"
+        )
+        t = parse_task_line(line)
+        assert t is not None
+        self.assertEqual(t.task_id, "Z1")
+
 
 class TestAppendNeverOverwrites(unittest.TestCase):
     def test_append_preserves_prefix(self):
