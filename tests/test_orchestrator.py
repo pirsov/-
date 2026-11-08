@@ -351,6 +351,57 @@ class TestLlmBackend(unittest.TestCase):
                     os.environ[k] = v
 
 
+class TestRemotesValidator(unittest.TestCase):
+    def test_accept_table_return_remotes(self):
+        from forge.validator import validate_file
+
+        good = """--!strict
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local folder = ReplicatedStorage:FindFirstChild("Remotes")
+if not folder then
+	folder = Instance.new("Folder")
+	folder.Name = "Remotes"
+	folder.Parent = ReplicatedStorage
+end
+local function getOrCreate(name: string): RemoteEvent
+	local r = folder:FindFirstChild(name)
+	if not r then
+		r = Instance.new("RemoteEvent")
+		r.Name = name
+		r.Parent = folder
+	end
+	return r :: RemoteEvent
+end
+local Remotes = {
+	Checkpoint = getOrCreate("Checkpoint"),
+	CheckpointReached = getOrCreate("CheckpointReached"),
+	UpdateLeaderboard = getOrCreate("UpdateLeaderboard"),
+	CoinCollected = getOrCreate("CoinCollected"),
+}
+return Remotes
+"""
+        with tempfile.TemporaryDirectory() as td:
+            p = Path(td) / "Remotes.luau"
+            p.write_text(good, encoding="utf-8")
+            ok, errs = validate_file(p)
+            self.assertTrue(ok, errs)
+
+    def test_reject_return_folder(self):
+        from forge.validator import validate_file
+
+        bad = """--!strict
+local folder = Instance.new("Folder")
+folder.Name = "Remotes"
+return folder
+"""
+        with tempfile.TemporaryDirectory() as td:
+            p = Path(td) / "Remotes.luau"
+            p.write_text(bad, encoding="utf-8")
+            ok, errs = validate_file(p)
+            self.assertFalse(ok)
+            self.assertTrue(any("folder" in e.lower() or "table" in e.lower() for e in errs), errs)
+
+
 class TestValidatorGuards(unittest.TestCase):
     def test_reject_stub_checkpoints_and_playerrespawn(self):
         from forge.validator import validate_file

@@ -64,15 +64,37 @@ def validate_file(path: Path) -> Tuple[bool, List[str]]:
     if name.endswith(".luau") and not re.search(r"\.(server|client)\.luau$", name):
         if not re.search(r"(?m)^return\b", content):
             errors.append("ModuleScript must end with return")
-        # Remotes module must return a TABLE of events, not a Folder Instance
+        # Remotes: return a TABLE of RemoteEvents. Folder may be created under RS, but must not be returned.
         if name == "Remotes.luau":
-            if re.search(r"(?m)^return\s+Remotes\s*$", content):
-                errors.append("Remotes.luau must return { Checkpoint=..., ... } table, not Folder")
+            if re.search(r"(?m)^return\s+folder\s*$", content, re.I):
+                errors.append("Remotes.luau must not `return folder` — return a table of remotes")
+            # Bad: Remotes variable IS the Folder instance
+            if re.search(
+                r'local\s+Remotes\s*=\s*Instance\.new\(\s*["\']Folder["\']',
+                content,
+            ) or re.search(r"local\s+Remotes\s*=\s*folder\b", content):
+                errors.append(
+                    "Remotes.luau: variable Remotes must be a table { Checkpoint=..., ... }, "
+                    "not the Folder instance (use local folder = ... for the Folder)"
+                )
+            # OK: return Remotes when Remotes is a table; OK: return { ... }
+            if not (
+                re.search(r"(?m)^return\s*\{", content)
+                or (
+                    re.search(r"(?m)^return\s+Remotes\s*$", content)
+                    and re.search(r"local\s+Remotes\s*=\s*\{", content)
+                )
+            ):
+                errors.append(
+                    "Remotes.luau must `return { Checkpoint=..., CheckpointReached=..., ... }` "
+                    "or `local Remotes = { ... }; return Remotes`"
+                )
             if "getOrCreate" not in content and "FindFirstChild" not in content:
                 errors.append("Remotes.luau must create-or-reuse RemoteEvents (getOrCreate/FindFirstChild)")
             if "CheckpointReached" not in content:
                 errors.append("Remotes.luau missing CheckpointReached")
-            # Dead code after first top-level return (classic failed APPEND)
+            if "CoinCollected" not in content:
+                errors.append("Remotes.luau missing CoinCollected")
             returns = list(re.finditer(r"(?m)^return\b", content))
             if len(returns) > 1:
                 errors.append("Remotes.luau has multiple top-level return — APPEND corrupted file")

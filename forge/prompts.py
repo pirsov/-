@@ -263,6 +263,38 @@ def build_prompt(
 ## SCORE
 - overall: 86
 """
+    remotes_template = ""
+    if task.target_path and task.target_path.replace("\\", "/").endswith("Remotes.luau"):
+        remotes_template = """
+=== REMOTES TEMPLATE (copy structure; do not return the Folder) ===
+--!strict
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local folder = ReplicatedStorage:FindFirstChild("Remotes")
+if not folder then
+	folder = Instance.new("Folder")
+	folder.Name = "Remotes"
+	folder.Parent = ReplicatedStorage
+end
+
+local function getOrCreate(name: string): RemoteEvent
+	local r = folder:FindFirstChild(name)
+	if not r then
+		r = Instance.new("RemoteEvent")
+		r.Name = name
+		r.Parent = folder
+	end
+	return r :: RemoteEvent
+end
+
+local Remotes = {
+	Checkpoint = getOrCreate("Checkpoint"),
+	CheckpointReached = getOrCreate("CheckpointReached"),
+	UpdateLeaderboard = getOrCreate("UpdateLeaderboard"),
+	CoinCollected = getOrCreate("CoinCollected"),
+}
+return Remotes
+"""
 
     return f"""You are the agent @{owner} inside Quality Forge.
 You WRITE the game (Luau / design docs). A human only playtests later.
@@ -276,7 +308,7 @@ Follow AGENTS.md. Do the task for real — do not reply NOTE-only when a FILE is
 
 === Existing project files (relevant) ===
 {files}
-{feedback}{qa_template}
+{feedback}{qa_template}{remotes_template}
 === YOUR TASK ===
 {task.raw.strip()}
 
