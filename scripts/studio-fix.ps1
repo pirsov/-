@@ -1,9 +1,9 @@
 # Pull Studio-fix TZ + forge (NO src wipe). Use after greenfield HITL fails.
+# ASCII-only. RU-locale safe cache bust.
 $ErrorActionPreference = "Stop"
 Set-Location $PSScriptRoot\..
 
 $ref = if ($env:FORGE_REF) { $env:FORGE_REF } else { "cursor/quality-forge-orchestrator-9409" }
-# Locale-safe cache bust (RU Windows breaks [int](Get-Date -UFormat %s))
 $bust = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
 $b = "https://raw.githubusercontent.com/pirsov/-/$ref"
 foreach ($f in @(
@@ -19,7 +19,7 @@ foreach ($f in @(
   $d = Split-Path $f
   if ($d) { New-Item -ItemType Directory -Force -Path $d | Out-Null }
   Write-Host "GET $f"
-  Invoke-WebRequest "$b/$f`?t=$bust" -OutFile $f -UseBasicParsing
+  Invoke-WebRequest -Uri "$b/$f`?t=$bust" -OutFile $f -UseBasicParsing
 }
 
 $tz = Get-Content PROJECT_TZ.md -Raw
