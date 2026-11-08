@@ -1,8 +1,10 @@
-# Full wipe src + pull forge TZ + run week. After HITL: python run.py --eval
+# Full wipe src + pull LATEST forge (cache-busted) + week + eval
 $ErrorActionPreference = "Stop"
 Set-Location $PSScriptRoot\..
 
-$b = "https://raw.githubusercontent.com/pirsov/-/cursor/quality-forge-orchestrator-9409"
+$ref = if ($env:FORGE_REF) { $env:FORGE_REF } else { "cursor/quality-forge-orchestrator-9409" }
+$bust = [int][double]::Parse((Get-Date -UFormat %s))
+$b = "https://raw.githubusercontent.com/pirsov/-/$ref"
 $files = @(
   "PROJECT_TZ.md",
   "forge/models.json",
@@ -10,13 +12,25 @@ $files = @(
   "forge/ollama_client.py",
   "forge/prompts.py",
   "forge/validator.py",
-  "forge/task_parser.py"
+  "forge/task_parser.py",
+  "forge/llm.py"
 )
 foreach ($f in $files) {
   $d = Split-Path $f
   if ($d) { New-Item -ItemType Directory -Force -Path $d | Out-Null }
+  $url = "$b/$f`?t=$bust"
   Write-Host "GET $f"
-  Invoke-WebRequest "$b/$f" -OutFile $f -UseBasicParsing
+  Invoke-WebRequest $url -OutFile $f -UseBasicParsing
+}
+
+# Sanity: must be greenfield G1 + --eval support
+$tz = Get-Content PROJECT_TZ.md -Raw
+if ($tz -notmatch '\[ \] G1 ') {
+  throw "PROJECT_TZ.md is not greenfield (no pending G1). Delete local PROJECT_TZ.md and re-run."
+}
+$orch = Get-Content forge\orchestrator.py -Raw
+if ($orch -notmatch '--eval') {
+  throw "forge/orchestrator.py missing --eval. Download failed; check network."
 }
 
 Get-ChildItem src -Recurse -Filter *.luau -File -ErrorAction SilentlyContinue | Remove-Item -Force
@@ -32,8 +46,8 @@ Remove-Item Env:SPACE_BUNNY_API_KEY -ErrorAction SilentlyContinue
 Write-Host "=== doctor ==="
 python run.py --doctor
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-Write-Host "=== week (G1… then H* y/n) ==="
+Write-Host "=== week (must start [G1]) ==="
 python run.py --week
-Write-Host "=== eval report ==="
+Write-Host "=== eval ==="
 python run.py --eval
 Write-Host "Report: docs\AGENT_RUN_REPORT.md"

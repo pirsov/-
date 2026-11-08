@@ -125,8 +125,10 @@ def validate_file(path: Path) -> Tuple[bool, List[str]]:
             errors.append(f"unbalanced parentheses ({opens} vs {closes})")
 
     if name.endswith(".luau"):
-        if re.search(r"\bfolder\b", content) and not re.search(
-            r"\blocal\s+folder\b|\bfolder\s*=", content
+        code_only = re.sub(r"--[^\n]*", "", content)
+        # Identifier `folder` / `folder.`, not the English word in comments
+        if re.search(r"(?<![A-Za-z_])folder(?![A-Za-z_])", code_only) and not re.search(
+            r"\blocal\s+folder\b|\bfolder\s*=", code_only
         ):
             errors.append("uses 'folder' but never defines it (likely APPEND overwrite)")
 
