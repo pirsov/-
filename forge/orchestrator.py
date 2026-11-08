@@ -317,6 +317,21 @@ def write_heartbeat(root: Path, payload: dict) -> None:
     p.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
 
+EXPECTED_GAME_FILES = (
+    "src/shared/Gameplay/Remotes.luau",
+    "src/server/InitRemotes.server.luau",
+    "src/shared/Content/LevelConfig.luau",
+    "src/server/Level/Generator.server.luau",
+    "src/server/Gameplay/Checkpoints.server.luau",
+    "src/server/Gameplay/Coins.server.luau",
+    "src/server/Gameplay/Void.server.luau",
+    "src/server/Gameplay/Puzzles.server.luau",
+    "src/server/Data/PlayerData.server.luau",
+    "src/client/HUD.client.luau",
+    "src/client/Effects.client.luau",
+)
+
+
 def quality_score(root: Path) -> Tuple[int, List[str]]:
     """0-100 score used as phase gate."""
     ok, errs = validate_project_integrity(root)
@@ -325,12 +340,86 @@ def quality_score(root: Path) -> Tuple[int, List[str]]:
     if not ok:
         score -= min(80, 15 * len(errs))
         notes.extend(errs[:10])
-    # reward presence of docs
-    for rel in ("docs/GDD.md", "docs/ARCHITECTURE.md", "docs/QA_REPORT.md", "docs/RELEASE.md"):
-        if not (root / rel).exists():
+    for rel in EXPECTED_GAME_FILES:
+        if not (root / rel).is_file():
             score -= 5
             notes.append(f"missing {rel}")
+    for rel in ("docs/GDD.md", "docs/QA_REPORT.md"):
+        if not (root / rel).exists():
+            score -= 3
+            notes.append(f"missing {rel}")
     return max(0, score), notes
+
+
+def write_eval_report(root: Path) -> Path:
+    """Post-run assessment → docs/AGENT_RUN_REPORT.md"""
+    from .task_parser import find_pending_tasks
+
+    lines: List[str] = []
+    lines.append(f"# Agent run report")
+    lines.append(f"")
+    lines.append(f"- When: {now_human()}")
+    lines.append(f"- Backend: `{llm.backend_name()}`")
+    lines.append(f"- Root: `{root}`")
+    lines.append("")
+
+    tz = (root / "PROJECT_TZ.md").read_text(encoding="utf-8") if (root / "PROJECT_TZ.md").is_file() else ""
+    pending = find_pending_tasks(tz) if tz else []
+    done_n = len(re.findall(r"^- \[x\]", tz, re.M))
+    open_n = len(re.findall(r"^- \[ \]", tz, re.M))
+    lines.append("## TZ progress")
+    lines.append(f"- Done checkboxes: **{done_n}**")
+    lines.append(f"- Open checkboxes: **{open_n}**")
+    if pending:
+        lines.append(f"- Next pending: `{pending[0].task_id}` @{pending[0].owner}")
+    else:
+        lines.append("- Next pending: _(none)_")
+    lines.append("")
+
+    score, notes = quality_score(root)
+    ok, errs = validate_project_integrity(root)
+    lines.append("## Scores")
+    lines.append(f"- Quality score: **{score}/100**")
+    lines.append(f"- Integrity: **{'OK' if ok else 'FAIL'}** ({len(errs)} issues)")
+    lines.append("")
+
+    lines.append("## Expected game files")
+    lines.append("| File | Present | Validator |")
+    lines.append("|------|---------|-----------|")
+    for rel in EXPECTED_GAME_FILES:
+        p = root / rel
+        if not p.is_file():
+            lines.append(f"| `{rel}` | NO | — |")
+            continue
+        vok, verrs = validate_file(p)
+        mark = "PASS" if vok else "FAIL: " + "; ".join(verrs[:2])
+        lines.append(f"| `{rel}` | YES | {mark} |")
+    lines.append("")
+
+    if notes:
+        lines.append("## Score notes")
+        for n in notes[:20]:
+            lines.append(f"- {n}")
+        lines.append("")
+    if errs:
+        lines.append("## Integrity errors")
+        for e in errs[:20]:
+            lines.append(f"- {e}")
+        lines.append("")
+
+    lines.append("## Verdict")
+    if score >= 80 and ok and not pending:
+        lines.append("**Ship-ready for Studio smoke** — run H* gates if any left, then playtest.")
+    elif score >= 60 and ok:
+        lines.append("**Playable skeleton** — finish pending TZ / human gates; re-run `--eval`.")
+    else:
+        lines.append("**Not ready** — fix FAIL files via new TZ tasks or `--week` repair; re-run `--eval`.")
+    lines.append("")
+
+    out = root / "docs" / "AGENT_RUN_REPORT.md"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return out
 
 
 def installed_models(force: bool = False) -> List[str]:
@@ -882,6 +971,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--score", action="store_true", help="Print quality score and exit")
     parser.add_argument("--validate", action="store_true", help="Validate all src files and exit")
+    parser.add_argument("--eval", action="store_true", help="Write docs/AGENT_RUN_REPORT.md assessment and exit")
     parser.add_argument("--doctor", action="store_true", help="Check Ollama + model tags, then exit")
     parser.add_argument(
         "--yes",
@@ -916,12 +1006,19 @@ def main(argv: Optional[List[str]] = None) -> int:
         print("OK" if ok else "INVALID")
         return 0 if ok else 1
 
+    if args.eval:
+        path = write_eval_report(root)
+        print(f"Wrote {path}")
+        print(path.read_text(encoding="utf-8"))
+        score, _ = quality_score(root)
+        return 0 if score >= 60 else 1
+
     week = bool(args.week)
     if week:
         max_steps = args.max if args.max is not None else 200
         sleep_s = args.sleep if args.sleep > 0 else 30.0
         validate_every = int(WEEK_MODE.get("validate_every_n_steps") or 5)
-        print("Quality Forge WEEK MODE | seed-first | no micro-split | 14b code models")
+        print("Quality Forge WEEK MODE | greenfield | no micro-split | 14b+7b-repair")
     else:
         max_steps = args.max if args.max is not None else (500 if args.loop else 1)
         sleep_s = args.sleep
