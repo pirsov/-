@@ -3,7 +3,8 @@ $ErrorActionPreference = "Stop"
 Set-Location $PSScriptRoot\..
 
 $ref = if ($env:FORGE_REF) { $env:FORGE_REF } else { "cursor/quality-forge-orchestrator-9409" }
-$bust = [int][double]::Parse((Get-Date -UFormat %s))
+# Locale-safe cache bust (RU Windows breaks [int](Get-Date -UFormat %s))
+$bust = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
 $b = "https://raw.githubusercontent.com/pirsov/-/$ref"
 foreach ($f in @(
   "PROJECT_TZ.md",
@@ -23,7 +24,7 @@ foreach ($f in @(
 
 $tz = Get-Content PROJECT_TZ.md -Raw
 if ($tz -notmatch '\[ \] F1 ') {
-  throw "PROJECT_TZ.md missing pending F1 — wrong download?"
+  throw "PROJECT_TZ.md missing pending F1 - wrong download?"
 }
 
 $env:FORGE_BACKEND = "ollama"
@@ -31,7 +32,7 @@ $env:OLLAMA_NUM_PARALLEL = "1"
 Remove-Item Env:OPENROUTER_API_KEY -ErrorAction SilentlyContinue
 Remove-Item Env:SPACE_BUNNY_API_KEY -ErrorAction SilentlyContinue
 
-Write-Host "=== week (must start [F1] LevelConfig) — src kept ==="
+Write-Host "=== week (must start [F1] LevelConfig) - src kept ==="
 python run.py --week
 Write-Host "=== eval ==="
 python run.py --eval

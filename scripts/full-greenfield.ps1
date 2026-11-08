@@ -3,10 +3,11 @@ $ErrorActionPreference = "Stop"
 Set-Location $PSScriptRoot\..
 
 $ref = if ($env:FORGE_REF) { $env:FORGE_REF } else { "cursor/quality-forge-orchestrator-9409" }
-$bust = [int][double]::Parse((Get-Date -UFormat %s))
+# Locale-safe cache bust (RU Windows breaks [int](Get-Date -UFormat %s))
+$bust = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
 $b = "https://raw.githubusercontent.com/pirsov/-/$ref"
 $files = @(
-  "PROJECT_TZ.md",
+  "docs/TZ_GREENFIELD.md",
   "forge/models.json",
   "forge/orchestrator.py",
   "forge/ollama_client.py",
@@ -18,12 +19,11 @@ $files = @(
 foreach ($f in $files) {
   $d = Split-Path $f
   if ($d) { New-Item -ItemType Directory -Force -Path $d | Out-Null }
-  $url = "$b/$f`?t=$bust"
   Write-Host "GET $f"
-  Invoke-WebRequest $url -OutFile $f -UseBasicParsing
+  Invoke-WebRequest "$b/$f`?t=$bust" -OutFile $f -UseBasicParsing
 }
 
-# Sanity: must be greenfield G1 + --eval support
+Copy-Item -Force docs\TZ_GREENFIELD.md PROJECT_TZ.md
 $tz = Get-Content PROJECT_TZ.md -Raw
 if ($tz -notmatch '\[ \] G1 ') {
   throw "PROJECT_TZ.md is not greenfield (no pending G1). Delete local PROJECT_TZ.md and re-run."
