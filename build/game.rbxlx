@@ -195,7 +195,16 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Remotes = require(ReplicatedStorage:WaitForChild("Gameplay"):WaitForChild("Remotes"))
-local folder = workspace:WaitForChild("Checkpoints")
+
+-- Do not WaitForChild forever: Generator may start later or fail. Create empty folder; ChildAdded hooks CPs.
+local folder = workspace:FindFirstChild("Checkpoints")
+if not folder then
+	folder = Instance.new("Folder")
+	folder.Name = "Checkpoints"
+	folder.Parent = workspace
+	print("[Checkpoints] created empty folder — waiting for Generator parts")
+end
+assert(folder:IsA("Folder"))
 
 local DEBOUNCE: { [number]: number } = {}
 
