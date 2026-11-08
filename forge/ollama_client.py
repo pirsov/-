@@ -104,10 +104,14 @@ def generate(
     timeout: int = 1800,
     url: str = DEFAULT_GENERATE,
 ) -> str:
+    # Never request more ctx than the card can hold for 14b (6GB ≈ 4k practical).
+    num_ctx = min(int(num_ctx), 4096)
+    num_predict = min(int(num_predict), 4096)
     body: Dict[str, Any] = {
         "model": model,
         "prompt": prompt,
         "stream": False,
+        "keep_alive": "10m",
         "options": {
             "num_ctx": num_ctx,
             "temperature": temperature,

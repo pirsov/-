@@ -125,19 +125,20 @@ def relevant_paths(root: Path, task: Task, owner: str = "") -> List[Path]:
 
 
 def file_budget_chars() -> int:
-    """Cloud 1M-ctx backends can take full src/; local Ollama stays tight."""
+    """Cloud 1M-ctx: large. Ollama on 6GB VRAM: keep prompt small so 4k ctx has room to write."""
     try:
         from . import llm
 
-        if llm.backend_name() in {"spacebunny", "openrouter"}:
-            return int(
-                (SPACEBUNNY_CFG.get("file_budget") if llm.backend_name() == "spacebunny" else None)
-                or (OPENROUTER_CFG.get("file_budget") if llm.backend_name() == "openrouter" else None)
-                or 180_000
-            )
+        be = llm.backend_name()
+        if be == "spacebunny":
+            return int(SPACEBUNNY_CFG.get("file_budget") or 180_000)
+        if be == "openrouter":
+            return int(OPENROUTER_CFG.get("file_budget") or 180_000)
+        ollama_cfg = dict(_CFG.get("ollama") or {})
+        return int(ollama_cfg.get("file_budget") or 12_000)
     except Exception:
         pass
-    return 24_000
+    return 12_000
 
 
 def render_files(paths: Sequence[Path], root: Path, budget_chars: Optional[int] = None) -> str:

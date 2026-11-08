@@ -359,10 +359,31 @@ def pick_model(owner: str, attempt: int, escalate: bool) -> dict:
 
     base = dict(AGENT_MODELS.get(owner, AGENT_MODELS["refactorer"]))
     preferred = base["model"]
+    # Attempt 2+: prefer repair model (7b) — surgical patch, less VRAM than second 14b pass
     if escalate and attempt >= 2:
-        idx = min(attempt - 1, len(ESCALATION) - 1)
-        preferred = ESCALATION[idx]
-        base["predict"] = max(base.get("predict", 2048), 4096)
+        from .prompts import load_model_config
+
+        repair = dict(load_model_config().get("repair") or {})
+        if repair.get("model"):
+            preferred = str(repair["model"])
+            base["ctx"] = int(repair.get("ctx") or base.get("ctx") or 2048)
+            base["predict"] = int(repair.get("predict") or 3072)
+            print(f"   repair model: {preferred} ctx={base['ctx']} predict={base['predict']}")
+        else:
+            idx = min(attempt - 1, len(ESCALATION) - 1)
+            preferred = ESCALATION[idx]
+            base["predict"] = max(int(base.get("predict", 2048)), 3072)
+
+    # Cap predict on local Ollama so 6GB cards don't blow KV during long FILE writes
+    week_cap = int(WEEK_MODE.get("max_predict_code") or 0)
+    if week_cap and owner in {
+        "gameplay_programmer",
+        "client_programmer",
+        "refactorer",
+        "integrator",
+        "tech_architect",
+    }:
+        base["predict"] = min(int(base.get("predict", 2048)), week_cap)
 
     installed = installed_models()
     resolved = llm.resolve_model(preferred, installed, allow_any=FALLBACK_ANY)
