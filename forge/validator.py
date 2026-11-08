@@ -143,12 +143,14 @@ def validate_file(path: Path) -> Tuple[bool, List[str]]:
             if re.search(r"(?<![A-Za-z_])screen(?![A-Za-z_])", code_only):
                 if not re.search(r"\blocal\s+screen\b|\bscreen\s*=", code_only):
                     errors.append("uses 'screen' but never defines it (likely APPEND overwrite)")
-        if (
-            re.search(r"PlayerAdded|GetPlayerFromCharacter|LocalPlayer", content)
-            and not re.search(r"GetService\(\s*[\"']Players[\"']\s*\)", content)
-            and not re.search(r"\blocal\s+Players\b", content)
-        ):
-            errors.append("uses Players service without GetService")
+        if re.search(r"PlayerAdded|GetPlayerFromCharacter|LocalPlayer", content):
+            has_players = (
+                re.search(r"GetService\(\s*[\"']Players[\"']\s*\)", content)
+                or re.search(r"\blocal\s+Players\b", content)
+                or re.search(r"\bgame\.Players\b", content)
+            )
+            if not has_players:
+                errors.append("uses Players service without GetService or game.Players")
 
     # Generator must keep walkable map + CheckpointN naming (not Checkpoint_N)
     if name == "Generator.server.luau":
