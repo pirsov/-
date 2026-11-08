@@ -171,17 +171,26 @@ def validate_file(path: Path) -> Tuple[bool, List[str]]:
             errors.append("Checkpoints.server.luau missing Touched handlers")
         if "Died" not in content and "LoadCharacter" not in content:
             errors.append("Checkpoints.server.luau missing Humanoid.Died / LoadCharacter handling")
-        # Must store a number index, not a BasePart Instance
-        if not re.search(
-            r'SetAttribute\(\s*["\']Checkpoint["\']\s*,\s*(idx|index|checkpointIndex|n)\s*\)',
+        # Must store a number index, not a BasePart Instance (any numeric var name OK)
+        sa = re.search(
+            r'SetAttribute\(\s*["\']Checkpoint["\']\s*,\s*([^)\n]+)\)',
             content,
-        ):
+        )
+        if not sa:
             errors.append(
-                "Checkpoints must SetAttribute(\"Checkpoint\", idx) with a number — "
-                "not a Part/Instance"
+                'Checkpoints must SetAttribute("Checkpoint", <number>) '
+                "(e.g. idx from part.Name) — not a Part/Instance"
             )
-        if re.search(r'SetAttribute\(\s*["\']Checkpoint["\']\s*,\s*cp\s*\)', content):
-            errors.append("SetAttribute(\"Checkpoint\", cp) is wrong — pass numeric idx")
+        else:
+            arg = sa.group(1).strip()
+            if re.match(
+                r"^(cp|part|hit|child|checkpoint|folder)\s*$",
+                arg,
+                re.I,
+            ):
+                errors.append(
+                    f'SetAttribute("Checkpoint", {arg}) is wrong — pass numeric idx, not a Part'
+                )
         if "FireClient" not in content:
             errors.append("Checkpoints.server.luau must FireClient CheckpointReached")
         # Teleport must resolve CheckpointN from workspace folder
