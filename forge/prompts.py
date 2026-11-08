@@ -402,6 +402,36 @@ if Remotes.CoinCollected then
 	end)
 end
 """
+    generator_template = ""
+    if task.target_path and "Generator.server.luau" in task.target_path.replace("\\", "/"):
+        generator_template = """
+=== GENERATOR RULES (must follow) ===
+- CREATE folders with Instance.new — never WaitForChild("Map") before creating it.
+- ensureFolder("Map"), ensureFolder("Checkpoints"), ensureFolder("Coins").
+- Path Part Name="Path", SpawnPlaza, SpawnLocation under Map; destroy Baseplate.
+- Checkpoints named "Checkpoint"..tostring(id); print "[Generator] map floor ready".
+"""
+    coins_template = ""
+    if task.target_path and "Coins.server.luau" in task.target_path.replace("\\", "/"):
+        coins_template = """
+=== COINS RULES ===
+require(ReplicatedStorage:WaitForChild("Gameplay"):WaitForChild("Remotes"))
+Hook GetChildren + ChildAdded. On touch: Destroy the coin Part (the hooked part), FireClient CoinCollected.
+"""
+    void_template = ""
+    if task.target_path and "Void.server.luau" in task.target_path.replace("\\", "/"):
+        void_template = """
+=== VOID RULES ===
+Use RunService.Heartbeat: if HumanoidRootPart.Position.Y < -20 then Player:LoadCharacter().
+Do NOT use Touched on HRP for void.
+"""
+    puzzles_template = ""
+    if task.target_path and "Puzzles.server.luau" in task.target_path.replace("\\", "/"):
+        puzzles_template = """
+=== PUZZLES RULES ===
+Create PressurePlate + Gate Parts if missing. Touched => open gate. TouchEnded => close.
+Never use .Left. Prefer workspace.Puzzles folder.
+"""
 
     return f"""You are the agent @{owner} inside Quality Forge.
 You WRITE the game (Luau / design docs). A human only playtests later.
@@ -415,7 +445,7 @@ Follow AGENTS.md. Do the task for real — do not reply NOTE-only when a FILE is
 
 === Existing project files (relevant) ===
 {files}
-{feedback}{qa_template}{remotes_template}{checkpoints_template}{effects_template}
+{feedback}{qa_template}{remotes_template}{checkpoints_template}{effects_template}{generator_template}{coins_template}{void_template}{puzzles_template}
 === YOUR TASK ===
 {task.raw.strip()}
 
@@ -434,9 +464,11 @@ STRICT RULES:
 - NEVER list PlayerRespawn / PlayerRespawned as a BUG. That API is not in this project.
 - For Checkpoints: Touched, SetAttribute, FireClient, Died/LoadCharacter — report only what you see.
 - FILE path must be the real target (e.g. {task.target_path or "src/..."}), NEVER relative/path.ext.
-- Keep Map/Path + Spawn if editing Generator; extend, do not delete the floor.
+- Generator: CREATE Map/Path/Spawn (Instance.new); never WaitForChild Map first.
 - Generator checkpoint names: "Checkpoint" .. tostring(id) — NEVER "Checkpoint_".
 - Remotes: require Gameplay.Remotes ModuleScript; never return a Folder.
+- Coins: no ReplicatedStorage.shared; ChildAdded; destroy coin Part.
+- Void: Heartbeat Y<-20 LoadCharacter. Puzzles: TouchEnded not .Left.
 
 Format:
 <DONE>{task.task_id}</DONE>

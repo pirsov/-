@@ -28,8 +28,8 @@ class Task:
     description: str = ""
 
 
-# Sprint ids (A1, B2, Z3, G10), human H1, week W1.5, legacy P30.1 / P20.20.a
-_TASK_ID = r"((?:[ABHZG]\d+)|(?:[PW]\d+(?:\.\d+)*(?:\.[a-z])?))"
+# Sprint ids (A1, B2, Z3, G10, F1), human H1, week W1.5, legacy P30.1 / P20.20.a
+_TASK_ID = r"((?:[ABHZGF]\d+)|(?:[PW]\d+(?:\.\d+)*(?:\.[a-z])?))"
 _TASK_RE = re.compile(
     rf"^\s*- \[ \] {_TASK_ID}\s*\|\s*(.+?)\s*\|\s*@(\w+)(?:\s*\|\s*→\s*(.+))?\s*$"
 )

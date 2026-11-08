@@ -128,8 +128,8 @@ KNOWN_SEEDS = {
 }
 
 
-# Sprint A1/B2/Z3/G10, human H1, week W1.5, legacy P30.1 / P20.20.a
-_DONE_ID = r"((?:[ABHZG]\d+)|(?:[PW]\d+(?:\.\d+)*(?:\.[a-z])?))"
+# Sprint A1/B2/Z3/G10/F1, human H1, week W1.5, legacy P30.1 / P20.20.a
+_DONE_ID = r"((?:[ABHZGF]\d+)|(?:[PW]\d+(?:\.\d+)*(?:\.[a-z])?))"
 
 
 def parse_agent_output(text: str, expected_id: str) -> Tuple[Optional[str], str, List[FileOp], Optional[str]]:

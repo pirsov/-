@@ -152,20 +152,58 @@ def validate_file(path: Path) -> Tuple[bool, List[str]]:
             if not has_players:
                 errors.append("uses Players service without GetService or game.Players")
 
-    # Generator must keep walkable map + CheckpointN naming (not Checkpoint_N)
+    # Generator must CREATE map (not WaitForChild Map that does not exist yet)
     if name == "Generator.server.luau":
+        if re.search(r'WaitForChild\(\s*["\']Map["\']', content) and not re.search(
+            r'Name\s*=\s*["\']Map["\']', content
+        ):
+            errors.append(
+                'Generator must create Map (Instance.new Folder Name="Map"), '
+                "not WaitForChild(\"Map\") on empty workspace"
+            )
         if "SpawnLocation" not in content and "SpawnPlaza" not in content:
             errors.append("Generator must create SpawnLocation or SpawnPlaza")
         if not re.search(r'Name\s*=\s*["\']Path["\']', content) and 'Name = "Path"' not in content:
-            if "Map" not in content or "Path" not in content:
-                errors.append("Generator must keep Map Path floor (Name = \"Path\")")
+            errors.append('Generator must create floor Part Name="Path"')
+        if "Instance.new" not in content:
+            errors.append("Generator must Instance.new parts/folders for the map")
         if re.search(r'Name\s*=\s*["\']Checkpoint_["\']', content) or re.search(
             r'Checkpoint_"\s*\.\.', content
         ):
             errors.append('Checkpoint parts must be named "Checkpoint"..id (no underscore)')
-        if "Obstacle" not in content and "obstacle" not in content.lower():
-            # soft: only when file is a full rewrite that claims obstacles — enforced by tasks
-            pass
+        if "Checkpoints" not in content or "Coins" not in content:
+            errors.append("Generator must create/use workspace.Checkpoints and workspace.Coins")
+
+    if name == "Coins.server.luau":
+        if re.search(r'WaitForChild\(\s*["\']shared["\']', content):
+            errors.append('Coins must require ReplicatedStorage.Gameplay.Remotes (no "shared" folder)')
+        if "CoinCollected" not in content:
+            errors.append("Coins must FireClient CoinCollected")
+        if "ChildAdded" not in content:
+            errors.append("Coins must ChildAdded on Coins folder (Generator may spawn later)")
+        if re.search(r"hit:Destroy\(\)", content) and not re.search(
+            r"(coin|part):Destroy\(\)", content, re.I
+        ):
+            errors.append("Coins must Destroy the coin Part, not hit (limb)")
+
+    if name == "Void.server.luau":
+        if "LoadCharacter" not in content:
+            errors.append("Void must LoadCharacter on fall")
+        if not re.search(r"Position\.Y\s*<\s*-?\d+|Y\s*<\s*-20", content):
+            errors.append("Void must check HRP.Position.Y < -20")
+        if "Heartbeat" not in content and "Stepped" not in content and "RenderStepped" not in content:
+            if "Touched" in content:
+                errors.append("Void must poll Y on Heartbeat (Touched-on-HRP is wrong)")
+
+    if name == "Puzzles.server.luau":
+        if re.search(r"\.Left\s*:", content):
+            errors.append("Puzzles: use TouchEnded, not .Left (no such signal)")
+        if "Touched" not in content:
+            errors.append("Puzzles missing Touched on pressure plate")
+        if "TouchEnded" not in content:
+            errors.append("Puzzles must TouchEnded to close gate")
+        if re.search(r'WaitForChild\(\s*["\']Remotes["\']\s*\)', content) and "Gameplay" not in content:
+            errors.append("Puzzles: require Gameplay.Remotes ModuleScript, not RS.Remotes folder")
 
     # Checkpoints must keep touch + death wiring with a *numeric* checkpoint index
     if name == "Checkpoints.server.luau":

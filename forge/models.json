@@ -7,15 +7,15 @@
     "qa_engineer":         { "model": "phi4-mini:8k",         "ctx": 8192, "predict": 3072 },
     "builder":             { "model": "phi4-mini:4k",         "ctx": 4096, "predict": 2048 },
     "tech_architect":      { "model": "qwen2.5-coder:14b-4k", "ctx": 4096, "predict": 3072 },
-    "gameplay_programmer": { "model": "qwen2.5-coder:14b-4k", "ctx": 4096, "predict": 4096 },
-    "client_programmer":   { "model": "qwen2.5-coder:14b-4k", "ctx": 4096, "predict": 4096 },
-    "refactorer":          { "model": "qwen2.5-coder:14b-4k", "ctx": 4096, "predict": 4096 },
-    "integrator":          { "model": "qwen2.5-coder:14b-4k", "ctx": 4096, "predict": 4096 }
+    "gameplay_programmer": { "model": "qwen2.5-coder:14b-4k", "ctx": 4096, "predict": 6144 },
+    "client_programmer":   { "model": "qwen2.5-coder:14b-4k", "ctx": 4096, "predict": 6144 },
+    "refactorer":          { "model": "qwen2.5-coder:14b-4k", "ctx": 4096, "predict": 6144 },
+    "integrator":          { "model": "qwen2.5-coder:14b-4k", "ctx": 4096, "predict": 6144 }
   },
   "escalation": [
     "qwen2.5-coder:14b-4k",
     "qwen2.5-coder:14b-4k",
-    "qwen2.5-coder:14b-4k"
+    "roblox-coder:2k"
   ],
   "spacebunny": {
     "model": "space-bunny-alpha",
