@@ -966,7 +966,12 @@ def main(argv: Optional[List[str]] = None) -> int:
     parser.add_argument("--loop", action="store_true", help="Process many tasks in one run")
     parser.add_argument("--week", action="store_true", help="Week mode: loop + sleep + validate gates + no micro-split")
     parser.add_argument("--max", type=int, default=None, help="Max steps (default 1, or 500 with --loop)")
-    parser.add_argument("--sleep", type=float, default=0.0, help="Seconds between steps (week-long pacing)")
+    parser.add_argument(
+        "--sleep",
+        type=float,
+        default=None,
+        help="Seconds between steps (week default 30; pass 0 for no delay)",
+    )
     parser.add_argument("--root", type=str, default=str(ROOT_DEFAULT))
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--score", action="store_true", help="Print quality score and exit")
@@ -1016,12 +1021,13 @@ def main(argv: Optional[List[str]] = None) -> int:
     week = bool(args.week)
     if week:
         max_steps = args.max if args.max is not None else 200
-        sleep_s = args.sleep if args.sleep > 0 else 30.0
+        # None -> 30s pacing; explicit --sleep 0 must stay 0 (do not coerce to 30)
+        sleep_s = 30.0 if args.sleep is None else float(args.sleep)
         validate_every = int(WEEK_MODE.get("validate_every_n_steps") or 5)
         print("Quality Forge WEEK MODE | greenfield | no micro-split | 14b+7b-repair")
     else:
         max_steps = args.max if args.max is not None else (500 if args.loop else 1)
-        sleep_s = args.sleep
+        sleep_s = 0.0 if args.sleep is None else float(args.sleep)
         validate_every = 0
 
     be = llm.backend_name()
