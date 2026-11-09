@@ -15,6 +15,8 @@ from typing import Any, Dict, List, Optional
 from . import llm
 
 
+# OpenAI chat path: deepseek-chat (legacy) or deepseek-flash / deepseek-v4-pro.
+# Claude Code Anthropic path is separate — see scripts/start-claude-deepseek.*.
 DEFAULT_MODEL = os.environ.get("DEEPSEEK_MODEL") or "deepseek-chat"
 BASE_URL = os.environ.get("DEEPSEEK_BASE_URL") or "https://api.deepseek.com"
 

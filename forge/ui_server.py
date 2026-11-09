@@ -192,11 +192,15 @@ class Handler(BaseHTTPRequestHandler):
             self._json(404, {"error": f"missing {path.name}"})
             return
         raw = path.read_bytes()
-        self.send_response(200)
-        self.send_header("Content-Type", ctype)
-        self.send_header("Content-Length", str(len(raw)))
-        self.end_headers()
-        self.wfile.write(raw)
+        try:
+            self.send_response(200)
+            self.send_header("Content-Type", ctype)
+            self.send_header("Content-Length", str(len(raw)))
+            self.end_headers()
+            self.wfile.write(raw)
+        except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
+            # Browser refresh / tab close mid-transfer — ignore.
+            return
 
 
 def serve(host: str = "127.0.0.1", port: int = 8787) -> None:

@@ -1,6 +1,7 @@
 @echo off
-REM Launch Claude Code (or FCC) routed to DeepSeek via Anthropic-compatible API.
+REM Launch Claude Code / FCC routed to DeepSeek Anthropic-compatible API.
 REM Do NOT paste your key into this file. Set User env DEEPSEEK_API_KEY once.
+REM DeepSeek Anthropic endpoint accepts ONLY: deepseek-flash | deepseek-v4-pro
 
 setlocal EnableExtensions
 
@@ -16,38 +17,43 @@ if "%DEEPSEEK_API_KEY%"=="" (
   exit /b 1
 )
 
-REM DeepSeek Anthropic-compatible endpoint (Claude Code / FCC)
+REM Force DeepSeek Anthropic endpoint. Clear Ollama/qwen bleed from User env.
 set "ANTHROPIC_BASE_URL=https://api.deepseek.com/anthropic"
-set "ANTHROPIC_API_KEY=%DEEPSEEK_API_KEY%"
+REM Claude Code: use AUTH_TOKEN only (both vars together break auth).
 set "ANTHROPIC_AUTH_TOKEN=%DEEPSEEK_API_KEY%"
-if "%ANTHROPIC_MODEL%"=="" set "ANTHROPIC_MODEL=deepseek-chat"
-if "%CLAUDE_CODE_USE_DEEPSEEK%"=="" set "CLAUDE_CODE_USE_DEEPSEEK=1"
+set "ANTHROPIC_API_KEY="
+REM Always force model - ignore leftover ANTHROPIC_MODEL=qwen... from forge/ollama.
+if /I "%DEEPSEEK_CLAUDE_MODEL%"=="pro" (
+  set "ANTHROPIC_MODEL=deepseek-v4-pro"
+) else (
+  set "ANTHROPIC_MODEL=deepseek-flash"
+)
+set "CLAUDE_CODE_USE_DEEPSEEK=1"
+set "CLAUDE_CODE_DISABLE_UNKNOWN_MODEL_WINDOW_ENFORCEMENT=1"
 
 cd /d "%~dp0\.."
 
-echo DeepSeek key: loaded (len check only)
-powershell -NoProfile -Command "if ($env:DEEPSEEK_API_KEY.Length -lt 12) { exit 2 } else { Write-Host ('  length=' + $env:DEEPSEEK_API_KEY.Length) }"
+echo DeepSeek -^> Claude | model=%ANTHROPIC_MODEL% | base=%ANTHROPIC_BASE_URL%
+powershell -NoProfile -Command "if ($env:DEEPSEEK_API_KEY.Length -lt 20) { exit 2 } else { Write-Host ('  key_len=' + $env:DEEPSEEK_API_KEY.Length) }"
 if errorlevel 2 (
-  echo ERROR: key looks too short
+  echo ERROR: key looks too short ^(need full sk-... from platform.deepseek.com^)
   exit /b 2
 )
 
 where fcc-claude >nul 2>nul
 if %ERRORLEVEL%==0 (
-  echo Starting fcc-claude ...
-  fcc-claude %*
+  echo Starting fcc-claude --model %ANTHROPIC_MODEL% ...
+  fcc-claude --model %ANTHROPIC_MODEL% %*
   exit /b %ERRORLEVEL%
 )
 
 where claude >nul 2>nul
 if %ERRORLEVEL%==0 (
-  echo Starting claude ...
-  claude %*
+  echo Starting claude --model %ANTHROPIC_MODEL% ...
+  claude --model %ANTHROPIC_MODEL% %*
   exit /b %ERRORLEVEL%
 )
 
 echo Neither fcc-claude nor claude found on PATH.
-echo Install Free Claude Code first:
-echo   powershell -Command "& ([scriptblock]::Create((irm 'https://raw.githubusercontent.com/Alishahryar1/free-claude-code/main/scripts/install.ps1')))"
-echo Then re-run this bat.
+echo Install Free Claude Code first, then re-run this bat.
 exit /b 3
