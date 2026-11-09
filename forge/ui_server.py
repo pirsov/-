@@ -249,11 +249,26 @@ class Handler(BaseHTTPRequestHandler):
                         "forge-ui-animation",
                     ]:
                         try:
-                            skills_hub.promote_compact(sid, ROOT, smoke_ok=True, notes="ui smoke")
+                            note = body.get("notes") or "ui smoke"
+                            skills_hub.promote_compact(sid, ROOT, smoke_ok=True, notes=note)
                         except FileNotFoundError:
                             pass
                 progress_hub.mark(ROOT, smoke_done=True)
-                self._json(200, {"ok": True, "saved": str(path_out), "progress": progress_hub.snapshot(ROOT)})
+                saved = {}
+                try:
+                    saved = json.loads(path_out.read_text(encoding="utf-8"))
+                except Exception:
+                    saved = {"path": str(path_out)}
+                self._json(
+                    200,
+                    {
+                        "ok": True,
+                        "saved": str(path_out),
+                        "others": saved.get("others") or [],
+                        "answers": saved.get("answers") or {},
+                        "progress": progress_hub.snapshot(ROOT),
+                    },
+                )
                 return
             if path == "/api/promote":
                 sid = body.get("skill_id") or ""

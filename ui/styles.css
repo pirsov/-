@@ -337,13 +337,18 @@ input:focus, textarea:focus, button:focus-visible {
   margin-top: 0.45rem;
 }
 .smoke-other.open { display: block; }
+.q:has(.yn-btn.other.active) .smoke-other { display: block; }
 .smoke-other input {
   width: 100%;
   background: var(--coal-0);
-  border: 1px solid var(--line);
+  border: 1px solid var(--amber);
   color: var(--ink);
   padding: 0.5rem 0.65rem;
   font: inherit;
+}
+.smoke-other input:focus {
+  outline: 2px solid var(--amber);
+  outline-offset: 1px;
 }
 
 .foot {

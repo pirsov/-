@@ -400,15 +400,27 @@ el("btn-run").onclick = async () => {
   }
 };
 
+function otherDetail(qid) {
+  const inp = el("smoke") && el("smoke").querySelector(`input[data-other="${qid}"]`);
+  if (inp && typeof inp.value === "string") return inp.value.trim();
+  const a = smokeAnswers[qid];
+  return a && a.detail ? String(a.detail).trim() : "";
+}
+
 function smokeAnswered(qid) {
   const a = smokeAnswers[qid];
   if (!a) return false;
   if (a.answer === "y" || a.answer === "n") return true;
-  if (a.answer === "other") return !!(a.detail && String(a.detail).trim());
+  if (a.answer === "other") return otherDetail(qid).length > 0;
   return false;
 }
 
 function updateSmokeProgress() {
+  // Sync details from DOM so "Другое" text is never lost before submit
+  for (const q of smokeQs) {
+    const a = smokeAnswers[q.id];
+    if (a && a.answer === "other") a.detail = otherDetail(q.id);
+  }
   const total = smokeQs.length;
   let answered = 0;
   for (const q of smokeQs) {
@@ -424,10 +436,11 @@ function updateSmokeProgress() {
 function setSmokeChoice(qid, value) {
   const row = el("smoke").querySelector(`.q[data-id="${qid}"]`);
   if (!row) return;
-  const prev = smokeAnswers[qid] || {};
+  const inp = row.querySelector("input[data-other]");
+  const typed = inp ? String(inp.value || "") : "";
   smokeAnswers[qid] = {
     answer: value,
-    detail: value === "other" ? (prev.detail || "") : "",
+    detail: value === "other" ? typed : "",
   };
   row.querySelectorAll(".yn-btn").forEach(b => {
     b.classList.toggle("active", b.getAttribute("data-v") === value);
@@ -435,15 +448,32 @@ function setSmokeChoice(qid, value) {
   const otherBox = row.querySelector(".smoke-other");
   if (otherBox) {
     otherBox.classList.toggle("open", value === "other");
-    if (value === "other") {
-      const inp = otherBox.querySelector("input");
-      if (inp) {
-        inp.focus();
-        smokeAnswers[qid].detail = inp.value;
-      }
+    if (value === "other" && inp) {
+      // keep existing text; focus for typing
+      setTimeout(() => inp.focus(), 0);
     }
   }
   updateSmokeProgress();
+}
+
+function bindOtherInput(inp) {
+  const sync = () => {
+    const qid = inp.getAttribute("data-other");
+    if (!qid) return;
+    if (!smokeAnswers[qid] || smokeAnswers[qid].answer !== "other") {
+      setSmokeChoice(qid, "other");
+    } else {
+      smokeAnswers[qid].detail = inp.value;
+      updateSmokeProgress();
+    }
+  };
+  inp.addEventListener("input", sync);
+  inp.addEventListener("change", sync);
+  inp.addEventListener("blur", sync);
+  inp.addEventListener("keydown", (e) => {
+    // stop panel/rail handlers from stealing keys
+    e.stopPropagation();
+  });
 }
 
 el("btn-smoke-load").onclick = async () => {
@@ -461,49 +491,59 @@ el("btn-smoke-load").onclick = async () => {
           <button type="button" class="yn-btn other" data-v="other">Другое</button>
         </div>
         <div class="smoke-other">
-          <input type="text" data-other="${q.id}" placeholder="Уточни по этому пункту: что именно не так / как работает" />
+          <input type="text" data-other="${q.id}" autocomplete="off" placeholder="Уточни: что именно (например Best: -- не пишется)" />
         </div>
       </div>`).join("") || "<p class='muted'>нет вопросов</p>";
     el("smoke").querySelectorAll(".yn-btn").forEach(btn => {
-      btn.onclick = () => {
+      btn.onclick = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
         const qid = btn.closest(".q").getAttribute("data-id");
         setSmokeChoice(qid, btn.getAttribute("data-v"));
       };
     });
-    el("smoke").querySelectorAll("input[data-other]").forEach(inp => {
-      inp.oninput = () => {
-        const qid = inp.getAttribute("data-other");
-        if (!smokeAnswers[qid] || smokeAnswers[qid].answer !== "other") {
-          setSmokeChoice(qid, "other");
-        }
-        smokeAnswers[qid].detail = inp.value;
-        updateSmokeProgress();
-      };
-    });
+    el("smoke").querySelectorAll("input[data-other]").forEach(bindOtherInput);
     updateSmokeProgress();
-    toast("Y / N / Другое — у каждого вопроса своё уточнение");
+    toast("Y / N / Другое — текст Другое обязателен");
   } catch (e) { toast(String(e.message || e)); }
 };
 
 el("btn-smoke-submit").onclick = async () => {
+  // Final DOM sync right before save
+  updateSmokeProgress();
   const answers = {};
   let yes = 0, total = 0;
   for (const q of smokeQs) {
-    const a = smokeAnswers[q.id];
-    if (!smokeAnswered(q.id)) {
+    const a = smokeAnswers[q.id] || {};
+    let answer = a.answer;
+    const detail = otherDetail(q.id);
+    if (answer === "other" || detail) {
+      // if user typed without clicking Другое, treat as other
+      if (!answer || answer === "y" || answer === "n") {
+        if (detail) answer = "other";
+      }
+    }
+    if (answer === "other") {
+      if (!detail) {
+        toast(`Вопрос ${q.id}: напиши уточнение в «Другое»`);
+        const row = el("smoke").querySelector(`.q[data-id="${q.id}"]`);
+        if (row) {
+          setSmokeChoice(q.id, "other");
+          const inp = row.querySelector("input[data-other]");
+          if (inp) inp.focus();
+        }
+        return;
+      }
+      answers[q.id] = { answer: "other", prompt: q.prompt, detail };
+    } else if (answer === "y" || answer === "n") {
+      answers[q.id] = { answer, prompt: q.prompt, detail: "" };
+    } else {
       toast("Отметь все пункты: Y, N или Другое (с текстом)");
       return;
     }
-    const detail = (a.detail || "").trim();
-    answers[q.id] = {
-      answer: a.answer,
-      prompt: q.prompt,
-      detail: a.answer === "other" ? detail : "",
-    };
     total += 1;
-    if (a.answer === "y") yes += 1;
+    if (answer === "y") yes += 1;
   }
-  // "other" counts as partial — promote if enough clear Y (>=70% of total as y)
   const overall_ok = total > 0 && yes / total >= 0.7;
   const notes = Object.entries(answers)
     .filter(([, v]) => v.answer === "other" && v.detail)
@@ -522,8 +562,17 @@ el("btn-smoke-submit").onclick = async () => {
           : [],
       }),
     });
-    el("smoke-out").textContent = JSON.stringify(j, null, 2);
-    toast(overall_ok ? "Smoke сохранён · promote" : "Smoke сохранён");
+    el("smoke-out").textContent = JSON.stringify({
+      ok: j.ok,
+      saved: j.saved,
+      others: j.others,
+      answers: j.answers,
+    }, null, 2);
+    toast(
+      (j.others && j.others.length)
+        ? `Сохранено · Другое: ${j.others.length}`
+        : (overall_ok ? "Smoke сохранён · promote" : "Smoke сохранён")
+    );
     await refresh();
   } catch (e) { toast(String(e.message || e)); }
 };

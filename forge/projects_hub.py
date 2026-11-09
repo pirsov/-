@@ -64,23 +64,59 @@ def activate_project(root: Path, project_id: str) -> Path:
     return proj
 
 
-def save_smoke(root: Path, project_id: str, answers: Dict[str, Any]) -> Path:
+def save_smoke(root: Path, project_id: str, body: Dict[str, Any]) -> Path:
+    """Persist smoke questionnaire. Accepts full UI body or bare answers map."""
     proj = get_project(root, project_id)
     smoke_dir = proj / "smoke"
     smoke_dir.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
     path = smoke_dir / f"{stamp}.json"
+
+    # UI sends { project, answers: {q1: {answer, prompt, detail}}, notes, overall_ok, ... }
+    raw_answers = body.get("answers") if isinstance(body.get("answers"), dict) else body
+    if not isinstance(raw_answers, dict):
+        raw_answers = {}
+    # Normalize each answer so "other" detail is never dropped
+    answers: Dict[str, Any] = {}
+    others: List[str] = []
+    for qid, val in raw_answers.items():
+        if not isinstance(val, dict):
+            answers[str(qid)] = {"answer": str(val), "prompt": "", "detail": ""}
+            continue
+        ans = str(val.get("answer") or "").strip().lower()
+        detail = str(val.get("detail") or "").strip()
+        if ans in {"другое", "other", "o"}:
+            ans = "other"
+        entry = {
+            "answer": ans,
+            "prompt": str(val.get("prompt") or ""),
+            "detail": detail if ans == "other" else "",
+        }
+        answers[str(qid)] = entry
+        if ans == "other" and detail:
+            others.append(f"{qid}: {detail}")
+
+    notes = str(body.get("notes") or "").strip()
+    if others:
+        joined = " | ".join(others)
+        notes = f"{notes} | {joined}".strip(" |") if notes else joined
+
     payload = {
         "when": datetime.now(timezone.utc).isoformat(),
+        "project": project_id,
+        "overall_ok": bool(body.get("overall_ok")),
+        "notes": notes,
         "answers": answers,
+        "others": others,
     }
-    path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
-    (smoke_dir / "latest.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    (smoke_dir / "latest.json").write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
     meta_p = proj / "meta.json"
     meta = json.loads(meta_p.read_text(encoding="utf-8")) if meta_p.exists() else {"id": project_id}
-    meta["smoke"] = {"pending": False, "latest": str(path)}
-    # promote skills marked in answers
-    for sid in answers.get("promote_skills") or []:
+    meta["smoke"] = {"pending": False, "latest": str(path), "others": others}
+    for sid in body.get("promote_skills") or []:
         from . import skills_hub
 
         skills_hub.promote_compact(
@@ -89,7 +125,7 @@ def save_smoke(root: Path, project_id: str, answers: Dict[str, Any]) -> Path:
             smoke_ok=True,
             notes=f"promoted from {project_id} smoke {stamp}",
         )
-    meta_p.write_text(json.dumps(meta, indent=2), encoding="utf-8")
+    meta_p.write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
     return path
 
 
