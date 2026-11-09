@@ -47,6 +47,13 @@
     "file_budget": 180000,
     "escalation": ["stealth/space-bunny-alpha"]
   },
+  "deepseek": {
+    "model": "deepseek-chat",
+    "role": "prompt_and_skills_only",
+    "compact_max_chars": 1200,
+    "inject_max_skills": 3,
+    "_comment": "DEEPSEEK_API_KEY — compress skills + draft TZ + smoke Q. Never writes Luau."
+  },
   "fallback_any": true,
   "week_mode": {
     "disable_micro_split": true,

@@ -1,0 +1,123 @@
+"""Multi-project registry (game1, game2, ...)."""
+from __future__ import annotations
+
+import json
+import shutil
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any, Dict, List, Optional
+
+
+def projects_root(root: Path) -> Path:
+    return root / "projects"
+
+
+def list_projects(root: Path) -> List[Dict[str, Any]]:
+    base = projects_root(root)
+    if not base.exists():
+        return []
+    out = []
+    for d in sorted(base.iterdir()):
+        if not d.is_dir():
+            continue
+        meta_p = d / "meta.json"
+        meta = json.loads(meta_p.read_text(encoding="utf-8")) if meta_p.exists() else {"id": d.name}
+        meta["path"] = str(d)
+        luau = list(d.rglob("*.luau"))
+        meta["luau_files"] = len(luau)
+        out.append(meta)
+    return out
+
+
+def get_project(root: Path, project_id: str) -> Path:
+    p = projects_root(root) / project_id
+    if not p.exists():
+        raise FileNotFoundError(project_id)
+    return p
+
+
+def activate_project(root: Path, project_id: str) -> Path:
+    """Copy project src + TZ into workspace live tree for --week."""
+    proj = get_project(root, project_id)
+    src = proj / "src"
+    if src.exists():
+        live = root / "src"
+        # clear luau only
+        for f in live.rglob("*.luau"):
+            f.unlink()
+        for f in src.rglob("*.luau"):
+            rel = f.relative_to(src)
+            dest = live / rel
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(f, dest)
+    tz = proj / "PROJECT_TZ.md"
+    if tz.exists():
+        shutil.copy2(tz, root / "PROJECT_TZ.md")
+    meta_p = proj / "meta.json"
+    meta = json.loads(meta_p.read_text(encoding="utf-8")) if meta_p.exists() else {}
+    meta["activated_at"] = datetime.now(timezone.utc).isoformat()
+    meta_p.write_text(json.dumps(meta, indent=2), encoding="utf-8")
+    (root / ".forge").mkdir(exist_ok=True)
+    (root / ".forge" / "active_project.json").write_text(
+        json.dumps({"id": project_id}, indent=2), encoding="utf-8"
+    )
+    return proj
+
+
+def save_smoke(root: Path, project_id: str, answers: Dict[str, Any]) -> Path:
+    proj = get_project(root, project_id)
+    smoke_dir = proj / "smoke"
+    smoke_dir.mkdir(parents=True, exist_ok=True)
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+    path = smoke_dir / f"{stamp}.json"
+    payload = {
+        "when": datetime.now(timezone.utc).isoformat(),
+        "answers": answers,
+    }
+    path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    (smoke_dir / "latest.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    meta_p = proj / "meta.json"
+    meta = json.loads(meta_p.read_text(encoding="utf-8")) if meta_p.exists() else {"id": project_id}
+    meta["smoke"] = {"pending": False, "latest": str(path)}
+    # promote skills marked in answers
+    for sid in answers.get("promote_skills") or []:
+        from . import skills_hub
+
+        skills_hub.promote_compact(
+            sid,
+            root,
+            smoke_ok=True,
+            notes=f"promoted from {project_id} smoke {stamp}",
+        )
+    meta_p.write_text(json.dumps(meta, indent=2), encoding="utf-8")
+    return path
+
+
+def snapshot_live_to_project(root: Path, project_id: str, *, title: str = "") -> Path:
+    """Save current workspace src into projects/<id>."""
+    proj = projects_root(root) / project_id
+    proj.mkdir(parents=True, exist_ok=True)
+    live_src = root / "src"
+    dest_src = proj / "src"
+    if dest_src.exists():
+        shutil.rmtree(dest_src)
+    if live_src.exists():
+        shutil.copytree(live_src, dest_src)
+    tz = root / "PROJECT_TZ.md"
+    if tz.exists():
+        shutil.copy2(tz, proj / "PROJECT_TZ.md")
+    meta = {
+        "id": project_id,
+        "name": project_id,
+        "title": title or project_id,
+        "created": datetime.now(timezone.utc).isoformat(),
+        "backend_code": "ollama",
+        "backend_prompt": "deepseek",
+        "status": "snapshot",
+        "skills_compact": [c["id"] for c in __import__("forge.skills_hub", fromlist=["list_compact"]).list_compact(root) if c.get("promoted") == "true"]
+        or ["forge-player-attrs", "forge-luau-touch"],
+        "smoke": {"pending": True},
+    }
+    (proj / "meta.json").write_text(json.dumps(meta, indent=2), encoding="utf-8")
+    (proj / "smoke").mkdir(exist_ok=True)
+    return proj

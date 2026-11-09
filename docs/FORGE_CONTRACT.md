@@ -4,8 +4,18 @@
 **The LLM agent (via `python run.py --week`) writes the game.**  
 Cursor / cloud coding agents maintain **only** the forge (orchestrator, validators, prompts, model backends). They must **not** close `@gameplay_programmer` / `@client_programmer` / design TZ tasks by hand-editing `src/` or `docs/` as a substitute for a model run.
 
+## Split of brains
+- **Ollama (14b/7b)** — writes `src/**/*.luau` via `--week`
+- **DeepSeek** — compresses skills, drafts `PROJECT_TZ.md`, asks smoke questions (never writes game Luau)
+- **Cursor** — maintains forge / UI / validators only
+
+## Projects
+- Live tree = active project (`python run.py --project game1`)
+- Snapshots live under `projects/<id>/`
+- Compact skills live under `skills/compact/` (promoted after smoke y)
+
 ## Allowed for Cursor
-- `forge/*`, `run.py`, `tests/*`, bootstrap, HITL y/n, LLM backends
+- `forge/*`, `run.py`, `tests/*`, `ui/*`, `skills/*` hub, bootstrap, HITL y/n, LLM backends
 - Validators that reject stubs / bad paths
 - Minimal **bootstrap seeds** so Studio opens without crashing (Remotes getOrCreate, InitRemotes, offline PlayerData guard)
 - Docs that explain how to run the agent

@@ -241,6 +241,27 @@ def build_prompt(
             f"{prior_snapshot}\n"
         )
 
+    # Compact Roblox skills (DeepSeek-shortened / forge-learned) — keep under ~3.6k chars
+    skills_block = ""
+    try:
+        from . import skills_hub
+
+        skill_ids = ["forge-player-attrs", "forge-luau-touch"]
+        active = root / ".forge" / "active_project.json"
+        if active.exists():
+            import json as _json
+
+            pid = (_json.loads(active.read_text(encoding="utf-8")) or {}).get("id")
+            meta_p = root / "projects" / str(pid) / "meta.json"
+            if meta_p.exists():
+                meta = _json.loads(meta_p.read_text(encoding="utf-8"))
+                skill_ids = list(meta.get("skills_compact") or skill_ids)[:3]
+        skills_block = skills_hub.inject_block(skill_ids, root, budget=3600)
+        if skills_block:
+            skills_block = "\n" + skills_block
+    except Exception:
+        skills_block = ""
+
     retry_note = ""
     if attempt > 1:
         retry_note = (
@@ -574,7 +595,7 @@ Follow AGENTS.md. Do the task for real — do not reply NOTE-only when a FILE is
 
 === Existing project files (relevant) ===
 {files}
-{feedback}{qa_template}{remotes_template}{checkpoints_template}{effects_template}{generator_template}{coins_template}{levelconfig_template}{hud_template}{leaderboard_template}{void_template}{puzzles_template}
+{skills_block}{feedback}{qa_template}{remotes_template}{checkpoints_template}{effects_template}{generator_template}{coins_template}{levelconfig_template}{hud_template}{leaderboard_template}{void_template}{puzzles_template}
 === YOUR TASK ===
 {task.raw.strip()}
 

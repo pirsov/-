@@ -1,0 +1,139 @@
+"""Raw → compact skills registry for Ollama ctx budget."""
+from __future__ import annotations
+
+import json
+import re
+from pathlib import Path
+from typing import Dict, List, Optional, Tuple
+
+from . import deepseek
+
+ROOT_DEFAULT = Path(__file__).resolve().parents[1]
+
+
+def skills_root(root: Optional[Path] = None) -> Path:
+    return (root or ROOT_DEFAULT) / "skills"
+
+
+def list_raw(root: Optional[Path] = None) -> List[Dict[str, str]]:
+    out: List[Dict[str, str]] = []
+    base = skills_root(root) / "raw"
+    if not base.exists():
+        return out
+    for skill_md in sorted(base.rglob("SKILL.md")):
+        rel = skill_md.relative_to(base).as_posix()
+        name = skill_md.parent.name
+        out.append(
+            {
+                "id": rel.replace("/SKILL.md", "").replace("/", "__"),
+                "name": name,
+                "path": str(skill_md),
+                "chars": str(skill_md.stat().st_size),
+                "source": rel.split("/", 1)[0],
+            }
+        )
+    return out
+
+
+def list_compact(root: Optional[Path] = None) -> List[Dict[str, str]]:
+    out: List[Dict[str, str]] = []
+    base = skills_root(root) / "compact"
+    if not base.exists():
+        return out
+    for skill_md in sorted(base.rglob("SKILL.md")):
+        text = skill_md.read_text(encoding="utf-8")
+        out.append(
+            {
+                "id": skill_md.parent.name,
+                "name": skill_md.parent.name,
+                "path": str(skill_md),
+                "chars": str(len(text)),
+                "promoted": "true" if (skill_md.parent / "PROMOTED.json").exists() else "false",
+            }
+        )
+    return out
+
+
+def load_compact_text(skill_id: str, root: Optional[Path] = None) -> str:
+    p = skills_root(root) / "compact" / skill_id / "SKILL.md"
+    if not p.exists():
+        raise FileNotFoundError(skill_id)
+    return p.read_text(encoding="utf-8")
+
+
+def inject_block(skill_ids: List[str], root: Optional[Path] = None, *, budget: int = 3600) -> str:
+    """Concatenate compact skills under a char budget for prompts."""
+    parts: List[str] = []
+    used = 0
+    for sid in skill_ids:
+        try:
+            text = load_compact_text(sid, root)
+        except FileNotFoundError:
+            continue
+        if used + len(text) > budget:
+            break
+        parts.append(f"=== COMPACT SKILL {sid} ===\n{text.strip()}\n")
+        used += len(text)
+    return "\n".join(parts)
+
+
+def compress_raw_to_compact(
+    raw_id: str,
+    root: Optional[Path] = None,
+    *,
+    max_chars: int = 1200,
+    dry_run: bool = False,
+) -> Tuple[str, Path]:
+    """Compress one raw skill via DeepSeek into skills/compact/<name>/."""
+    base = skills_root(root) / "raw"
+    # raw_id like ash__roblox-luau-architecture
+    rel = raw_id.replace("__", "/") + "/SKILL.md"
+    src = base / rel
+    if not src.exists():
+        # allow name-only search
+        matches = list(base.rglob(f"*/{raw_id}/SKILL.md")) + list(base.rglob(f"{raw_id}/SKILL.md"))
+        if not matches:
+            raise FileNotFoundError(raw_id)
+        src = matches[0]
+    raw = src.read_text(encoding="utf-8")
+    name = src.parent.name
+    if dry_run or not deepseek.available():
+        # heuristic trim without API
+        compact = _heuristic_compress(raw, name=name, max_chars=max_chars)
+    else:
+        compact = deepseek.compress_skill(raw, name=name, max_chars=max_chars)
+    dest_dir = skills_root(root) / "compact" / name
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    dest = dest_dir / "SKILL.md"
+    dest.write_text(compact, encoding="utf-8")
+    meta = {"source": str(src), "max_chars": max_chars, "via": "deepseek" if deepseek.available() and not dry_run else "heuristic"}
+    (dest_dir / "meta.json").write_text(json.dumps(meta, indent=2), encoding="utf-8")
+    return compact, dest
+
+
+def promote_compact(skill_id: str, root: Optional[Path] = None, *, smoke_ok: bool = True, notes: str = "") -> Path:
+    """Mark a compact skill as proven after smoke — DeepSeek 'learns' by keeping winners."""
+    d = skills_root(root) / "compact" / skill_id
+    if not (d / "SKILL.md").exists():
+        raise FileNotFoundError(skill_id)
+    payload = {"promoted": True, "smoke_ok": smoke_ok, "notes": notes}
+    path = d / "PROMOTED.json"
+    path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    return path
+
+
+def _heuristic_compress(raw: str, *, name: str, max_chars: int) -> str:
+    # Keep headings + bullet lines; drop long paragraphs
+    lines = []
+    for ln in raw.splitlines():
+        s = ln.rstrip()
+        if not s:
+            continue
+        if s.startswith("#") or s.startswith("-") or s.startswith("*") or s.startswith("---"):
+            lines.append(s)
+        elif len(s) < 120:
+            lines.append(s)
+    body = "\n".join(lines)
+    header = f"---\nname: {name}\nsource: heuristic\nmax_chars: {max_chars}\n---\n"
+    out = header + body
+    return out[:max_chars]

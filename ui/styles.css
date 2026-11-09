@@ -1,0 +1,108 @@
+:root {
+  --bg0: #0f1412;
+  --bg1: #18211c;
+  --ink: #e7f0ea;
+  --muted: #8fa396;
+  --accent: #c4a35a;
+  --line: #2a3a31;
+  --ok: #6fbf8b;
+  --font-display: "Fraunces", "Iowan Old Style", Georgia, serif;
+  --font-body: "IBM Plex Sans", "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", Consolas, monospace;
+}
+
+* { box-sizing: border-box; }
+html, body {
+  margin: 0;
+  min-height: 100%;
+  background:
+    radial-gradient(1200px 600px at 10% -10%, #24352c 0%, transparent 55%),
+    linear-gradient(180deg, var(--bg0), #0b0f0d 70%);
+  color: var(--ink);
+  font-family: var(--font-body);
+}
+
+.top {
+  padding: 2.2rem 1.5rem 1rem;
+  border-bottom: 1px solid var(--line);
+}
+.brand {
+  font-family: var(--font-display);
+  font-size: clamp(2rem, 4vw, 3rem);
+  letter-spacing: -0.03em;
+  color: var(--accent);
+}
+.tag { margin: 0.4rem 0 0; color: var(--muted); max-width: 40rem; }
+
+.grid {
+  display: grid;
+  gap: 1rem;
+  padding: 1.25rem;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+}
+.panel {
+  background: color-mix(in srgb, var(--bg1) 88%, black);
+  border: 1px solid var(--line);
+  padding: 1rem 1.1rem 1.2rem;
+}
+.panel.wide { grid-column: 1 / -1; }
+.panel h1 {
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  margin: 0 0 0.75rem;
+  font-weight: 500;
+}
+.muted { color: var(--muted); font-size: 0.9rem; }
+.field { display: grid; gap: 0.35rem; margin: 0.75rem 0; font-size: 0.85rem; color: var(--muted); }
+input, textarea {
+  width: 100%;
+  background: #0c1210;
+  border: 1px solid var(--line);
+  color: var(--ink);
+  padding: 0.55rem 0.65rem;
+  font: inherit;
+}
+button {
+  appearance: none;
+  border: 1px solid var(--accent);
+  background: transparent;
+  color: var(--accent);
+  padding: 0.55rem 0.9rem;
+  cursor: pointer;
+  font: inherit;
+  margin: 0.25rem 0.35rem 0.25rem 0;
+}
+button:hover { background: color-mix(in srgb, var(--accent) 18%, transparent); }
+.out {
+  margin-top: 0.75rem;
+  max-height: 220px;
+  overflow: auto;
+  background: #0a0e0c;
+  border: 1px solid var(--line);
+  padding: 0.6rem;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  white-space: pre-wrap;
+}
+.card {
+  padding: 0.55rem 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 0.92rem;
+}
+.card strong { color: var(--ok); }
+.q {
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.65rem 0;
+  border-bottom: 1px solid var(--line);
+}
+.foot {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 1.5rem 2rem;
+  color: var(--muted);
+  font-size: 0.85rem;
+  border-top: 1px solid var(--line);
+}
+code { color: var(--accent); }

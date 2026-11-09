@@ -129,7 +129,7 @@ KNOWN_SEEDS = {
 
 
 # Sprint A1/B2/Z3/G10/F1, human H1, week W1.5, legacy P30.1 / P20.20.a
-_DONE_ID = r"((?:[ABHZGFPR]\d+)|(?:[PW]\d+(?:\.\d+)*(?:\.[a-z])?))"
+_DONE_ID = r"((?:[ABHZGFPRT]\d+)|(?:[PW]\d+(?:\.\d+)*(?:\.[a-z])?))"
 
 
 def parse_agent_output(text: str, expected_id: str) -> Tuple[Optional[str], str, List[FileOp], Optional[str]]:
@@ -978,6 +978,11 @@ def main(argv: Optional[List[str]] = None) -> int:
     parser.add_argument("--validate", action="store_true", help="Validate all src files and exit")
     parser.add_argument("--eval", action="store_true", help="Write docs/AGENT_RUN_REPORT.md assessment and exit")
     parser.add_argument("--doctor", action="store_true", help="Check Ollama + model tags, then exit")
+    parser.add_argument("--ui", action="store_true", help="Open control UI (projects/skills/DeepSeek/smoke)")
+    parser.add_argument("--ui-port", type=int, default=8787, help="UI port (default 8787)")
+    parser.add_argument("--project", type=str, default=None, help="Activate projects/<id> into live src+TZ")
+    parser.add_argument("--skills-list", action="store_true", help="List raw/compact skills and exit")
+    parser.add_argument("--skills-compress", type=str, default=None, help="Compress raw skill id into compact/")
     parser.add_argument(
         "--yes",
         action="store_true",
@@ -993,6 +998,38 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     root = Path(args.root).resolve()
     ensure_dirs(root)
+
+    if args.ui:
+        from .ui_server import serve
+
+        serve(port=int(args.ui_port))
+        return 0
+
+    if args.project:
+        from . import projects_hub
+
+        projects_hub.activate_project(root, args.project)
+        print(f"Activated project {args.project} -> live src + PROJECT_TZ.md")
+        return 0
+
+    if args.skills_list:
+        from . import skills_hub
+
+        print("COMPACT:")
+        for c in skills_hub.list_compact(root):
+            print(f"  {c['id']}  chars={c['chars']} promoted={c['promoted']}")
+        print("RAW (top 30):")
+        for r in skills_hub.list_raw(root)[:30]:
+            print(f"  {r['id']}  bytes={r['chars']}")
+        print(f"raw total: {len(skills_hub.list_raw(root))}")
+        return 0
+
+    if args.skills_compress:
+        from . import skills_hub
+
+        text, dest = skills_hub.compress_raw_to_compact(args.skills_compress, root)
+        print(f"Wrote {dest} ({len(text)} chars)")
+        return 0
 
     if args.doctor:
         return doctor(root)

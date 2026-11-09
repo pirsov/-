@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Quality Forge</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <header class="top">
+    <div class="brand">Quality Forge</div>
+    <p class="tag">Ollama пишет Luau · DeepSeek жмёт skills и TZ · ты отвечаешь на smoke</p>
+  </header>
+
+  <main class="grid">
+    <section class="panel">
+      <h1>Проекты</h1>
+      <div id="projects"></div>
+      <button id="btn-activate" type="button">Активировать game1 → live src</button>
+    </section>
+
+    <section class="panel">
+      <h1>Skills</h1>
+      <p class="muted">raw: <span id="raw-count">0</span> · compact ниже</p>
+      <div id="compact"></div>
+      <label class="field">raw id
+        <input id="raw-id" placeholder="ash__roblox-luau-architecture" />
+      </label>
+      <button id="btn-compress" type="button">Сжать через DeepSeek / heuristic</button>
+      <pre id="compress-out" class="out"></pre>
+    </section>
+
+    <section class="panel">
+      <h1>DeepSeek TZ</h1>
+      <label class="field">цель
+        <textarea id="goal" rows="3">Починить left HUD (player attrs), SpawnLocation, без CoinsCollected</textarea>
+      </label>
+      <button id="btn-tz" type="button">Сгенерировать PROJECT_TZ</button>
+      <pre id="tz-out" class="out"></pre>
+    </section>
+
+    <section class="panel wide">
+      <h1>Smoke после прогона</h1>
+      <p class="muted">После <code>python run.py --week</code> ответь y/n — рабочие compact skills сохраним.</p>
+      <div id="smoke"></div>
+      <button id="btn-smoke-load" type="button">Загрузить вопросы</button>
+      <button id="btn-smoke-submit" type="button">Сохранить ответы + promote</button>
+      <pre id="smoke-out" class="out"></pre>
+    </section>
+  </main>
+
+  <footer class="foot">
+    <span id="ds-status">DeepSeek: …</span>
+    <span>код: ollama 14b/7b · промпты: deepseek-chat</span>
+  </footer>
+  <script src="/app.js"></script>
+</body>
+</html>
