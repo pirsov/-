@@ -700,6 +700,10 @@ el("btn-fix-run").onclick = async () => {
   el("run-log").textContent = "";
   runStartedAt = null;
   try {
+    // Restore game1 snapshot into live src/ so week has real files + pending F*
+    try {
+      await api("/api/activate", { method: "POST", body: JSON.stringify({ project: "game1" }) });
+    } catch (_) { /* continue even if already active */ }
     const j = await api("/api/run/start", {
       method: "POST",
       body: JSON.stringify({ sleep: 0, hitl: "y" }),
@@ -708,7 +712,7 @@ el("btn-fix-run").onclick = async () => {
     renderRun(j);
     startPoll();
     setFocus(4);
-    toast("Фиксы: --week запущен (смотри блок 4)");
+    toast("Фиксы: activate game1 + --week (блок 4)");
   } catch (e) {
     toast(String(e.message || e));
     setFocus(6);

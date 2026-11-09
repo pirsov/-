@@ -28,9 +28,10 @@ class Task:
     description: str = ""
 
 
-# Sprint ids (A1, B2, Z3, G10, F1), human H1, week W1.5, legacy P30.1 / P20.20.a
+# Sprint ids (A1, B2, Z3, G10, F1, F1a), human H1, week W1.5, legacy P30.1 / P20.20.a
 # Sprint letters: A/B, F fix, G create, H human, P polish, R repair, T DeepSeek TZ, Z misc; W week legacy
-_TASK_ID = r"((?:[ABHZGFPRT]\d+)|(?:[PW]\d+(?:\.\d+)*(?:\.[a-z])?))"
+# Optional letter suffix: F1a / F2b (smoke-fix subtasks)
+_TASK_ID = r"((?:[ABHZGFPRT]\d+[a-z]?)|(?:[PW]\d+(?:\.\d+)*(?:\.[a-z])?))"
 # Accept unicode → or ASCII -> for Windows/UTF-8-safe TZ files
 _ARROW = r"(?:→|->)"
 _TASK_RE = re.compile(

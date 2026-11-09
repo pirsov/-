@@ -41,63 +41,92 @@ def extract_issues(smoke: Optional[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return out
 
 
-def _task_for_issue(issue: Dict[str, Any], idx: int) -> str:
-    """Map a smoke issue to one compact TZ task line."""
+def _tasks_for_issue(issue: Dict[str, Any], start_id: int) -> List[str]:
+    """Map a smoke issue to one or more compact TZ task lines. Returns (lines, next_id)."""
     prompt = (issue.get("prompt") or "").lower()
     detail = (issue.get("detail") or "").lower()
     blob = f"{prompt} {detail}"
-    n = idx
+    n = start_id
+    lines: List[str] = []
+
+    def add(desc: str, role: str, path: str) -> None:
+        nonlocal n
+        lines.append(
+            f"- [ ] F{n} | REWRITE {desc} | @{role} | -> {path}"
+        )
+        n += 1
 
     if "best" in blob:
-        return (
-            f"- [ ] F{n}a | REWRITE PlayerData BestTime=0 init; on leave/finish set BestTime from RunStartedAt if better; Studio only | "
-            f"@gameplay_programmer | -> src/server/Data/PlayerData.server.luau\n"
-            f"- [ ] F{n}b | REWRITE Checkpoints set RunStartedAt; update BestTime on last CP; attrs on Player | "
-            f"@gameplay_programmer | -> src/server/Gameplay/Checkpoints.server.luau\n"
-            f"- [ ] F{n}c | REWRITE HUD Best from player:GetAttribute BestTime; -- only if nil/0 | "
-            f"@client_programmer | -> src/client/HUD.client.luau"
+        add(
+            "PlayerData BestTime=0 init; on leave/finish set BestTime from RunStartedAt if better; Studio only no DataStore",
+            "gameplay_programmer",
+            "src/server/Data/PlayerData.server.luau",
         )
-    if "спавн" in blob or "spawn" in blob or "загруз" in blob or "минут" in blob:
-        return (
-            f"- [ ] F{n}a | REWRITE Generator: lighter map build; fewer Parts; defer non-critical Instance.new; Path+SpawnLocation+CP+Coins only; no Baseplate | "
-            f"@gameplay_programmer | -> src/server/Level/Generator.server.luau\n"
-            f"- [ ] F{n}b | REWRITE PlayerData/InitRemotes: no blocking waits on join; SetAttribute defaults immediately | "
-            f"@gameplay_programmer | -> src/server/Data/PlayerData.server.luau\n"
-            f"- [ ] F{n}c | REWRITE InitRemotes getOrCreate remotes fast; no long WaitForChild loops | "
-            f"@gameplay_programmer | -> src/server/InitRemotes.server.luau"
+        add(
+            "Checkpoints set RunStartedAt if nil; update BestTime on last CP; attrs only on Player; NEVER Remotes.CoinsCollected",
+            "gameplay_programmer",
+            "src/server/Gameplay/Checkpoints.server.luau",
         )
-    if "void" in blob or "паден" in blob:
-        return (
-            f"- [ ] F{n} | REWRITE Void: Y<-20 LoadCharacter; debounce; attrs on Player unchanged | "
-            f"@gameplay_programmer | -> src/server/Gameplay/Void.server.luau"
+        add(
+            "HUD Best via player:GetAttribute BestTime; show -- only if nil/0; NEVER character:GetAttribute",
+            "client_programmer",
+            "src/client/HUD.client.luau",
         )
-    if "монет" in blob or "coin" in blob:
-        return (
-            f"- [ ] F{n} | REWRITE Coins: CanTouch Destroy SetAttribute Coins FireClient CoinCollected FireAllClients UpdateLeaderboard | "
-            f"@gameplay_programmer | -> src/server/Gameplay/Coins.server.luau"
+    elif "спавн" in blob or "spawn" in blob or "загруз" in blob or "минут" in blob:
+        add(
+            "Generator lighter map; Instance.new(\"SpawnLocation\") real class; Path+CP+Coins; no Baseplate; join under ~10s",
+            "gameplay_programmer",
+            "src/server/Level/Generator.server.luau",
         )
-    if "checkpoint" in blob or "чек" in blob or "cp" in blob:
-        return (
-            f"- [ ] F{n} | REWRITE Checkpoints: Touched SetAttribute Checkpoint on Player FireClient CheckpointReached | "
-            f"@gameplay_programmer | -> src/server/Gameplay/Checkpoints.server.luau"
+        add(
+            "PlayerData init attrs immediately on join; no blocking DataStore in Studio",
+            "gameplay_programmer",
+            "src/server/Data/PlayerData.server.luau",
         )
-    if "плит" in blob or "gate" in blob or "plate" in blob:
-        return (
-            f"- [ ] F{n} | REWRITE Puzzles: blue plate opens red gate; CanTouch; no invented remotes | "
-            f"@gameplay_programmer | -> src/server/Gameplay/Puzzles.server.luau"
+        add(
+            "InitRemotes getOrCreate remotes fast; no long WaitForChild loops",
+            "gameplay_programmer",
+            "src/server/InitRemotes.server.luau",
         )
-    if "hud" in blob or "time" in blob or "худ" in blob:
-        return (
-            f"- [ ] F{n} | REWRITE HUD left labels via player:GetAttribute only never character | "
-            f"@client_programmer | -> src/client/HUD.client.luau"
+    elif "void" in blob or "паден" in blob:
+        add(
+            "Void Y<-20 LoadCharacter debounce; keep Player attrs",
+            "gameplay_programmer",
+            "src/server/Gameplay/Void.server.luau",
         )
-    # generic
-    note = issue.get("detail") or issue.get("prompt") or "smoke fail"
-    note = str(note).replace("|", "/").replace("\n", " ")[:120]
-    return (
-        f"- [ ] F{n} | REWRITE fix smoke issue: {note} | "
-        f"@gameplay_programmer | -> src/server/Level/Generator.server.luau"
-    )
+    elif "монет" in blob or "coin" in blob:
+        add(
+            "Coins CanTouch Destroy SetAttribute Coins FireClient CoinCollected FireAllClients UpdateLeaderboard",
+            "gameplay_programmer",
+            "src/server/Gameplay/Coins.server.luau",
+        )
+    elif "checkpoint" in blob or "чек" in blob or "cp" in blob:
+        add(
+            "Checkpoints Touched SetAttribute Checkpoint on Player FireClient CheckpointReached; NEVER CoinsCollected",
+            "gameplay_programmer",
+            "src/server/Gameplay/Checkpoints.server.luau",
+        )
+    elif "плит" in blob or "gate" in blob or "plate" in blob:
+        add(
+            "Puzzles blue plate opens red gate CanTouch; no invented remotes",
+            "gameplay_programmer",
+            "src/server/Gameplay/Puzzles.server.luau",
+        )
+    elif "hud" in blob or "худ" in blob:
+        add(
+            "HUD left labels via player:GetAttribute only never character",
+            "client_programmer",
+            "src/client/HUD.client.luau",
+        )
+    else:
+        note = issue.get("detail") or issue.get("prompt") or "smoke fail"
+        note = str(note).replace("|", "/").replace("\n", " ")[:100]
+        add(
+            f"fix smoke issue: {note}",
+            "gameplay_programmer",
+            "src/server/Level/Generator.server.luau",
+        )
+    return lines, n
 
 
 def build_fix_tz(
@@ -117,20 +146,23 @@ def build_fix_tz(
             "message": "Нет ошибок smoke (всё Y) — блок фиксов не нужен",
         }
 
-    blocks = []
-    for i, issue in enumerate(issues, start=1):
-        blocks.append(_task_for_issue(issue, i))
+    blocks: List[str] = []
+    next_id = 1
+    for issue in issues:
+        lines, next_id = _tasks_for_issue(issue, next_id)
+        blocks.extend(lines)
 
     issue_lines = []
     for issue in issues:
         d = issue.get("detail") or ""
         issue_lines.append(
-            f"- {issue['id']}: [{issue['answer']}] {issue.get('prompt','')} {('— ' + d) if d else ''}".rstrip()
+            f"- {issue['id']}: [{issue['answer']}] {issue.get('prompt','')}{(' — ' + d) if d else ''}".rstrip()
         )
 
     tz = (
         f"# LAST_UPDATE: FIX from smoke — {project_id}\n"
-        f"# Auto from smoke N/Другое. Keep src. Run: python -u run.py --week --sleep 0\n\n"
+        f"# Auto from smoke N/Другое. Keep src. Activate project first if src empty.\n"
+        f"#   python -u run.py --week --sleep 0\n\n"
         f"## SMOKE ISSUES\n"
         + "\n".join(issue_lines)
         + "\n\n## LEGEND\n- [ ] pending | [x] done | @human = Studio y/n\n\n"
@@ -138,19 +170,19 @@ def build_fix_tz(
         f"## AGENT F — fixes from smoke\n"
         + "\n".join(blocks)
         + "\n\n## HUMAN GATES\n"
-        f"- [ ] HF1 | Studio: re-check failed smoke items | @human\n"
-        f"- [ ] HF2 | Final: python -u run.py --eval | @human\n"
+        f"- [ ] H11 | Studio: re-check failed smoke items (Best + spawn load) | @human\n"
+        f"- [ ] H12 | Final: python -u run.py --eval | @human\n"
     )
 
-    # Prefer DeepSeek polish when available (shorten only; keep task lines)
     if deepseek.available():
         try:
             polished = deepseek.chat(
-                f"Rewrite ONLY as PROJECT_TZ markdown with - [ ] F* task lines. "
-                f"Keep all issues. Compact for 4k ctx. Input:\n{tz[:3500]}",
+                f"Rewrite ONLY as PROJECT_TZ markdown with - [ ] F# task lines "
+                f"(F1 F2 F3 ids, NO F1a). Keep all issues. Compact for 4k ctx.\n{tz[:3500]}",
                 system=(
                     "Return ONLY PROJECT_TZ markdown with checkbox tasks "
-                    "`- [ ] F# | REWRITE ... | @role | -> path`. Russian/English OK. No prose."
+                    "`- [ ] F1 | REWRITE ... | @role | -> path`. "
+                    "Use F1 F2 F3 (digits only, optional single letter ok). No prose."
                 ),
                 max_tokens=1800,
                 temperature=0.1,

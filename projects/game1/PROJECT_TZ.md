@@ -1,5 +1,6 @@
 # LAST_UPDATE: FIX from smoke — game1
-# Auto from smoke N/Другое. Keep src. Run: python -u run.py --week --sleep 0
+# Auto from smoke N/Другое. Keep src. Activate project first if src empty.
+#   python -u run.py --week --sleep 0
 
 ## SMOKE ISSUES
 - q4: [other] Spawn — загрузка при спавне доходит до минуты
@@ -12,13 +13,13 @@
 - [x] prior weeks / smoke captured | @integrator
 
 ## AGENT F — fixes from smoke
-- [ ] F1a | REWRITE Generator: lighter map build; fewer Parts; defer non-critical Instance.new; Path+SpawnLocation+CP+Coins only; no Baseplate | @gameplay_programmer | -> src/server/Level/Generator.server.luau
-- [ ] F1b | REWRITE PlayerData/InitRemotes: no blocking waits on join; SetAttribute defaults immediately | @gameplay_programmer | -> src/server/Data/PlayerData.server.luau
-- [ ] F1c | REWRITE InitRemotes getOrCreate remotes fast; no long WaitForChild loops | @gameplay_programmer | -> src/server/InitRemotes.server.luau
-- [ ] F2a | REWRITE PlayerData BestTime=0 init; on leave/finish set BestTime from RunStartedAt if better; Studio only | @gameplay_programmer | -> src/server/Data/PlayerData.server.luau
-- [ ] F2b | REWRITE Checkpoints set RunStartedAt; update BestTime on last CP; attrs on Player | @gameplay_programmer | -> src/server/Gameplay/Checkpoints.server.luau
-- [ ] F2c | REWRITE HUD Best from player:GetAttribute BestTime; -- only if nil/0 | @client_programmer | -> src/client/HUD.client.luau
+- [ ] F1 | REWRITE Generator lighter map; Instance.new("SpawnLocation") real class; Path+CP+Coins; no Baseplate; join under ~10s | @gameplay_programmer | -> src/server/Level/Generator.server.luau
+- [ ] F2 | REWRITE PlayerData init attrs immediately on join; no blocking DataStore in Studio | @gameplay_programmer | -> src/server/Data/PlayerData.server.luau
+- [ ] F3 | REWRITE InitRemotes getOrCreate remotes fast; no long WaitForChild loops | @gameplay_programmer | -> src/server/InitRemotes.server.luau
+- [ ] F4 | REWRITE PlayerData BestTime=0 init; on leave/finish set BestTime from RunStartedAt if better; Studio only no DataStore | @gameplay_programmer | -> src/server/Data/PlayerData.server.luau
+- [ ] F5 | REWRITE Checkpoints set RunStartedAt if nil; update BestTime on last CP; attrs only on Player; NEVER Remotes.CoinsCollected | @gameplay_programmer | -> src/server/Gameplay/Checkpoints.server.luau
+- [ ] F6 | REWRITE HUD Best via player:GetAttribute BestTime; show -- only if nil/0; NEVER character:GetAttribute | @client_programmer | -> src/client/HUD.client.luau
 
 ## HUMAN GATES
-- [ ] HF1 | Studio: re-check failed smoke items | @human
-- [ ] HF2 | Final: python -u run.py --eval | @human
+- [ ] H11 | Studio: re-check failed smoke items (Best + spawn load) | @human
+- [ ] H12 | Final: python -u run.py --eval | @human
