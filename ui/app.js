@@ -12,10 +12,10 @@ function el(id) { return document.getElementById(id); }
 
 async function refresh() {
   const s = await api("/api/status");
-  el("ds-status").textContent = s.deepseek ? "DeepSeek: OK (key)" : "DeepSeek: нет ключа → heuristic";
+  el("ds-status").textContent = s.deepseek ? "DeepSeek: OK (key)" : "DeepSeek: нет ключа → heuristic pick";
   el("raw-count").textContent = String(s.raw_count);
   el("projects").innerHTML = (s.projects || []).map(p =>
-    `<div class="card"><strong>${p.id}</strong> — ${p.title || ""} · luau ${p.luau_files || 0} · ${p.status || ""}</div>`
+    `<div class="card"><strong>${p.id}</strong> — ${p.title || ""} · luau ${p.luau_files || 0}</div>`
   ).join("") || "<p class='muted'>нет проектов</p>";
   el("compact").innerHTML = (s.compact || []).map(c =>
     `<div class="card"><strong>${c.id}</strong> · ${c.chars} chars · promoted=${c.promoted}</div>`
@@ -24,14 +24,21 @@ async function refresh() {
 
 el("btn-activate").onclick = async () => {
   const j = await api("/api/activate", { method: "POST", body: JSON.stringify({ project: "game1" }) });
-  el("compress-out").textContent = JSON.stringify(j, null, 2);
+  el("compress-out").textContent = "activated: " + JSON.stringify(j);
 };
 
-el("btn-compress").onclick = async () => {
-  const raw_id = el("raw-id").value.trim();
-  el("compress-out").textContent = "…";
+el("btn-auto").onclick = async () => {
+  el("compress-out").textContent = "DeepSeek выбирает skills…";
   try {
-    const j = await api("/api/compress", { method: "POST", body: JSON.stringify({ raw_id, max_chars: 1200 }) });
+    const j = await api("/api/skills/auto", {
+      method: "POST",
+      body: JSON.stringify({
+        project: "game1",
+        goal: el("goal").value,
+        max_pick: 3,
+        max_chars: 1200,
+      }),
+    });
     el("compress-out").textContent = JSON.stringify(j, null, 2);
     await refresh();
   } catch (e) {

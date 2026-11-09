@@ -76,6 +76,18 @@ class Handler(BaseHTTPRequestHandler):
                 )
                 self._json(200, {"ok": True, "path": str(dest), "chars": len(text), "preview": text[:500]})
                 return
+            if path == "/api/skills/auto":
+                goal = body.get("goal") or "Roblox obstacle course HUD coins checkpoints"
+                pid = body.get("project") or "game1"
+                result = skills_hub.auto_select_and_compress(
+                    goal,
+                    ROOT,
+                    max_pick=int(body.get("max_pick") or 3),
+                    max_chars=int(body.get("max_chars") or 1200),
+                    project_id=pid,
+                )
+                self._json(200, {"ok": True, **result})
+                return
             if path == "/api/activate":
                 pid = body.get("project") or "game1"
                 projects_hub.activate_project(ROOT, pid)
@@ -84,7 +96,13 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/api/tz":
                 pid = body.get("project") or "game1"
                 goal = body.get("goal") or "Improve playable obstacle course"
+                # Prefer project meta compact list (after auto-select)
                 compact = [c["id"] for c in skills_hub.list_compact(ROOT)]
+                meta_p = ROOT / "projects" / pid / "meta.json"
+                if meta_p.exists():
+                    meta = json.loads(meta_p.read_text(encoding="utf-8"))
+                    if meta.get("skills_compact"):
+                        compact = list(meta["skills_compact"])
                 files = [str(p.relative_to(ROOT)) for p in (ROOT / "projects" / pid).rglob("*.luau")]
                 if not deepseek.available():
                     self._json(400, {"error": "DEEPSEEK_API_KEY required for TZ generation"})
@@ -94,7 +112,9 @@ class Handler(BaseHTTPRequestHandler):
                 )
                 out = ROOT / "projects" / pid / "PROJECT_TZ.generated.md"
                 out.write_text(tz, encoding="utf-8")
-                self._json(200, {"ok": True, "path": str(out), "preview": tz[:1500]})
+                # Also copy to live PROJECT_TZ.md so --week can run
+                (ROOT / "PROJECT_TZ.md").write_text(tz, encoding="utf-8")
+                self._json(200, {"ok": True, "path": str(out), "live": "PROJECT_TZ.md", "preview": tz[:1500]})
                 return
             if path == "/api/smoke/submit":
                 pid = body.get("project") or "game1"

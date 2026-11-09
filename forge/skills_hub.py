@@ -111,6 +111,43 @@ def compress_raw_to_compact(
     return compact, dest
 
 
+def auto_select_and_compress(
+    goal: str,
+    root: Optional[Path] = None,
+    *,
+    max_pick: int = 3,
+    max_chars: int = 1200,
+    project_id: Optional[str] = None,
+) -> Dict[str, object]:
+    """DeepSeek (or heuristic) picks raw skills for the goal, compresses them, updates project meta."""
+    catalog = list_raw(root)
+    # Always keep forge-learned compact skills available
+    forge_keep = ["forge-player-attrs", "forge-luau-touch"]
+    picked = deepseek.select_skills(goal=goal, catalog=catalog, max_pick=max_pick)
+    results = []
+    compact_ids = list(forge_keep)
+    for raw_id in picked:
+        text, dest = compress_raw_to_compact(raw_id, root, max_chars=max_chars)
+        name = dest.parent.name
+        if name not in compact_ids:
+            compact_ids.append(name)
+        results.append({"raw_id": raw_id, "compact_id": name, "chars": len(text), "path": str(dest)})
+    compact_ids = compact_ids[: max_pick + len(forge_keep)]
+    if project_id:
+        meta_p = (root or ROOT_DEFAULT) / "projects" / project_id / "meta.json"
+        if meta_p.exists():
+            meta = json.loads(meta_p.read_text(encoding="utf-8"))
+            meta["skills_compact"] = compact_ids[:5]
+            meta["skills_auto_goal"] = goal
+            meta_p.write_text(json.dumps(meta, indent=2), encoding="utf-8")
+    return {
+        "picked_raw": picked,
+        "compressed": results,
+        "skills_compact": compact_ids,
+        "via": "deepseek" if deepseek.available() else "heuristic",
+    }
+
+
 def promote_compact(skill_id: str, root: Optional[Path] = None, *, smoke_ok: bool = True, notes: str = "") -> Path:
     """Mark a compact skill as proven after smoke — DeepSeek 'learns' by keeping winners."""
     d = skills_root(root) / "compact" / skill_id

@@ -9,39 +9,37 @@
 <body>
   <header class="top">
     <div class="brand">Quality Forge</div>
-    <p class="tag">Ollama пишет Luau · DeepSeek жмёт skills и TZ · ты отвечаешь на smoke</p>
+    <p class="tag">Ollama пишет Luau · DeepSeek сам выбирает skills и TZ · ты только smoke y/n</p>
   </header>
 
   <main class="grid">
     <section class="panel">
-      <h1>Проекты</h1>
+      <h1>1. Проект</h1>
       <div id="projects"></div>
-      <button id="btn-activate" type="button">Активировать game1 → live src</button>
+      <button id="btn-activate" type="button">Активировать game1</button>
     </section>
 
     <section class="panel">
-      <h1>Skills</h1>
-      <p class="muted">raw: <span id="raw-count">0</span> · compact ниже</p>
-      <div id="compact"></div>
-      <label class="field">raw id
-        <input id="raw-id" placeholder="ash__roblox-luau-architecture" />
+      <h1>2. Цель</h1>
+      <label class="field">что сделать (своими словами)
+        <textarea id="goal" rows="4">Починить left HUD (читать attrs с Player), реальный SpawnLocation, убрать CoinsCollected, монеты и CP работают</textarea>
       </label>
-      <button id="btn-compress" type="button">Сжать через DeepSeek / heuristic</button>
+      <button id="btn-auto" type="button">DeepSeek: сам выбери skills и сжатие</button>
+      <p class="muted">raw: <span id="raw-count">0</span> — id выбирать не нужно</p>
+      <div id="compact"></div>
       <pre id="compress-out" class="out"></pre>
     </section>
 
     <section class="panel">
-      <h1>DeepSeek TZ</h1>
-      <label class="field">цель
-        <textarea id="goal" rows="3">Починить left HUD (player attrs), SpawnLocation, без CoinsCollected</textarea>
-      </label>
-      <button id="btn-tz" type="button">Сгенерировать PROJECT_TZ</button>
+      <h1>3. TZ для Ollama</h1>
+      <button id="btn-tz" type="button">DeepSeek: сгенерировать PROJECT_TZ</button>
       <pre id="tz-out" class="out"></pre>
+      <p class="muted">Потом в другом терминале: <code>python -u run.py --week --sleep 0</code></p>
     </section>
 
     <section class="panel wide">
-      <h1>Smoke после прогона</h1>
-      <p class="muted">После <code>python run.py --week</code> ответь y/n — рабочие compact skills сохраним.</p>
+      <h1>4. Smoke после прогона</h1>
+      <p class="muted">После week ответь y/n — рабочие compact skills сохраним (promote).</p>
       <div id="smoke"></div>
       <button id="btn-smoke-load" type="button">Загрузить вопросы</button>
       <button id="btn-smoke-submit" type="button">Сохранить ответы + promote</button>
@@ -51,7 +49,7 @@
 
   <footer class="foot">
     <span id="ds-status">DeepSeek: …</span>
-    <span>код: ollama 14b/7b · промпты: deepseek-chat</span>
+    <span>код: ollama · промпты/skills: deepseek</span>
   </footer>
   <script src="/app.js"></script>
 </body>

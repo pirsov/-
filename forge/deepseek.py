@@ -71,6 +71,92 @@ def chat(
     return str(msg.get("content") or "")
 
 
+def select_skills(
+    *,
+    goal: str,
+    catalog: List[Dict[str, str]],
+    max_pick: int = 3,
+) -> List[str]:
+    """Pick raw skill ids for the goal. Returns ids like ash__roblox-luau-architecture."""
+    lines = []
+    for c in catalog:
+        lines.append(f"- {c['id']} | {c.get('name','')} | src={c.get('source','')}")
+    catalog_txt = "\n".join(lines)
+    if not available():
+        return _heuristic_select(goal, catalog, max_pick=max_pick)
+    system = (
+        "You pick Roblox agent skills for a local Ollama coder with 4k context. "
+        f"Return ONLY JSON: {{\"ids\": [\"...\"]}} with at most {max_pick} ids "
+        "copied exactly from the catalog. Prefer code/ui/architecture/debug over marketing."
+    )
+    prompt = (
+        f"Goal:\n{goal}\n\nCatalog:\n{catalog_txt}\n\n"
+        "Pick the best skills for this goal."
+    )
+    raw = chat(prompt, system=system, max_tokens=400, temperature=0.1)
+    raw = raw.strip()
+    if raw.startswith("```"):
+        raw = re.sub(r"^```(?:json)?\n?", "", raw)
+        raw = re.sub(r"\n?```$", "", raw)
+    try:
+        data = json.loads(raw)
+        ids = [str(x) for x in (data.get("ids") or []) if x]
+    except json.JSONDecodeError:
+        ids = []
+    allowed = {c["id"] for c in catalog}
+    ids = [i for i in ids if i in allowed][:max_pick]
+    if not ids:
+        return _heuristic_select(goal, catalog, max_pick=max_pick)
+    return ids
+
+
+def _heuristic_select(goal: str, catalog: List[Dict[str, str]], *, max_pick: int = 3) -> List[str]:
+    g = goal.lower()
+    prefer = []
+    keywords = [
+        ("hud", ("ui", "ux", "client")),
+        ("ui", ("ui", "ux")),
+        ("coin", ("code", "economy", "debug")),
+        ("checkpoint", ("code", "architecture")),
+        ("spawn", ("map", "architecture", "code")),
+        ("map", ("map", "world", "level")),
+        ("plugin", ("studio", "ui", "code")),
+        ("debug", ("debug", "triage", "bug")),
+        ("attr", ("code", "architecture", "datastore")),
+    ]
+    buckets: List[str] = []
+    for key, tags in keywords:
+        if key in g:
+            buckets.extend(tags)
+    if not buckets:
+        buckets = ["code", "architecture", "ui", "debug", "map"]
+    scored: List[tuple] = []
+    for c in catalog:
+        name = (c.get("name") or c.get("id") or "").lower()
+        score = 0
+        for t in buckets:
+            if t in name:
+                score += 2
+        if c.get("source") == "sypho" and any(t in name for t in ("code", "ui", "map")):
+            score += 1
+        if c.get("source") == "ash" and "architecture" in name:
+            score += 1
+        if score:
+            scored.append((score, c["id"]))
+    scored.sort(reverse=True)
+    ids = [i for _, i in scored[:max_pick]]
+    if ids:
+        return ids
+    # fallback first useful sypho/ash
+    for needle in ("roblox-code", "roblox-luau-architecture", "roblox-ui", "roblox-debugging"):
+        for c in catalog:
+            if needle in c["id"]:
+                ids.append(c["id"])
+                if len(ids) >= max_pick:
+                    return ids
+    return [c["id"] for c in catalog[:max_pick]]
+
+
 def compress_skill(raw_md: str, *, name: str, max_chars: int = 1200) -> str:
     """Shorten a raw SKILL.md for Ollama 4k ctx injection."""
     system = (
