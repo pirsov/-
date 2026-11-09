@@ -1,5 +1,5 @@
-﻿# LAST_UPDATE: REPAIR R — left HUD dead (reads Character attrs); Checkpoints invents CoinsCollected; Spawn is Part
-# Keep src. Answer n at H5 if still open, pull TZ, then week.
+﻿# LAST_UPDATE: SMOKE — всё ок кроме Best: -- (BestTime никогда не пишется)
+# Keep src. После smoke: week на B*.
 #   python -u run.py --week --sleep 0
 # AFTER: python -u run.py --eval
 
@@ -9,18 +9,16 @@
 ## DONE (keep)
 - [x] G* greenfield | @integrator
 - [x] F* studio-fix | @gameplay_programmer
-- [x] P1-P10 polish visuals | @gameplay_programmer
+- [x] P1-P10 polish | @gameplay_programmer
+- [x] R1-R5 repair HUD/CP/Coins/Generator/PlayerData | @gameplay_programmer
+- [x] T* horror week | @gameplay_programmer
 - [x] H1-H4 | @human
 
-## AGENT R — functional repair (agent writes Luau; Cursor only forge)
-- [ ] R1 | REWRITE HUD: ScreenGui LEFT labels Time/CP/Coins/Best; EVERY frame player:GetAttribute Coins+Checkpoint (NEVER character:GetAttribute); remotes only trigger paint; CharacterAdded must NOT zero coins | @client_programmer | -> src/client/HUD.client.luau
-- [ ] R2 | REWRITE Checkpoints: Touched SetAttribute Checkpoint+Score on Player; FireClient CheckpointReached only; CanTouch true; teleport+Died; NEVER Remotes.CoinsCollected; NEVER destroy Coins folder parts | @gameplay_programmer | -> src/server/Gameplay/Checkpoints.server.luau
-- [ ] R3 | REWRITE Coins: CanTouch; coin:Destroy; plr:SetAttribute Coins; FireClient CoinCollected; FireAllClients UpdateLeaderboard name:coins | @gameplay_programmer | -> src/server/Gameplay/Coins.server.luau
-- [ ] R4 | REWRITE Generator: destroy Baseplate; Instance.new("SpawnLocation") real class; green Neon CP; gold coins; Path grey; obstacles Y~6 on Path | @gameplay_programmer | -> src/server/Level/Generator.server.luau
-- [ ] R5 | REWRITE PlayerData: init Player attrs Score/Checkpoint/Coins/BestTime if nil; CharacterAdded must not wipe Coins; Studio only no DataStore GetAsync | @gameplay_programmer | -> src/server/Data/PlayerData.server.luau
+## AGENT B — BestTime (smoke: Best shows --)
+- [ ] B1 | REWRITE PlayerData: init BestTime=0 if nil (not math.huge); on PlayerRemoving compute elapsed from RunStartedAt attr; if BestTime==0 or elapsed<BestTime then SetAttribute BestTime=elapsed; Studio only no DataStore | @gameplay_programmer | -> src/server/Data/PlayerData.server.luau
+- [ ] B2 | REWRITE Checkpoints: on new Checkpoint also set RunStartedAt=os.clock if nil; when Checkpoint reaches last (or Score milestone) update BestTime if better; attrs only on Player | @gameplay_programmer | -> src/server/Gameplay/Checkpoints.server.luau
+- [ ] B3 | REWRITE HUD: Best via player:GetAttribute("BestTime"); show Best: -- only if nil or 0; else Best: %.1f; NEVER character attrs | @client_programmer | -> src/client/HUD.client.luau
 
 ## HUMAN GATES
-- [ ] H5 | Studio: left HUD Time/CP/Coins tick; green CP + gold coins; real SpawnLocation | @human
-- [ ] H6 | Studio: walk CP updates left CP; pickup coin updates left Coins AND right leaderboard | @human
-- [ ] H7 | Studio: plate/gate + void; no Output errors CoinsCollected | @human
-- [ ] H8 | Final: python -u run.py --eval | @human
+- [ ] H9 | Studio: Best shows number after leave/rejoin or finish CP; not -- | @human
+- [ ] H10 | Final: python -u run.py --eval | @human

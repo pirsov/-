@@ -300,33 +300,38 @@ def _default_smoke() -> Dict[str, Any]:
         "questions": [
             {
                 "id": "q1",
-                "prompt": "Left HUD shows Time/CP/Coins updating?",
+                "prompt": "Левый HUD: Time / CP / Coins обновляются?",
                 "expect_yes_means": "HUD player attrs OK",
             },
             {
                 "id": "q2",
-                "prompt": "Picking a gold coin increments left Coins and right leaderboard?",
+                "prompt": "Золотая монета: Coins слева + лидерборд справа растут?",
                 "expect_yes_means": "Coins remotes OK",
             },
             {
                 "id": "q3",
-                "prompt": "Green neon checkpoint updates CP without Output errors?",
+                "prompt": "Зелёный neon CP обновляет Checkpoint без ошибок Output?",
                 "expect_yes_means": "Checkpoints OK",
             },
             {
                 "id": "q4",
-                "prompt": "Real SpawnLocation; no Baseplate; Path walkable?",
+                "prompt": "Настоящий SpawnLocation; нет Baseplate; Path проходим?",
                 "expect_yes_means": "Generator OK",
             },
             {
                 "id": "q5",
-                "prompt": "Fall below map respawns (void)?",
+                "prompt": "Падение в void (Y < -20) респавнит персонажа?",
                 "expect_yes_means": "Void OK",
             },
             {
                 "id": "q6",
-                "prompt": "Blue plate opens red gate on Path?",
+                "prompt": "Синяя плита открывает красный gate на Path?",
                 "expect_yes_means": "Puzzles OK",
+            },
+            {
+                "id": "q7",
+                "prompt": "Best в HUD показывает число (не --) после финиша/респавна?",
+                "expect_yes_means": "BestTime written on Player",
             },
         ]
     }

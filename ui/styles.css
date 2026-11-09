@@ -401,21 +401,28 @@ input:focus, textarea:focus, button:focus-visible {
   display: flex;
   gap: 0.5rem;
 }
-.yn label {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
-  padding: 0.35rem 0.7rem;
-  border: 1px solid var(--line);
-  cursor: pointer;
+.yn-btn {
+  min-width: 2.6rem;
+  margin: 0;
+  padding: 0.4rem 0.85rem;
   font-family: var(--font-ui);
-  font-size: 0.85rem;
+  font-weight: 700;
+  font-size: 0.9rem;
+  border: 1px solid var(--line);
+  background: var(--coal-3);
   color: var(--muted);
+  cursor: pointer;
 }
-.yn input { accent-color: var(--amber); }
-.yn label:has(input:checked) {
-  border-color: var(--amber);
-  color: var(--amber-hot);
+.yn-btn:hover { border-color: var(--copper); color: var(--ink); }
+.yn-btn.active.y {
+  border-color: var(--ok);
+  color: var(--ok);
+  background: color-mix(in srgb, var(--ok) 14%, var(--coal-3));
+}
+.yn-btn.active.n {
+  border-color: var(--err);
+  color: var(--err);
+  background: color-mix(in srgb, var(--err) 14%, var(--coal-3));
 }
 
 .foot {

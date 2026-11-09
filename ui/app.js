@@ -292,19 +292,6 @@ el("btn-copy-code").onclick = async () => {
   }
 };
 
-function updateSmokeProgress() {
-  const total = smokeQs.length;
-  let answered = 0;
-  for (const q of smokeQs) {
-    if (document.querySelector(`input[name="${q.id}"]:checked`)) answered += 1;
-  }
-  const pct = total ? Math.round((answered / total) * 100) : 0;
-  el("smoke-bar").style.setProperty("--pct", pct + "%");
-  el("smoke-count").textContent = `${answered}/${total}`;
-  el("btn-smoke-submit").disabled = !(total > 0 && answered === total);
-  refreshProgressOnly();
-}
-
 el("btn-activate").onclick = async () => {
   try {
     const j = await api("/api/activate", { method: "POST", body: JSON.stringify({ project: "game1" }) });
@@ -365,23 +352,54 @@ el("btn-run").onclick = async () => {
   }
 };
 
+const smokeAnswers = {};
+
+function setSmokeAnswer(qid, value) {
+  smokeAnswers[qid] = value;
+  const row = el("smoke").querySelector(`.q[data-id="${qid}"]`);
+  if (!row) return;
+  row.querySelectorAll(".yn-btn").forEach(b => {
+    const on = b.getAttribute("data-v") === value;
+    b.classList.toggle("active", on);
+  });
+  updateSmokeProgress();
+}
+
+function updateSmokeProgress() {
+  const total = smokeQs.length;
+  let answered = 0;
+  for (const q of smokeQs) {
+    if (smokeAnswers[q.id] === "y" || smokeAnswers[q.id] === "n") answered += 1;
+  }
+  const pct = total ? Math.round((answered / total) * 100) : 0;
+  el("smoke-bar").style.setProperty("--pct", pct + "%");
+  el("smoke-count").textContent = `${answered}/${total} ответов`;
+  el("btn-smoke-submit").disabled = !(total > 0 && answered === total);
+  refreshProgressOnly();
+}
+
 el("btn-smoke-load").onclick = async () => {
   try {
     const j = await api("/api/smoke/questions?project=game1");
     smokeQs = j.questions || [];
     smokeLoaded = smokeQs.length > 0;
-    el("smoke").innerHTML = smokeQs.map(q => `
+    Object.keys(smokeAnswers).forEach(k => delete smokeAnswers[k]);
+    el("smoke").innerHTML = smokeQs.map((q, i) => `
       <div class="q" data-id="${q.id}">
-        <div class="q-prompt">${q.prompt}</div>
+        <div class="q-prompt"><span class="muted">${String(i + 1).padStart(2, "0")}</span> ${q.prompt}</div>
         <div class="yn">
-          <label><input type="radio" name="${q.id}" value="y" /> y</label>
-          <label><input type="radio" name="${q.id}" value="n" /> n</label>
+          <button type="button" class="yn-btn y" data-v="y">Y</button>
+          <button type="button" class="yn-btn n" data-v="n">N</button>
         </div>
       </div>`).join("") || "<p class='muted'>нет вопросов</p>";
-    el("smoke").querySelectorAll("input").forEach(inp => {
-      inp.onchange = updateSmokeProgress;
+    el("smoke").querySelectorAll(".yn-btn").forEach(btn => {
+      btn.onclick = () => {
+        const row = btn.closest(".q");
+        setSmokeAnswer(row.getAttribute("data-id"), btn.getAttribute("data-v"));
+      };
     });
     updateSmokeProgress();
+    toast("Нажми Y или N у каждого пункта. Best можно отметить N.");
   } catch (e) {
     toast(String(e.message || e));
   }
@@ -389,23 +407,18 @@ el("btn-smoke-load").onclick = async () => {
 
 el("btn-smoke-submit").onclick = async () => {
   const answers = {};
-  let yes = 0, total = 0, answered = 0;
+  let yes = 0, total = 0;
   for (const q of smokeQs) {
-    const picked = document.querySelector(`input[name="${q.id}"]:checked`);
-    if (!picked) {
-      toast("Отметь все пункты y/n");
+    const v = smokeAnswers[q.id];
+    if (v !== "y" && v !== "n") {
+      toast("Отметь все пункты Y или N");
       return;
     }
-    answered += 1;
-    const v = picked.value;
     answers[q.id] = { answer: v, prompt: q.prompt };
     total += 1;
     if (v === "y") yes += 1;
   }
-  if (answered !== smokeQs.length) {
-    toast("Отметь все пункты y/n");
-    return;
-  }
+  const notes = (el("smoke-notes") && el("smoke-notes").value) || "";
   const overall_ok = total > 0 && yes / total >= 0.7;
   try {
     const j = await api("/api/smoke/submit", {
@@ -413,6 +426,7 @@ el("btn-smoke-submit").onclick = async () => {
       body: JSON.stringify({
         project: "game1",
         answers,
+        notes,
         overall_ok,
         promote_skills: overall_ok
           ? ["forge-player-attrs", "forge-luau-touch", "forge-ui-modern", "forge-ui-animation"]
@@ -420,6 +434,7 @@ el("btn-smoke-submit").onclick = async () => {
       }),
     });
     el("smoke-out").textContent = JSON.stringify(j, null, 2);
+    toast(overall_ok ? "Smoke сохранён · skills promote" : "Smoke сохранён (ниже 70% — без promote)");
     await refresh();
   } catch (e) {
     toast(String(e.message || e));

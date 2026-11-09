@@ -111,12 +111,15 @@
       </header>
       <p class="lock-msg" data-lock="5">Сначала дождись генерации (окно 4).</p>
       <div class="panel-body">
-        <p class="muted">Rojo sync → playtest → y/n → promote skills.</p>
+        <p class="muted">Rojo sync → playtest → нажми <strong>Y</strong> или <strong>N</strong> у каждого пункта → сохранить. Можно добавить заметку (например: всё ок кроме Best).</p>
         <div class="smoke-progress">
           <div id="smoke-bar" class="smoke-bar" style="--pct:0%"></div>
           <span id="smoke-count" class="muted">0/0</span>
         </div>
         <div id="smoke" class="smoke-list"></div>
+        <label class="field">заметка к smoke
+          <textarea id="smoke-notes" rows="2" placeholder="Пример: всё работает кроме Best: --"></textarea>
+        </label>
         <div class="row">
           <button id="btn-smoke-load" type="button" class="btn">Загрузить вопросы</button>
           <button id="btn-smoke-submit" type="button" class="btn" disabled>Сохранить ответы + promote</button>
