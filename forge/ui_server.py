@@ -10,7 +10,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 
-from . import deepseek, progress_hub, projects_hub, run_hub, skills_hub
+from . import deepseek, fix_hub, progress_hub, projects_hub, run_hub, skills_hub
 
 ROOT = Path(__file__).resolve().parents[1]
 UI_DIR = ROOT / "ui"
@@ -131,6 +131,21 @@ class Handler(BaseHTTPRequestHandler):
             pid = (qs.get("project") or ["game1"])[0]
             self._json(200, deepseek.smoke_questionnaire(project_id=pid))
             return
+        if path == "/api/fix/issues":
+            pid = (qs.get("project") or ["game1"])[0]
+            smoke = fix_hub.latest_smoke(ROOT, pid)
+            issues = fix_hub.extract_issues(smoke)
+            self._json(
+                200,
+                {
+                    "ok": True,
+                    "project": pid,
+                    "issues": issues,
+                    "count": len(issues),
+                    "smoke_when": (smoke or {}).get("when"),
+                },
+            )
+            return
         self._json(404, {"error": "not found"})
 
     def do_POST(self) -> None:
@@ -142,8 +157,8 @@ class Handler(BaseHTTPRequestHandler):
                 stage = int(body.get("stage") or 0)
                 through = body.get("through")
                 undo = bool(body.get("undo"))
-                if stage < 1 or stage > 5:
-                    self._json(400, {"error": "stage must be 1..5"})
+                if stage < 1 or stage > 6:
+                    self._json(400, {"error": "stage must be 1..6"})
                     return
                 progress = progress_hub.skip(
                     ROOT,
@@ -152,6 +167,25 @@ class Handler(BaseHTTPRequestHandler):
                     undo=undo,
                 )
                 self._json(200, {"ok": True, "progress": progress})
+                return
+            if path == "/api/fix/from-smoke":
+                pid = body.get("project") or "game1"
+                result = fix_hub.build_fix_tz(ROOT, project_id=pid)
+                if result.get("task_lines", 0) > 0:
+                    progress_hub.mark(ROOT, fix_tz_done=True)
+                elif result.get("issues") == []:
+                    progress_hub.mark(ROOT, fix_tz_done=True, fix_done=True)
+                self._json(
+                    200,
+                    {
+                        **result,
+                        "progress": progress_hub.snapshot(ROOT, fix_tz_ready=True),
+                    },
+                )
+                return
+            if path == "/api/fix/done":
+                progress_hub.mark(ROOT, fix_done=True, fix_tz_done=True)
+                self._json(200, {"ok": True, "progress": progress_hub.snapshot(ROOT)})
                 return
             if path == "/api/goal/improve":
                 goal = (body.get("goal") or "").strip()

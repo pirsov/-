@@ -159,6 +159,29 @@
         <pre id="smoke-out" class="out"></pre>
       </div>
     </section>
+
+    <section class="panel wide" data-stage="6" id="panel-6">
+      <header class="panel-head">
+        <span class="panel-num">06</span>
+        <h2>Исправить ошибки</h2>
+        <span class="badge" data-badge="6"></span>
+      </header>
+      <p class="why">По ответам N / Другое из smoke собираем TZ фиксов и гоняем Ollama --week.</p>
+      <p class="skip-hint">Можно пропустить, если фиксы не нужны.</p>
+      <div class="panel-body">
+        <p class="muted">Сейчас из smoke: Best = N, долгий спавн = Другое → задачи F* в PROJECT_TZ.</p>
+        <div id="fix-issues" class="list"></div>
+        <div class="row">
+          <button id="btn-fix-refresh" type="button" class="btn ghost">Обновить список</button>
+          <button id="btn-fix-tz" type="button" class="btn">Составить TZ на фиксы</button>
+          <button id="btn-fix-run" type="button" class="btn">Старт фиксов --week</button>
+          <button type="button" class="btn ghost btn-skip" data-skip="6">Пропустить</button>
+          <button type="button" class="btn ghost btn-unskip" data-unskip="6" hidden>Вернуть в поток</button>
+          <button id="btn-fix-done" type="button" class="btn ghost">Отметить фиксы готовыми</button>
+        </div>
+        <pre id="fix-out" class="out tall" data-empty="здесь будет TZ фиксов"></pre>
+      </div>
+    </section>
   </main>
 
   <footer class="foot">

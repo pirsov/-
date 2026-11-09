@@ -65,7 +65,7 @@ function stopTimer() {
 }
 
 function setFocus(n, { scroll = true } = {}) {
-  focusStage = Math.max(1, Math.min(5, Number(n) || 1));
+  focusStage = Math.max(1, Math.min(6, Number(n) || 1));
   document.querySelectorAll(".panel[data-stage]").forEach(panel => {
     const id = Number(panel.getAttribute("data-stage"));
     panel.classList.toggle("focus", id === focusStage);
@@ -74,6 +74,7 @@ function setFocus(n, { scroll = true } = {}) {
     const panel = document.getElementById("panel-" + focusStage);
     if (panel) panel.scrollIntoView({ behavior: "smooth", block: "start" });
   }
+  if (focusStage === 6) loadFixIssues().catch(() => {});
   syncPrimary();
 }
 
@@ -146,8 +147,10 @@ function applyProgress(progress) {
   });
 
   const c = progress.counts || {};
+  const iss = c.issues != null ? c.issues : (progress.issue_count || 0);
   el("counts").textContent =
-    `TZ ${c.tz_tasks || 0} · Luau ${c.luau_files || 0} · skills ${c.compact_skills || 0}`;
+    `TZ ${c.tz_tasks || 0} · Luau ${c.luau_files || 0} · skills ${c.compact_skills || 0}` +
+    (iss ? ` · ошибки ${iss}` : "");
 
   // Keep user focus if they switched; otherwise follow recommended current.
   if (!document.querySelector(".panel.focus")) setFocus(current, { scroll: false });
@@ -580,6 +583,83 @@ el("btn-smoke-submit").onclick = async () => {
           : (overall_ok ? `Smoke сохранён · promote ${promo}` : "Smoke сохранён"))
     );
     await refresh();
+    setFocus(6);
+    await loadFixIssues();
+  } catch (e) { toast(String(e.message || e)); }
+};
+
+async function loadFixIssues() {
+  const box = el("fix-issues");
+  if (!box) return;
+  try {
+    const j = await api("/api/fix/issues?project=game1");
+    const issues = j.issues || [];
+    if (!issues.length) {
+      box.innerHTML = "<p class='muted'>Ошибок smoke нет — всё Y. Можно пропустить блок 6.</p>";
+      return;
+    }
+    box.innerHTML = issues.map(it => `
+      <div>
+        <strong>${it.id}</strong>
+        <span class="badge ${it.answer === "other" ? "current" : "skipped"}">${it.answer}</span>
+        — ${it.prompt || ""}
+        ${it.detail ? `<div class="muted">↳ ${it.detail}</div>` : ""}
+      </div>
+    `).join("");
+  } catch (e) {
+    box.innerHTML = `<p class="muted">${String(e.message || e)}</p>`;
+  }
+}
+
+el("btn-fix-refresh").onclick = async () => {
+  try { await loadFixIssues(); toast("Список обновлён"); }
+  catch (e) { toast(String(e.message || e)); }
+};
+
+el("btn-fix-tz").onclick = async () => {
+  el("fix-out").textContent = "Собираю TZ из smoke N/Другое…";
+  try {
+    const j = await api("/api/fix/from-smoke", {
+      method: "POST",
+      body: JSON.stringify({ project: "game1" }),
+    });
+    el("fix-out").textContent =
+      `issues=${(j.issues || []).length} task_lines=${j.task_lines}\n\n` + (j.preview || j.message || "");
+    if (j.progress) applyProgress(j.progress);
+    toast(j.task_lines ? `TZ фиксов: ${j.task_lines} задач` : (j.message || "Готово"));
+    await loadFixIssues();
+  } catch (e) {
+    el("fix-out").textContent = String(e.message || e);
+    toast(String(e.message || e));
+  }
+};
+
+el("btn-fix-run").onclick = async () => {
+  setFocus(4, { scroll: false });
+  el("run-report").textContent = "starting fix week…";
+  el("run-log").textContent = "";
+  runStartedAt = null;
+  try {
+    const j = await api("/api/run/start", {
+      method: "POST",
+      body: JSON.stringify({ sleep: 0, hitl: "y" }),
+    });
+    startTimer(j.started_at);
+    renderRun(j);
+    startPoll();
+    setFocus(4);
+    toast("Фиксы: --week запущен (смотри блок 4)");
+  } catch (e) {
+    toast(String(e.message || e));
+    setFocus(6);
+  }
+};
+
+el("btn-fix-done").onclick = async () => {
+  try {
+    const j = await api("/api/fix/done", { method: "POST", body: "{}" });
+    if (j.progress) applyProgress(j.progress);
+    toast("Фиксы отмечены готовыми");
   } catch (e) { toast(String(e.message || e)); }
 };
 

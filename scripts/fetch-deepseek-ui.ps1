@@ -25,6 +25,7 @@ $files = @(
   "scripts/start-claude-deepseek.ps1",
   "scripts/start-claude-deepseek.bat",
   "forge/progress_hub.py",
+  "forge/fix_hub.py",
   "forge/run_hub.py",
   "scripts/continue-week.ps1",
   "ui/index.html",
