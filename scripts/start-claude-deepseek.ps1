@@ -1,5 +1,5 @@
 # Launch Claude Code / FCC with DeepSeek (Anthropic-compatible API).
-# Key from User env DEEPSEEK_API_KEY — never hardcode secrets in this file.
+# Key from User env DEEPSEEK_API_KEY - never hardcode secrets in this file.
 $ErrorActionPreference = "Stop"
 Set-Location $PSScriptRoot\..
 
