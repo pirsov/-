@@ -138,6 +138,27 @@ class Handler(BaseHTTPRequestHandler):
         path = parsed.path
         body = self._read_json()
         try:
+            if path == "/api/progress/skip":
+                stage = int(body.get("stage") or 0)
+                through = body.get("through")
+                undo = bool(body.get("undo"))
+                if stage < 1 or stage > 5:
+                    self._json(400, {"error": "stage must be 1..5"})
+                    return
+                progress = progress_hub.skip(
+                    ROOT,
+                    stage,
+                    through=int(through) if through is not None else None,
+                    undo=undo,
+                )
+                self._json(200, {"ok": True, "progress": progress})
+                return
+            if path == "/api/goal/improve":
+                goal = body.get("goal") or ""
+                pid = body.get("project") or "game1"
+                result = deepseek.improve_goal(goal, project_id=pid)
+                self._json(200, {"ok": True, **result})
+                return
             if path == "/api/compress":
                 raw_id = body.get("raw_id") or ""
                 text, dest = skills_hub.compress_raw_to_compact(

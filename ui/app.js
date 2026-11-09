@@ -5,33 +5,25 @@ async function api(path, opts) {
       headers: { "Content-Type": "application/json" },
       ...opts,
     });
-  } catch (e) {
+  } catch (_) {
     const err = new Error("Сервер не отвечает. Запусти: python -u run.py --ui");
-    err.code = "offline";
     throw err;
   }
   let j = {};
   try { j = await r.json(); } catch (_) { /* empty */ }
-  if (!r.ok) {
-    const msg = humanError(j.error || r.statusText || JSON.stringify(j));
-    const err = new Error(msg);
-    err.code = "http";
-    throw err;
-  }
+  if (!r.ok) throw new Error(humanError(j.error || r.statusText || JSON.stringify(j)));
   return j;
 }
 
 function humanError(raw) {
   const s = String(raw || "");
   if (/DEEPSEEK_API_KEY|deepseek.*unset|нет ключа/i.test(s)) {
-    return "Нет ключа DeepSeek. Задай User env DEEPSEEK_API_KEY и перезапусти UI.";
+    return "Нет ключа DeepSeek. Задай User env DEEPSEEK_API_KEY.";
   }
   if (/ollama|11434|Connection refused|URLError/i.test(s)) {
-    return "Ollama down. Запусти ollama serve (порт 11434) и обнови страницу.";
+    return "Ollama down. Запусти ollama serve.";
   }
-  if (/Unauthorized|401/i.test(s)) {
-    return "Ключ отклонён (401). Проверь DEEPSEEK_API_KEY / OpenRouter.";
-  }
+  if (/goal empty/i.test(s)) return "Сначала введи текст цели.";
   return s;
 }
 
@@ -50,97 +42,61 @@ let runStartedAt = null;
 let timerTick = null;
 let smokeQs = [];
 let smokeLoaded = false;
+let smokeAnswers = {};
 let lastFileContent = "";
-let lastStage = null;
+let focusStage = 1;
+let lastProgress = null;
 
 function formatTimer(ms) {
   const s = Math.max(0, Math.floor(ms / 1000));
-  const m = Math.floor(s / 60);
-  const r = s % 60;
-  return String(m).padStart(2, "0") + ":" + String(r).padStart(2, "0");
+  return String(Math.floor(s / 60)).padStart(2, "0") + ":" + String(s % 60).padStart(2, "0");
 }
 
 function startTimer(iso) {
   runStartedAt = iso ? Date.parse(iso) : Date.now();
   if (timerTick) clearInterval(timerTick);
-  const tick = () => {
-    el("run-timer").textContent = formatTimer(Date.now() - runStartedAt);
-  };
+  const tick = () => { el("run-timer").textContent = formatTimer(Date.now() - runStartedAt); };
   tick();
   timerTick = setInterval(tick, 1000);
 }
 
 function stopTimer() {
-  if (timerTick) {
-    clearInterval(timerTick);
-    timerTick = null;
-  }
+  if (timerTick) { clearInterval(timerTick); timerTick = null; }
 }
 
-function applyProgress(progress) {
-  const stages = (progress && progress.stages) || [];
-  const unlocked = (progress && progress.unlocked) || { "1": true };
-  const current = (progress && progress.stage) || 1;
-  const lockHints = (progress && progress.lock_hints) || {};
-
-  el("stage-rail").innerHTML = stages.map(st => {
-    const short = String(st.id);
-    return `<button type="button" class="stage-dot ${st.state}" data-stage="${st.id}" title="${st.hint || st.label}">
-      <span class="n">${st.state === "done" ? "✓" : short}</span>
-      <span class="lbl-full">${st.label}</span>
-      <span class="lbl-short">${short}</span>
-    </button>`;
-  }).join("");
-
-  el("stage-rail").querySelectorAll(".stage-dot").forEach(btn => {
-    btn.onclick = () => {
-      const n = btn.getAttribute("data-stage");
-      const st = stages.find(x => String(x.id) === n);
-      if (st && st.state === "locked") {
-        toast(st.hint || lockHints[n] || "Сначала заверши предыдущий шаг");
-        return;
-      }
-      const panel = document.getElementById("panel-" + n);
-      if (panel) panel.scrollIntoView({ behavior: "smooth", block: "start" });
-    };
-  });
-
+function setFocus(n, { scroll = true } = {}) {
+  focusStage = Math.max(1, Math.min(5, Number(n) || 1));
   document.querySelectorAll(".panel[data-stage]").forEach(panel => {
-    const n = panel.getAttribute("data-stage");
-    const on = !!unlocked[n];
-    const wasLocked = panel.classList.contains("locked");
-    panel.classList.toggle("locked", !on);
-    const hint = panel.querySelector(".lock-msg");
-    if (hint && lockHints[n]) hint.textContent = lockHints[n];
-    if (wasLocked && on) {
-      panel.classList.remove("unlocking");
-      void panel.offsetWidth;
-      panel.classList.add("unlocking");
-      setTimeout(() => panel.classList.remove("unlocking"), 320);
-    }
-    panel.querySelectorAll("button, textarea, input").forEach(ctrl => {
-      if (ctrl.id === "btn-smoke-submit") return; // managed separately
-      if (ctrl.id === "btn-copy-code") return;
-      if (ctrl.id === "log-autoscroll") return;
-      if (!on) ctrl.setAttribute("disabled", "disabled");
-      else ctrl.removeAttribute("disabled");
-    });
+    const id = Number(panel.getAttribute("data-stage"));
+    panel.classList.toggle("focus", id === focusStage);
   });
+  if (scroll) {
+    const panel = document.getElementById("panel-" + focusStage);
+    if (panel) panel.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+  syncPrimary();
+}
 
-  // One primary CTA
-  document.querySelectorAll(".btn").forEach(b => b.classList.remove("primary"));
-  const next = progress && progress.next_action;
+function syncPrimary() {
+  document.querySelectorAll(".btn").forEach(b => {
+    if (b.id !== "btn-next" && b.id !== "modal-ok") b.classList.remove("primary");
+  });
+  const next = lastProgress && lastProgress.next_action;
   const nextText = el("next-text");
   const nextBtn = el("btn-next");
+  const stageMeta = (lastProgress && lastProgress.stages || []).find(s => s.id === (lastProgress.stage || focusStage));
+  const label = stageMeta
+    ? `${String(stageMeta.id).padStart(2, "0")} · ${stageMeta.label}`
+    : "…";
   if (next) {
-    nextText.textContent = next.label || "—";
+    nextText.textContent = `${label} — ${next.label || ""}`;
     nextBtn.textContent = next.label || "Далее";
     nextBtn.disabled = !next.button;
     nextBtn.onclick = () => {
       if (!next.button) return;
+      setFocus(next.stage || focusStage);
       const target = el(next.button);
       if (target && !target.disabled) target.click();
-      else if (target) target.scrollIntoView({ behavior: "smooth", block: "center" });
     };
     if (next.button) {
       const primary = el(next.button);
@@ -148,12 +104,54 @@ function applyProgress(progress) {
     }
     nextBtn.classList.add("primary");
   }
+}
 
-  const c = (progress && progress.counts) || {};
+function applyProgress(progress) {
+  lastProgress = progress;
+  const stages = progress.stages || [];
+  const current = progress.stage || 1;
+
+  el("stage-rail").innerHTML = stages.map(st => {
+    const mark = st.state === "done" ? "✓" : (st.state === "skipped" ? "↷" : st.id);
+    return `<button type="button" class="stage-dot ${st.state}" data-stage="${st.id}" title="${st.hint || st.why || st.label}">
+      <span class="n">${mark}</span>
+      <span class="lbl-full">${st.label}</span>
+      <span class="lbl-short">${st.id}</span>
+    </button>`;
+  }).join("");
+
+  el("stage-rail").querySelectorAll(".stage-dot").forEach(btn => {
+    btn.onclick = () => {
+      const n = Number(btn.getAttribute("data-stage"));
+      const st = stages.find(x => x.id === n);
+      if (st && st.state === "locked" && n > current) {
+        toast(st.hint || "Сначала заверши или пропусти предыдущий шаг");
+      }
+      setFocus(n);
+    };
+  });
+
+  stages.forEach(st => {
+    const badge = document.querySelector(`[data-badge="${st.id}"]`);
+    if (!badge) return;
+    badge.className = "badge " + st.state;
+    badge.textContent = st.state === "done" ? "✓ done"
+      : st.state === "skipped" ? "↷ skip"
+      : st.state === "current" ? "сейчас"
+      : "locked";
+    const skipBtn = document.querySelector(`.btn-skip[data-skip="${st.id}"]`);
+    const unskipBtn = document.querySelector(`.btn-unskip[data-unskip="${st.id}"]`);
+    if (skipBtn) skipBtn.hidden = !st.can_skip || st.skipped || st.done;
+    if (unskipBtn) unskipBtn.hidden = !st.skipped;
+  });
+
+  const c = progress.counts || {};
   el("counts").textContent =
     `TZ ${c.tz_tasks || 0} · Luau ${c.luau_files || 0} · skills ${c.compact_skills || 0}`;
 
-  lastStage = current;
+  // Keep user focus if they switched; otherwise follow recommended current.
+  if (!document.querySelector(".panel.focus")) setFocus(current, { scroll: false });
+  else syncPrimary();
 }
 
 function setChip(id, ok, okText, badText) {
@@ -168,12 +166,7 @@ async function refresh() {
     const s = await api("/api/status");
     setChip("ds-status", s.deepseek, "DeepSeek: OK", "DeepSeek: нет ключа");
     const ol = (s.health && s.health.ollama) || {};
-    setChip(
-      "ollama-status",
-      !!ol.ok,
-      `Ollama: OK (${ol.count || 0})`,
-      "Ollama: down"
-    );
+    setChip("ollama-status", !!ol.ok, `Ollama: OK (${ol.count || 0})`, "Ollama: down");
     el("raw-count").textContent = String(s.raw_count || 0);
     el("projects").innerHTML = (s.projects || []).map(p =>
       `<div><strong>${p.id}</strong> — ${p.title || ""} · luau ${p.luau_files || 0}</div>`
@@ -182,6 +175,7 @@ async function refresh() {
       `<div><strong>${c.id}</strong> · ${c.chars}c · promoted=${c.promoted}</div>`
     ).join("");
     applyProgress(s.progress);
+    if (!document.querySelector(".panel.focus")) setFocus(s.progress.stage || 1, { scroll: false });
     if (s.run) renderRun(s.run);
   } catch (e) {
     setChip("ds-status", false, "", "Сервер: offline");
@@ -190,19 +184,72 @@ async function refresh() {
   }
 }
 
+async function refreshProgressOnly() {
+  try {
+    const p = await api("/api/progress?smoke_loaded=" + (smokeLoaded ? "1" : "0"));
+    applyProgress(p);
+  } catch (_) { /* ignore */ }
+}
+
+async function doSkip(stage, opts = {}) {
+  const j = await api("/api/progress/skip", {
+    method: "POST",
+    body: JSON.stringify({ stage, through: opts.through, undo: !!opts.undo }),
+  });
+  applyProgress(j.progress);
+  const next = (j.progress && j.progress.stage) || stage;
+  setFocus(opts.undo ? stage : next);
+  toast(opts.undo ? "Шаг возвращён в поток" : "Шаг пропущен");
+}
+
+document.querySelectorAll(".btn-skip").forEach(btn => {
+  btn.onclick = async (e) => {
+    e.stopPropagation();
+    try { await doSkip(Number(btn.getAttribute("data-skip"))); }
+    catch (err) { toast(String(err.message || err)); }
+  };
+});
+document.querySelectorAll(".btn-unskip").forEach(btn => {
+  btn.onclick = async (e) => {
+    e.stopPropagation();
+    try { await doSkip(Number(btn.getAttribute("data-unskip")), { undo: true }); }
+    catch (err) { toast(String(err.message || err)); }
+  };
+});
+
+el("btn-skip-to-smoke").onclick = (e) => {
+  e.stopPropagation();
+  el("modal").hidden = false;
+};
+el("modal-cancel").onclick = () => { el("modal").hidden = true; };
+el("modal-ok").onclick = async () => {
+  el("modal").hidden = true;
+  try {
+    await doSkip(1, { through: 4 });
+    setFocus(5);
+  } catch (err) {
+    toast(String(err.message || err));
+  }
+};
+
+document.querySelectorAll(".panel[data-stage]").forEach(panel => {
+  panel.addEventListener("click", (e) => {
+    if (e.target.closest("button, textarea, input, a, label, pre")) return;
+    setFocus(Number(panel.getAttribute("data-stage")));
+  });
+});
+
 function renderRun(run) {
   const st = run.status || "idle";
   const pill = el("run-status");
   pill.className = "run-pill " + st;
   pill.querySelector(".run-label").textContent =
     st + (run.exit_code != null ? ` · exit ${run.exit_code}` : "");
-
   if (st === "running") {
     if (!runStartedAt) startTimer(run.started_at);
   } else if (st === "done" || st === "error") {
     stopTimer();
   }
-
   const rep = run.report || {};
   el("run-report").textContent = JSON.stringify({
     status: st,
@@ -214,7 +261,6 @@ function renderRun(run) {
     hitl_seen: rep.hitl_seen,
     lines: rep.lines,
   }, null, 2);
-
   const box = el("run-log");
   if (run.log_tail) {
     const auto = el("log-autoscroll").checked;
@@ -222,7 +268,6 @@ function renderRun(run) {
     box.textContent = run.log_tail;
     if (auto || atBottom) box.scrollTop = box.scrollHeight;
   }
-
   if (st === "running") startPoll();
   if (st === "done" || st === "error") {
     stopPoll();
@@ -231,31 +276,15 @@ function renderRun(run) {
   }
 }
 
-async function refreshProgressOnly() {
-  try {
-    const p = await api("/api/progress?smoke_loaded=" + (smokeLoaded ? "1" : "0"));
-    applyProgress(p);
-  } catch (_) { /* ignore */ }
-}
-
 function startPoll() {
   if (pollTimer) return;
   pollTimer = setInterval(async () => {
-    try {
-      const st = await api("/api/run/status");
-      renderRun(st);
-    } catch (e) {
-      el("run-report").textContent = String(e.message || e);
-      toast(String(e.message || e));
-    }
+    try { renderRun(await api("/api/run/status")); }
+    catch (e) { toast(String(e.message || e)); }
   }, 1500);
 }
-
 function stopPoll() {
-  if (pollTimer) {
-    clearInterval(pollTimer);
-    pollTimer = null;
-  }
+  if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
 }
 
 async function loadFiles() {
@@ -268,37 +297,54 @@ async function loadFiles() {
     btn.onclick = async () => {
       el("file-list").querySelectorAll(".file-btn").forEach(b => b.classList.remove("active"));
       btn.classList.add("active");
-      const path = btn.getAttribute("data-path");
-      el("file-view").textContent = "…";
-      const file = await api("/api/run/file?path=" + encodeURIComponent(path));
+      const file = await api("/api/run/file?path=" + encodeURIComponent(btn.getAttribute("data-path")));
       lastFileContent = file.content || "";
       el("file-view").textContent = lastFileContent;
       el("btn-copy-code").disabled = !lastFileContent;
     };
   });
-  if (files[0]) {
-    const first = el("file-list").querySelector(".file-btn");
-    if (first) first.click();
-  }
+  const first = el("file-list").querySelector(".file-btn");
+  if (first) first.click();
 }
 
 el("btn-copy-code").onclick = async () => {
   if (!lastFileContent) return;
   try {
     await navigator.clipboard.writeText(lastFileContent);
-    toast("Скопировано в буфер");
-  } catch (_) {
-    toast("Не удалось скопировать");
-  }
+    toast("Скопировано");
+  } catch (_) { toast("Не удалось скопировать"); }
 };
 
 el("btn-activate").onclick = async () => {
   try {
-    const j = await api("/api/activate", { method: "POST", body: JSON.stringify({ project: "game1" }) });
-    el("compress-out").textContent = "activated: " + JSON.stringify(j);
+    await api("/api/activate", { method: "POST", body: JSON.stringify({ project: "game1" }) });
     await refresh();
+    setFocus(2);
+  } catch (e) { toast(String(e.message || e)); }
+};
+
+el("btn-improve-goal").onclick = async () => {
+  const btn = el("btn-improve-goal");
+  const goalBox = el("goal");
+  const prev = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = "Улучшаю…";
+  try {
+    const j = await api("/api/goal/improve", {
+      method: "POST",
+      body: JSON.stringify({ project: "game1", goal: goalBox.value }),
+    });
+    goalBox.value = j.goal || goalBox.value;
+    goalBox.classList.remove("flash");
+    void goalBox.offsetWidth;
+    goalBox.classList.add("flash");
+    const hint = (j.skills_hint || []).join(", ");
+    toast(hint ? `Промт улучшен · skills: ${hint}` : "Промт улучшен");
   } catch (e) {
     toast(String(e.message || e));
+  } finally {
+    btn.disabled = false;
+    btn.textContent = prev;
   }
 };
 
@@ -311,6 +357,7 @@ el("btn-auto").onclick = async () => {
     });
     el("compress-out").textContent = JSON.stringify(j, null, 2);
     await refresh();
+    setFocus(3);
   } catch (e) {
     el("compress-out").textContent = String(e.message || e);
     toast(String(e.message || e));
@@ -326,6 +373,7 @@ el("btn-tz").onclick = async () => {
     });
     el("tz-out").textContent = `task_lines=${j.task_lines} fits_ctx=${j.fits_ctx}\n\n` + (j.preview || "");
     await refresh();
+    setFocus(4);
   } catch (e) {
     el("tz-out").textContent = String(e.message || e);
     toast(String(e.message || e));
@@ -351,19 +399,6 @@ el("btn-run").onclick = async () => {
     toast(String(e.message || e));
   }
 };
-
-const smokeAnswers = {};
-
-function setSmokeAnswer(qid, value) {
-  smokeAnswers[qid] = value;
-  const row = el("smoke").querySelector(`.q[data-id="${qid}"]`);
-  if (!row) return;
-  row.querySelectorAll(".yn-btn").forEach(b => {
-    const on = b.getAttribute("data-v") === value;
-    b.classList.toggle("active", on);
-  });
-  updateSmokeProgress();
-}
 
 function updateSmokeProgress() {
   const total = smokeQs.length;
@@ -394,15 +429,16 @@ el("btn-smoke-load").onclick = async () => {
       </div>`).join("") || "<p class='muted'>нет вопросов</p>";
     el("smoke").querySelectorAll(".yn-btn").forEach(btn => {
       btn.onclick = () => {
-        const row = btn.closest(".q");
-        setSmokeAnswer(row.getAttribute("data-id"), btn.getAttribute("data-v"));
+        const qid = btn.closest(".q").getAttribute("data-id");
+        smokeAnswers[qid] = btn.getAttribute("data-v");
+        btn.closest(".yn").querySelectorAll(".yn-btn").forEach(b => b.classList.remove("active"));
+        btn.classList.add("active");
+        updateSmokeProgress();
       };
     });
     updateSmokeProgress();
-    toast("Нажми Y или N у каждого пункта. Best можно отметить N.");
-  } catch (e) {
-    toast(String(e.message || e));
-  }
+    toast("Отметь Y/N. Best можно N.");
+  } catch (e) { toast(String(e.message || e)); }
 };
 
 el("btn-smoke-submit").onclick = async () => {
@@ -418,7 +454,6 @@ el("btn-smoke-submit").onclick = async () => {
     total += 1;
     if (v === "y") yes += 1;
   }
-  const notes = (el("smoke-notes") && el("smoke-notes").value) || "";
   const overall_ok = total > 0 && yes / total >= 0.7;
   try {
     const j = await api("/api/smoke/submit", {
@@ -426,7 +461,7 @@ el("btn-smoke-submit").onclick = async () => {
       body: JSON.stringify({
         project: "game1",
         answers,
-        notes,
+        notes: el("smoke-notes").value || "",
         overall_ok,
         promote_skills: overall_ok
           ? ["forge-player-attrs", "forge-luau-touch", "forge-ui-modern", "forge-ui-animation"]
@@ -434,11 +469,11 @@ el("btn-smoke-submit").onclick = async () => {
       }),
     });
     el("smoke-out").textContent = JSON.stringify(j, null, 2);
-    toast(overall_ok ? "Smoke сохранён · skills promote" : "Smoke сохранён (ниже 70% — без promote)");
+    toast(overall_ok ? "Smoke сохранён · promote" : "Smoke сохранён");
     await refresh();
-  } catch (e) {
-    toast(String(e.message || e));
-  }
+  } catch (e) { toast(String(e.message || e)); }
 };
 
-refresh().catch(e => toast(String(e.message || e)));
+refresh().then(() => {
+  if (lastProgress) setFocus(lastProgress.stage || 1, { scroll: false });
+}).catch(e => toast(String(e.message || e)));

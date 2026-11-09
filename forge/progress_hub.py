@@ -1,21 +1,53 @@
-"""Progressive UI stages 1..5 for Quality Forge control panel.
-
-Returns done/current/locked stages, one next_action, lock hints, and counters.
-"""
+"""Progressive UI stages 1..5 with focus, skip, and next_action."""
 from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Set
 
 from . import deepseek, run_hub, skills_hub
 
 STAGE_META = [
-    {"id": 1, "key": "activated", "label": "Проект", "hint": "Активируй game1"},
-    {"id": 2, "key": "skills_done", "label": "Цель + skills", "hint": "Сначала активируй проект (окно 1)"},
-    {"id": 3, "key": "tz_done", "label": "TZ", "hint": "Сначала выбери/сожми skills (окно 2)"},
-    {"id": 4, "key": "run_done", "label": "Генерация", "hint": "Сначала сгенерируй TZ (окно 3)"},
-    {"id": 5, "key": "smoke_done", "label": "Smoke", "hint": "Сначала дождись генерации (окно 4)"},
+    {
+        "id": 1,
+        "key": "activated",
+        "label": "Проект",
+        "hint": "Активируй game1",
+        "why": "Выбери снимок проекта и сделай его живым деревом src/.",
+        "skip_hint": "Можно пропустить, если game1 уже активирован.",
+    },
+    {
+        "id": 2,
+        "key": "skills_done",
+        "label": "Цель + skills",
+        "hint": "Сначала активируй проект (окно 1)",
+        "why": "Сформулируй цель и сжатые skills для Ollama.",
+        "skip_hint": "Можно пропустить, если skills уже выбраны / проект готов.",
+    },
+    {
+        "id": 3,
+        "key": "tz_done",
+        "label": "TZ",
+        "hint": "Сначала выбери/сожми skills (окно 2)",
+        "why": "Сгенерируй checkbox-задачи PROJECT_TZ под 4k контекст.",
+        "skip_hint": "Можно пропустить, если TZ уже есть и код готов.",
+    },
+    {
+        "id": 4,
+        "key": "run_done",
+        "label": "Генерация",
+        "hint": "Сначала сгенерируй TZ (окно 3)",
+        "why": "Ollama --week пишет Luau по задачам TZ.",
+        "skip_hint": "Можно пропустить, если доработка не нужна — сразу Smoke.",
+    },
+    {
+        "id": 5,
+        "key": "smoke_done",
+        "label": "Smoke",
+        "hint": "Сначала дождись генерации (окно 4)",
+        "why": "Studio playtest → y/n → promote skills.",
+        "skip_hint": "",
+    },
 ]
 
 NEXT_ACTIONS = {
@@ -44,7 +76,10 @@ def load(root: Path) -> Dict[str, Any]:
     p = _progress_path(root)
     if p.exists():
         try:
-            return json.loads(p.read_text(encoding="utf-8"))
+            data = json.loads(p.read_text(encoding="utf-8"))
+            if "skipped" not in data or not isinstance(data.get("skipped"), list):
+                data["skipped"] = []
+            return data
         except json.JSONDecodeError:
             pass
     return {
@@ -53,22 +88,57 @@ def load(root: Path) -> Dict[str, Any]:
         "tz_done": False,
         "run_done": False,
         "smoke_done": False,
+        "skipped": [],
     }
 
 
 def save(root: Path, data: Dict[str, Any]) -> None:
+    if "skipped" not in data:
+        data["skipped"] = []
     _progress_path(root).write_text(json.dumps(data, indent=2), encoding="utf-8")
 
 
 def mark(root: Path, **flags: bool) -> Dict[str, Any]:
     data = load(root)
-    data.update({k: bool(v) for k, v in flags.items()})
+    data.update({k: bool(v) for k, v in flags.items() if k != "skipped"})
+    # Drop skipped flags for stages that became done
+    skipped = {int(x) for x in data.get("skipped") or []}
+    for meta in STAGE_META:
+        if data.get(meta["key"]) and meta["id"] in skipped:
+            skipped.discard(meta["id"])
+    data["skipped"] = sorted(skipped)
     save(root, data)
     return snapshot(root)
 
 
-def _derive_flags(root: Path, data: Dict[str, Any]) -> Dict[str, Any]:
-    flags = dict(data)
+def skip(
+    root: Path,
+    stage: int,
+    *,
+    through: Optional[int] = None,
+    undo: bool = False,
+) -> Dict[str, Any]:
+    """Mark stage (or range stage..through) as skipped, or undo skip."""
+    data = load(root)
+    skipped: Set[int] = {int(x) for x in data.get("skipped") or []}
+    start = max(1, min(5, int(stage)))
+    end = start if through is None else max(start, min(5, int(through)))
+    for n in range(start, end + 1):
+        if n == 5:
+            continue  # never skip smoke itself via bulk
+        if undo:
+            skipped.discard(n)
+        else:
+            skipped.add(n)
+    data["skipped"] = sorted(skipped)
+    save(root, data)
+    return snapshot(root)
+
+
+def _derive_flags(root: Path, data: Dict[str, Any]) -> Any:
+    flags = {k: data.get(k, False) for k in (
+        "activated", "skills_done", "tz_done", "run_done", "smoke_done"
+    )}
     active = root / ".forge" / "active_project.json"
     if active.exists():
         flags["activated"] = True
@@ -87,18 +157,15 @@ def _derive_flags(root: Path, data: Dict[str, Any]) -> Dict[str, Any]:
     ):
         flags["run_done"] = True
     luau = list((root / "src").rglob("*.luau")) if (root / "src").exists() else []
-    # Snapshot under projects/game1 also counts (Desktop may not have activated live src/).
     snap = list((root / "projects" / "game1" / "src").rglob("*.luau"))
     luau_n = max(len(luau), len(snap))
     report = root / "docs" / "AGENT_RUN_REPORT.md"
     if luau_n >= 8 and (report.exists() or flags.get("tz_done")):
-        # Resume after completed week even if ui_run state is idle.
         flags["run_done"] = True
     smoke = root / "projects" / "game1" / "smoke" / "latest.json"
     if smoke.exists():
         flags["smoke_done"] = True
 
-    # Cascade: later progress implies earlier steps were completed.
     if flags.get("smoke_done"):
         flags["run_done"] = True
     if flags.get("run_done"):
@@ -110,16 +177,30 @@ def _derive_flags(root: Path, data: Dict[str, Any]) -> Dict[str, Any]:
     return flags, tz_tasks, compact, luau_n, st
 
 
-def snapshot(root: Path, *, smoke_loaded: bool = False) -> Dict[str, Any]:
+def _effective_done(flags: Dict[str, Any], skipped: Set[int], stage_id: int, key: str) -> bool:
+    return bool(flags.get(key)) or stage_id in skipped
+
+
+def snapshot(root: Path, *, smoke_loaded: bool = False, focus: Optional[int] = None) -> Dict[str, Any]:
     data = load(root)
     flags, tz_tasks, compact, luau_n, st = _derive_flags(root, data)
+    skipped: Set[int] = {int(x) for x in data.get("skipped") or []}
+    # Auto-drop skipped once truly done
+    cleaned = {n for n in skipped if not flags.get(STAGE_META[n - 1]["key"])}
+    if cleaned != skipped:
+        data["skipped"] = sorted(cleaned)
+        save(root, data)
+        skipped = cleaned
 
-    # Current stage = first incomplete; if all done, stay on 5.
+    # First incomplete (not done and not skipped)
     current = 5
     for meta in STAGE_META:
-        if not flags.get(meta["key"]):
+        if not _effective_done(flags, skipped, meta["id"], meta["key"]):
             current = meta["id"]
             break
+
+    focus_stage = int(focus) if focus else current
+    focus_stage = max(1, min(5, focus_stage))
 
     stages: List[Dict[str, Any]] = []
     unlocked: Dict[str, bool] = {}
@@ -127,15 +208,17 @@ def snapshot(root: Path, *, smoke_loaded: bool = False) -> Dict[str, Any]:
     for meta in STAGE_META:
         n = meta["id"]
         done = bool(flags.get(meta["key"]))
+        is_skipped = n in skipped and not done
         if done:
             state = "done"
+        elif is_skipped:
+            state = "skipped"
         elif n == current:
             state = "current"
         else:
             state = "locked"
-        # Unlock panels up to current (and done ones)
-        is_unlocked = done or n <= current
-        unlocked[str(n)] = is_unlocked
+
+        unlocked[str(n)] = True  # focus switch allowed; UI dims non-focus
         labels[str(n)] = meta["label"]
         stages.append(
             {
@@ -143,7 +226,11 @@ def snapshot(root: Path, *, smoke_loaded: bool = False) -> Dict[str, Any]:
                 "label": meta["label"],
                 "state": state,
                 "hint": meta["hint"] if state == "locked" else "",
+                "why": meta["why"],
+                "skip_hint": meta["skip_hint"],
                 "done": done,
+                "skipped": is_skipped,
+                "can_skip": n < 5 and not done,
             }
         )
 
@@ -154,17 +241,17 @@ def snapshot(root: Path, *, smoke_loaded: bool = False) -> Dict[str, Any]:
     else:
         next_action = NEXT_ACTIONS[current]
 
-    # Lock hints for locked panels (what to do earlier)
-    lock_hints = {str(m["id"]): m["hint"] for m in STAGE_META if m["id"] > 1}
-
     return {
         "flags": flags,
         "stage": current,
+        "focus_stage": focus_stage,
         "unlocked": unlocked,
         "labels": labels,
         "stages": stages,
         "next_action": next_action,
-        "lock_hints": lock_hints,
+        "can_skip": current < 5 and not flags.get(STAGE_META[current - 1]["key"]),
+        "skipped": sorted(skipped),
+        "lock_hints": {str(m["id"]): m["hint"] for m in STAGE_META if m["id"] > 1},
         "counts": {
             "tz_tasks": tz_tasks,
             "luau_files": luau_n,

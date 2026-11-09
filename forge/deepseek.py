@@ -269,15 +269,75 @@ def horror_coins_tz_fallback(*, project_id: str, goal: str) -> str:
 """
 
 
+def improve_goal(goal: str, *, project_id: str = "game1") -> Dict[str, Any]:
+    """Rewrite user goal so Ollama agent + skill picker understand intent."""
+    raw_goal = (goal or "").strip()
+    if not raw_goal:
+        raise ValueError("goal empty")
+
+    compact_ids = [
+        "forge-player-attrs",
+        "forge-luau-touch",
+        "forge-ui-modern",
+        "forge-ui-animation",
+    ]
+    system = (
+        "You improve Roblox game goals for Quality Forge. "
+        "Return ONLY the improved goal text (no markdown fences). "
+        "Keep user intent. Make it concrete for a local coding agent. "
+        "Russian if input is Russian. 500-900 chars. "
+        "End with a line: Skills needed: id1, id2, id3"
+    )
+    prompt = (
+        f"Project {project_id}. Raw goal:\n{raw_goal}\n\n"
+        "Rewrite so the agent knows: genre, systems to touch "
+        "(HUD/Coins/CP/BestTime/Spawn/Void/Puzzles), "
+        "hard rules (Player attrs not Character; remotes whitelist "
+        "Checkpoint,CheckpointReached,UpdateLeaderboard,CoinCollected). "
+        f"Prefer skills from: {', '.join(compact_ids)}."
+    )
+    if not available():
+        improved = _fallback_improve_goal(raw_goal, compact_ids)
+        return {"goal": improved, "skills_hint": _skills_from_text(improved, compact_ids)}
+
+    text = chat(prompt, system=system, max_tokens=900, temperature=0.2).strip()
+    if text.startswith("```"):
+        text = re.sub(r"^```(?:\w+)?\n?", "", text)
+        text = re.sub(r"\n?```$", "", text)
+    if len(text) < 40:
+        text = _fallback_improve_goal(raw_goal, compact_ids)
+    if len(text) > 1200:
+        text = text[:1197] + "..."
+    return {"goal": text, "skills_hint": _skills_from_text(text, compact_ids)}
+
+
+def _skills_from_text(text: str, allowed: List[str]) -> List[str]:
+    found = [sid for sid in allowed if sid in text]
+    return found or allowed[:3]
+
+
+def _fallback_improve_goal(goal: str, compact_ids: List[str]) -> str:
+    return (
+        f"Цель ({goal[:180].rstrip('.')}): сделать играбельный Roblox-уровень. "
+        "Системы: Path + SpawnLocation, Neon Checkpoints, золотые Coins, "
+        "левый HUD Time/CP/Coins/Best через player:GetAttribute (НЕ Character), "
+        "Void Y<-20 LoadCharacter, PressurePlate→gate. "
+        "Remotes только: Checkpoint, CheckpointReached, UpdateLeaderboard, CoinCollected. "
+        f"Skills needed: {', '.join(compact_ids[:3])}"
+    )
+
+
 def smoke_questionnaire(*, project_id: str, focus: str = "gameplay HUD coins CP") -> Dict[str, Any]:
     """Ask structured smoke questions after a week run (human answers in UI)."""
     system = (
         "Return ONLY valid JSON with key questions: array of "
-        "{id, prompt, expect_yes_means}. 6-10 short Studio smoke questions."
+        "{id, prompt, expect_yes_means}. 6-10 short Studio smoke questions. "
+        "ALL prompt strings MUST be in Russian."
     )
     prompt = (
         f"Project {project_id}. Focus: {focus}. "
-        "Cover left HUD, coins, checkpoints, spawn, void, puzzles, Output errors."
+        "Cover left HUD, coins, checkpoints, BestTime, spawn, void, puzzles, Output errors. "
+        "Write every prompt in Russian."
     )
     if not available():
         return _default_smoke()
@@ -289,6 +349,11 @@ def smoke_questionnaire(*, project_id: str, focus: str = "gameplay HUD coins CP"
     try:
         data = json.loads(raw)
         if isinstance(data, dict) and data.get("questions"):
+            # If model returned English, fall back to Russian defaults.
+            prompts = " ".join(str(q.get("prompt") or "") for q in data["questions"])
+            cyr = sum(1 for c in prompts if "а" <= c.lower() <= "я" or c in "ёЁ")
+            if cyr < 8:
+                return _default_smoke()
             return data
     except json.JSONDecodeError:
         pass
