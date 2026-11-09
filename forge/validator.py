@@ -175,6 +175,12 @@ def validate_file(path: Path) -> Tuple[bool, List[str]]:
             errors.append('Checkpoint parts must be named "Checkpoint"..id (no underscore)')
         if "Checkpoints" not in content or "Coins" not in content:
             errors.append("Generator must create/use workspace.Checkpoints and workspace.Coins")
+        # Must be real SpawnLocation class, not Part named "SpawnLocation"
+        if not re.search(r'Instance\.new\(\s*["\']SpawnLocation["\']', content):
+            errors.append(
+                'Generator must Instance.new("SpawnLocation") — '
+                'not a Part renamed "SpawnLocation"'
+            )
 
     if name == "Coins.server.luau":
         if re.search(r'WaitForChild\(\s*["\']shared["\']', content):
@@ -198,6 +204,10 @@ def validate_file(path: Path) -> Tuple[bool, List[str]]:
                 'Coins: use FindFirstChild("Coins") + ChildAdded/poll — '
                 'bare WaitForChild("Coins") infinite-yields if Generator failed'
             )
+        if not re.search(r'SetAttribute\(\s*["\']Coins["\']', content):
+            errors.append('Coins must plr:SetAttribute("Coins", n) on the Player')
+        if "UpdateLeaderboard" not in content:
+            errors.append("Coins must FireAllClients UpdateLeaderboard after pickup")
 
     if name == "LevelConfig.luau":
         # Luau uses `id = 1`, never JS/TS `id: 1` (Studio: Expected identifier… got '{')
@@ -232,6 +242,21 @@ def validate_file(path: Path) -> Tuple[bool, List[str]]:
             errors.append("HUD must Connect CheckpointReached and CoinCollected OnClientEvent")
         if "Instance.new" not in content and "TextLabel" not in content and "ScreenGui" not in content:
             errors.append("HUD must create ScreenGui/TextLabel UI (not only comments)")
+        # Server sets attrs on Player; reading Character attrs wipes left HUD every frame
+        if re.search(
+            r"char(?:acter)?\s*:\s*GetAttribute\(\s*[\"'](?:Coins|Checkpoint|Score|BestTime)[\"']",
+            code_hud,
+            re.I,
+        ):
+            errors.append(
+                "HUD must read player:GetAttribute(Coins/Checkpoint) — "
+                "NOT character:GetAttribute (server writes on Player; char attrs stay nil)"
+            )
+        if re.search(r"GetAttribute\(\s*[\"'](?:Coins|Checkpoint)[\"']", code_hud) and not re.search(
+            r"player\s*:\s*GetAttribute\(\s*[\"'](?:Coins|Checkpoint)[\"']",
+            code_hud,
+        ):
+            errors.append("HUD GetAttribute for Coins/Checkpoint must be on `player`")
 
     if name == "Leaderboard.client.luau":
         if re.search(r'WaitForChild\(\s*["\']LeaderboardFrame["\']', content):
@@ -312,6 +337,18 @@ def validate_file(path: Path) -> Tuple[bool, List[str]]:
             errors.append(
                 "Touched handler bug: hit is the touching limb; checkpoint is `part`/`child`, not hit.Parent"
             )
+        # Invented remote — Remotes only has CoinCollected (not CoinsCollected)
+        if re.search(r"Remotes\.CoinsCollected\b", content):
+            errors.append(
+                "Checkpoints: Remotes.CoinsCollected does not exist — "
+                "use Remotes.CoinCollected or leave coins to Coins.server"
+            )
+        # Checkpoints must NOT destroy coins / invent coin pickup at CP position
+        if re.search(r"CoinsCollected|coin:Destroy\(\)|coin\.Position\s*==\s*part\.Position", content, re.I):
+            if "Coins" in content and "Destroy" in content:
+                errors.append(
+                    "Checkpoints must not destroy Coins — coin pickup belongs in Coins.server only"
+                )
 
     return len(errors) == 0, errors
 

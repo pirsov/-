@@ -299,7 +299,7 @@ return Remotes
     checkpoints_template = ""
     if task.target_path and "Checkpoints.server.luau" in task.target_path.replace("\\", "/"):
         checkpoints_template = """
-=== CHECKPOINTS TEMPLATE (Script — NO top-level return) ===
+=== CHECKPOINTS TEMPLATE (Script — NO top-level return; NO coin logic) ===
 --!strict
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -313,6 +313,7 @@ end
 local function hookPart(part: BasePart)
 	local idx = tonumber(string.match(part.Name, "%d+"))
 	if not idx then return end
+	part.CanTouch = true
 	part.Touched:Connect(function(hit: BasePart)
 		local char = hit.Parent
 		if not char then return end
@@ -322,6 +323,7 @@ local function hookPart(part: BasePart)
 		if typeof(current) ~= "number" then current = 0 end
 		if idx > (current :: number) then
 			plr:SetAttribute("Checkpoint", idx)
+			plr:SetAttribute("Score", idx * 100)
 			Remotes.CheckpointReached:FireClient(plr, idx)
 		end
 	end)
@@ -358,6 +360,7 @@ for _, plr in ipairs(Players:GetPlayers()) do
 	plr.CharacterAdded:Connect(function(char) hookCharacter(plr, char) end)
 	if plr.Character then hookCharacter(plr, plr.Character) end
 end
+-- NEVER Remotes.CoinsCollected (typo). NEVER destroy coins here.
 """
     effects_template = ""
     if task.target_path and "Effects.client.luau" in task.target_path.replace("\\", "/"):
@@ -409,8 +412,9 @@ end
 === GENERATOR RULES (must follow) ===
 - CREATE folders with Instance.new — never WaitForChild("Map") before creating it.
 - ensureFolder("Map"), ensureFolder("Checkpoints"), ensureFolder("Coins").
-- Path Part Name="Path", SpawnPlaza, SpawnLocation under Map; destroy Baseplate.
-- Checkpoints named "Checkpoint"..tostring(id); print "[Generator] map floor ready".
+- Path Part Name="Path"; destroy Baseplate.
+- Spawn MUST be: local s = Instance.new("SpawnLocation") — NOT Instance.new("Part") renamed.
+- Checkpoints green Neon; Coins gold; obstacles Y on Path (~6); print "[Generator] map floor ready".
 """
     coins_template = ""
     if task.target_path and "Coins.server.luau" in task.target_path.replace("\\", "/"):
@@ -421,13 +425,17 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Remotes = require(ReplicatedStorage:WaitForChild("Gameplay"):WaitForChild("Remotes"))
 local function hook(coin: BasePart)
+	coin.CanTouch = true
 	coin.Touched:Connect(function(hit: BasePart)
 		local char = hit.Parent
 		if not char then return end
 		local plr = Players:GetPlayerFromCharacter(char)
 		if not plr then return end
 		coin:Destroy()
-		Remotes.CoinCollected:FireClient(plr, 1)
+		local n = (plr:GetAttribute("Coins") or 0) + 1
+		plr:SetAttribute("Coins", n) -- PLAYER attrs, not character
+		Remotes.CoinCollected:FireClient(plr, n)
+		Remotes.UpdateLeaderboard:FireAllClients(plr.Name .. ": " .. tostring(n))
 	end)
 end
 local function ensureCoinsFolder(): Folder
@@ -464,10 +472,11 @@ return {
     hud_template = ""
     if task.target_path and "HUD.client.luau" in task.target_path.replace("\\", "/"):
         hud_template = """
-=== HUD TEMPLATE (LocalScript — create UI; use player.CharacterAdded) ===
+=== HUD TEMPLATE (LEFT UI — read PLAYER attrs, never Character attrs) ===
 --!strict
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
 local Remotes = require(ReplicatedStorage:WaitForChild("Gameplay"):WaitForChild("Remotes"))
 local player = Players.LocalPlayer
 local gui = Instance.new("ScreenGui")
@@ -489,31 +498,26 @@ local timeL = makeLabel("Time", 12)
 local cpL = makeLabel("CheckpointCount", 40)
 local coinL = makeLabel("CoinCount", 68)
 local bestL = makeLabel("BestTime", 96)
-local coins = 0
-local cp = 0
 local t0 = os.clock()
-local best = math.huge
 local function paint()
+	-- CRITICAL: attrs live on Player (set by Coins/Checkpoints servers), NOT on Character
+	local coins = player:GetAttribute("Coins") or 0
+	local cp = player:GetAttribute("Checkpoint") or 0
+	local best = player:GetAttribute("BestTime")
 	timeL.Text = string.format("Time: %.1f", os.clock() - t0)
 	cpL.Text = "CP: " .. tostring(cp)
 	coinL.Text = "Coins: " .. tostring(coins)
-	bestL.Text = if best < math.huge then string.format("Best: %.1f", best) else "Best: --"
+	bestL.Text = if typeof(best) == "number" and best < math.huge then string.format("Best: %.1f", best) else "Best: --"
 end
-Remotes.CheckpointReached.OnClientEvent:Connect(function(idx)
-	cp = tonumber(idx) or cp
-	paint()
-end)
-Remotes.CoinCollected.OnClientEvent:Connect(function()
-	coins += 1
-	paint()
-end)
+RunService.RenderStepped:Connect(paint)
+Remotes.CheckpointReached.OnClientEvent:Connect(function() paint() end)
+Remotes.CoinCollected.OnClientEvent:Connect(function() paint() end)
 player.CharacterAdded:Connect(function()
 	t0 = os.clock()
-	coins = 0
-	paint()
+	paint() -- do NOT zero Coins/Checkpoint locals; read player attrs
 end)
 paint()
--- NEVER write bare characterAdded:Connect — always player.CharacterAdded
+-- NEVER character:GetAttribute("Coins") — that stays nil and wipes left HUD every frame
 """
     leaderboard_template = ""
     if task.target_path and "Leaderboard.client.luau" in task.target_path.replace("\\", "/"):

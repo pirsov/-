@@ -29,7 +29,8 @@ class Task:
 
 
 # Sprint ids (A1, B2, Z3, G10, F1), human H1, week W1.5, legacy P30.1 / P20.20.a
-_TASK_ID = r"((?:[ABHZGF]\d+)|(?:[PW]\d+(?:\.\d+)*(?:\.[a-z])?))"
+# Sprint letters: A/B greenfield, F fix, G create, H human, P polish, R repair, Z misc; W/P week legacy
+_TASK_ID = r"((?:[ABHZGFPR]\d+)|(?:[PW]\d+(?:\.\d+)*(?:\.[a-z])?))"
 # Accept unicode → or ASCII -> for Windows/UTF-8-safe TZ files
 _ARROW = r"(?:→|->)"
 _TASK_RE = re.compile(
