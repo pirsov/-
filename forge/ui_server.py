@@ -110,11 +110,23 @@ class Handler(BaseHTTPRequestHandler):
                 tz = deepseek.generate_project_tz(
                     project_id=pid, goal=goal, compact_skills=compact, existing_files=files
                 )
+                n_tasks = deepseek.count_tz_tasks(tz)
                 out = ROOT / "projects" / pid / "PROJECT_TZ.generated.md"
                 out.write_text(tz, encoding="utf-8")
                 # Also copy to live PROJECT_TZ.md so --week can run
                 (ROOT / "PROJECT_TZ.md").write_text(tz, encoding="utf-8")
-                self._json(200, {"ok": True, "path": str(out), "live": "PROJECT_TZ.md", "preview": tz[:1500]})
+                (ROOT / "projects" / pid / "PROJECT_TZ.md").write_text(tz, encoding="utf-8")
+                self._json(
+                    200,
+                    {
+                        "ok": True,
+                        "path": str(out),
+                        "live": "PROJECT_TZ.md",
+                        "task_lines": n_tasks,
+                        "fits_ctx": n_tasks > 0 and len(tz) < 8000,
+                        "preview": tz[:1800],
+                    },
+                )
                 return
             if path == "/api/smoke/submit":
                 pid = body.get("project") or "game1"

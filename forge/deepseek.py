@@ -181,6 +181,10 @@ def compress_skill(raw_md: str, *, name: str, max_chars: int = 1200) -> str:
     return out
 
 
+def count_tz_tasks(tz_text: str) -> int:
+    return len(re.findall(r"(?m)^\s*- \[ \] [A-Z]?\d+", tz_text))
+
+
 def generate_project_tz(
     *,
     project_id: str,
@@ -188,22 +192,74 @@ def generate_project_tz(
     compact_skills: List[str],
     existing_files: List[str],
 ) -> str:
-    """DeepSeek drafts PROJECT_TZ.md tasks (agent still executes via Ollama)."""
+    """DeepSeek drafts PROJECT_TZ.md as checkbox tasks only (for --week)."""
     system = (
-        "You write PROJECT_TZ.md for Quality Forge. "
-        "Tasks use lines: - [ ] ID | DESCRIPTION | @role | -> path\n"
-        "Roles: @gameplay_programmer @client_programmer @integrator @qa_engineer "
-        "@game_designer @content_author @human\n"
-        "IDs like T1 T2... then H1 human gates. ASCII arrows -> only. "
-        "Do not write Luau. Do not mark tasks done."
+        "You write ONLY a Quality Forge PROJECT_TZ.md task list. "
+        "EVERY actionable line MUST match exactly:\n"
+        "- [ ] T1 | short imperative | @gameplay_programmer | -> src/path/File.luau\n"
+        "Rules:\n"
+        "- Start with a 2-line # comment header, then ## AGENT, then ## HUMAN\n"
+        "- Use IDs T1..T12 then H1..H3\n"
+        "- ASCII arrow -> only (never unicode)\n"
+        "- Roles only: @gameplay_programmer @client_programmer @integrator "
+        "@qa_engineer @game_designer @content_author @human\n"
+        "- NO prose sections, NO bullet design docs, NO code fences, NO Luau bodies\n"
+        "- Keep each description under 180 chars so Ollama 4k ctx fits\n"
+        "- Include REWRITE HUD player:GetAttribute, Generator SpawnLocation, "
+        "Coins Destroy+UpdateLeaderboard, Checkpoints, Void, Puzzles, Effects sounds, LevelConfig\n"
     )
     prompt = (
-        f"Project: {project_id}\nGoal: {goal}\n"
-        f"Compact skills available:\n- " + "\n- ".join(compact_skills) + "\n"
-        f"Existing files:\n- " + "\n- ".join(existing_files[:40]) + "\n"
-        "Emit a full PROJECT_TZ.md body."
+        f"Project: {project_id}\nGoal:\n{goal}\n\n"
+        f"Compact skills:\n- " + "\n- ".join(compact_skills or ["forge-player-attrs"]) + "\n"
+        f"Existing files:\n- " + "\n- ".join(existing_files[:40] or ["(empty)"]) + "\n"
+        "Return the PROJECT_TZ.md now."
     )
-    return chat(prompt, system=system, max_tokens=2500, temperature=0.2)
+    if not available():
+        return horror_coins_tz_fallback(project_id=project_id, goal=goal)
+    out = chat(prompt, system=system, max_tokens=2200, temperature=0.15)
+    out = out.strip()
+    if out.startswith("```"):
+        out = re.sub(r"^```(?:markdown|md)?\n?", "", out)
+        out = re.sub(r"\n?```$", "", out)
+    if count_tz_tasks(out) < 5:
+        # one strict retry
+        out2 = chat(
+            prompt + "\n\nPREVIOUS OUTPUT INVALID (not enough '- [ ] T' lines). Rewrite as tasks only.",
+            system=system,
+            max_tokens=2200,
+            temperature=0.05,
+        )
+        out2 = out2.strip()
+        if count_tz_tasks(out2) >= 5:
+            return out2
+        return horror_coins_tz_fallback(project_id=project_id, goal=goal)
+    return out
+
+
+def horror_coins_tz_fallback(*, project_id: str, goal: str) -> str:
+    """Compact task list that always parses; keeps Ollama ctx small."""
+    return f"""# LAST_UPDATE: {project_id} horror coins obstacle
+# Goal: {goal[:240]}
+
+## AGENT
+- [ ] T1 | REWRITE LevelConfig array id= gap= coins= Luau = only never JS colon | @gameplay_programmer | -> src/shared/Content/LevelConfig.luau
+- [ ] T2 | REWRITE Generator dark Path BrickColor Really black; Instance.new SpawnLocation; green/red Neon CP; gold coins; destroy Baseplate; dim lighting PointLight optional | @gameplay_programmer | -> src/server/Level/Generator.server.luau
+- [ ] T3 | REWRITE Checkpoints Player SetAttribute Checkpoint+Score; FireClient CheckpointReached; CanTouch; no CoinsCollected; no destroy coins | @gameplay_programmer | -> src/server/Gameplay/Checkpoints.server.luau
+- [ ] T4 | REWRITE Coins CanTouch coin:Destroy plr:SetAttribute Coins FireClient CoinCollected FireAllClients UpdateLeaderboard | @gameplay_programmer | -> src/server/Gameplay/Coins.server.luau
+- [ ] T5 | REWRITE Void Heartbeat HRP.Y<-20 LoadCharacter | @gameplay_programmer | -> src/server/Gameplay/Void.server.luau
+- [ ] T6 | REWRITE Puzzles ensureFolder once PressurePlate+Gate on Path Z~40 Touched/TouchEnded | @gameplay_programmer | -> src/server/Gameplay/Puzzles.server.luau
+- [ ] T7 | REWRITE PlayerData init Player attrs Score Checkpoint Coins BestTime Studio only | @gameplay_programmer | -> src/server/Data/PlayerData.server.luau
+- [ ] T8 | REWRITE HUD left labels Time CP Coins Best via player:GetAttribute only never character attrs | @client_programmer | -> src/client/HUD.client.luau
+- [ ] T9 | REWRITE Effects pcall Sound coin+checkpoint+quiet ambience ids 9114224690 9112854440 | @client_programmer | -> src/client/Effects.client.luau
+- [ ] T10 | REWRITE Leaderboard ScreenGui UpdateLeaderboard text only | @client_programmer | -> src/client/Leaderboard.client.luau
+- [ ] T11 | APPEND GDD #horror-coins atmosphere notes | @game_designer | -> docs/GDD.md#horror-coins
+- [ ] T12 | REWRITE QA_REPORT ## BUGS ## SUGGESTIONS ## TEST CASES ## SCORE overall NN | @qa_engineer | -> docs/QA_REPORT.md
+
+## HUMAN
+- [ ] H1 | Studio: dark Path SpawnLocation gold coins neon CP; left HUD updates | @human
+- [ ] H2 | Studio: plate/gate void; scary coin sound; no CoinsCollected errors | @human
+- [ ] H3 | Final python -u run.py --eval | @human
+"""
 
 
 def smoke_questionnaire(*, project_id: str, focus: str = "gameplay HUD coins CP") -> Dict[str, Any]:
