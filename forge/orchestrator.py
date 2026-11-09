@@ -928,6 +928,7 @@ def run_loop(
     stop_on_human: bool = True,
     validate_every: int = 0,
     hitl_auto: Optional[str] = None,
+    gate_strict: bool = False,
 ) -> int:
     orch = Orchestrator(
         root,
@@ -952,8 +953,11 @@ def run_loop(
                 for e in errs[:8]:
                     print(f"      FAIL: {e}")
                 write_heartbeat(root, {"status": "gate_failed", "errors": errs[:8]})
-                print("   Stopping week loop — fix sources or git checkout seeds, then re-run.")
-                break
+                if gate_strict:
+                    print("   Stopping week loop — fix sources or git checkout seeds, then re-run.")
+                    break
+                # Default week: keep going so later F*/R* tasks can rewrite failing files
+                print("   Gate soft-fail — continuing week (later TZ tasks should repair). Use --gate-strict to stop.")
             score, _ = quality_score(root)
             print(f"   [gate] quality_score={score}")
         if sleep_s > 0 and i + 1 < max_steps:
@@ -965,6 +969,11 @@ def main(argv: Optional[List[str]] = None) -> int:
     parser = argparse.ArgumentParser(description="Quality Forge — long-horizon game orchestrator")
     parser.add_argument("--loop", action="store_true", help="Process many tasks in one run")
     parser.add_argument("--week", action="store_true", help="Week mode: loop + sleep + validate gates + no micro-split")
+    parser.add_argument(
+        "--gate-strict",
+        action="store_true",
+        help="Stop --week on integrity gate fail (default: soft-fail and continue so later tasks can repair)",
+    )
     parser.add_argument("--max", type=int, default=None, help="Max steps (default 1, or 500 with --loop)")
     parser.add_argument(
         "--sleep",
@@ -1095,6 +1104,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         dry_run=args.dry_run,
         validate_every=validate_every,
         hitl_auto=hitl_auto,
+        gate_strict=bool(getattr(args, "gate_strict", False)),
     )
     print(f"Completed {completed} step(s).")
     score, notes = quality_score(root)

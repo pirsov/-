@@ -1,25 +1,22 @@
-# LAST_UPDATE: FIX from smoke — game1
-# Auto from smoke N/Другое. Keep src. Activate project first if src empty.
-#   python -u run.py --week --sleep 0
-
-## SMOKE ISSUES
-- q4: [other] Spawn — загрузка при спавне доходит до минуты
-- q7: [n] Best в HUD?
+# LAST_UPDATE: FIX after T* partial — Checkpoints still has CoinsCollected; Best + spawn
+# Marked old T* done. Pending F* only. Soft gate continues on INVALID.
+#   python -u run.py --project game1
+#   $env:FORGE_BACKEND='ollama'; python -u run.py --week --sleep 0
 
 ## LEGEND
 - [ ] pending | [x] done | @human = Studio y/n
 
 ## DONE (keep)
-- [x] prior weeks / smoke captured | @integrator
+- [x] T1-T5 client/Generator pass | @client_programmer
+- [x] prior horror / polish | @integrator
 
-## AGENT F — fixes from smoke
-- [ ] F1 | REWRITE Generator lighter map; Instance.new("SpawnLocation") real class; Path+CP+Coins; no Baseplate; join under ~10s | @gameplay_programmer | -> src/server/Level/Generator.server.luau
-- [ ] F2 | REWRITE PlayerData init attrs immediately on join; no blocking DataStore in Studio | @gameplay_programmer | -> src/server/Data/PlayerData.server.luau
-- [ ] F3 | REWRITE InitRemotes getOrCreate remotes fast; no long WaitForChild loops | @gameplay_programmer | -> src/server/InitRemotes.server.luau
-- [ ] F4 | REWRITE PlayerData BestTime=0 init; on leave/finish set BestTime from RunStartedAt if better; Studio only no DataStore | @gameplay_programmer | -> src/server/Data/PlayerData.server.luau
-- [ ] F5 | REWRITE Checkpoints set RunStartedAt if nil; update BestTime on last CP; attrs only on Player; NEVER Remotes.CoinsCollected | @gameplay_programmer | -> src/server/Gameplay/Checkpoints.server.luau
-- [ ] F6 | REWRITE HUD Best via player:GetAttribute BestTime; show -- only if nil/0; NEVER character:GetAttribute | @client_programmer | -> src/client/HUD.client.luau
+## AGENT F — must fix Checkpoints FIRST (gate fail)
+- [ ] F1 | REWRITE Checkpoints: Touched SetAttribute Checkpoint+Score on Player; FireClient CheckpointReached only; CanTouch true; teleport+Died; NEVER Remotes.CoinsCollected; NEVER destroy Coins folder parts; set RunStartedAt if nil; update BestTime on last CP | @gameplay_programmer | -> src/server/Gameplay/Checkpoints.server.luau
+- [ ] F2 | REWRITE Coins: CanTouch; coin:Destroy; plr:SetAttribute Coins; FireClient CoinCollected; FireAllClients UpdateLeaderboard | @gameplay_programmer | -> src/server/Gameplay/Coins.server.luau
+- [ ] F3 | REWRITE PlayerData BestTime=0 init not math.huge; on PlayerRemoving BestTime from RunStartedAt if better; attrs on Player; Studio only | @gameplay_programmer | -> src/server/Data/PlayerData.server.luau
+- [ ] F4 | REWRITE Generator lighter map; Instance.new("SpawnLocation") real class; Path Checkpoints Coins folders; destroy Baseplate; join under ~10s | @gameplay_programmer | -> src/server/Level/Generator.server.luau
+- [ ] F5 | REWRITE HUD Best+Coins+Checkpoint via player:GetAttribute only; Best -- only if nil/0; NEVER character:GetAttribute | @client_programmer | -> src/client/HUD.client.luau
 
 ## HUMAN GATES
-- [ ] H11 | Studio: re-check failed smoke items (Best + spawn load) | @human
+- [ ] H11 | Studio: no CoinsCollected errors; Best number; spawn not ~1min | @human
 - [ ] H12 | Final: python -u run.py --eval | @human
