@@ -146,15 +146,12 @@
       </header>
       <p class="why">Studio playtest → Y/N → promote skills.</p>
       <div class="panel-body">
-        <p class="muted">Нажми <strong>Y</strong> или <strong>N</strong> у каждого пункта. Заметка: например «всё ок кроме Best».</p>
+        <p class="muted">У каждого пункта: <strong>Y</strong> / <strong>N</strong> / <strong>Другое</strong> (уточнение прямо под вопросом).</p>
         <div class="smoke-progress">
           <div id="smoke-bar" class="smoke-bar" style="--pct:0%"></div>
           <span id="smoke-count" class="muted">0/0</span>
         </div>
         <div id="smoke" class="smoke-list"></div>
-        <label class="field">заметка
-          <textarea id="smoke-notes" rows="2" placeholder="всё работает кроме Best: --"></textarea>
-        </label>
         <div class="row">
           <button id="btn-smoke-load" type="button" class="btn">Загрузить вопросы</button>
           <button id="btn-smoke-submit" type="button" class="btn" disabled>Сохранить ответы + promote</button>

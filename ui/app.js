@@ -400,17 +400,50 @@ el("btn-run").onclick = async () => {
   }
 };
 
+function smokeAnswered(qid) {
+  const a = smokeAnswers[qid];
+  if (!a) return false;
+  if (a.answer === "y" || a.answer === "n") return true;
+  if (a.answer === "other") return !!(a.detail && String(a.detail).trim());
+  return false;
+}
+
 function updateSmokeProgress() {
   const total = smokeQs.length;
   let answered = 0;
   for (const q of smokeQs) {
-    if (smokeAnswers[q.id] === "y" || smokeAnswers[q.id] === "n") answered += 1;
+    if (smokeAnswered(q.id)) answered += 1;
   }
   const pct = total ? Math.round((answered / total) * 100) : 0;
   el("smoke-bar").style.setProperty("--pct", pct + "%");
   el("smoke-count").textContent = `${answered}/${total} ответов`;
   el("btn-smoke-submit").disabled = !(total > 0 && answered === total);
   refreshProgressOnly();
+}
+
+function setSmokeChoice(qid, value) {
+  const row = el("smoke").querySelector(`.q[data-id="${qid}"]`);
+  if (!row) return;
+  const prev = smokeAnswers[qid] || {};
+  smokeAnswers[qid] = {
+    answer: value,
+    detail: value === "other" ? (prev.detail || "") : "",
+  };
+  row.querySelectorAll(".yn-btn").forEach(b => {
+    b.classList.toggle("active", b.getAttribute("data-v") === value);
+  });
+  const otherBox = row.querySelector(".smoke-other");
+  if (otherBox) {
+    otherBox.classList.toggle("open", value === "other");
+    if (value === "other") {
+      const inp = otherBox.querySelector("input");
+      if (inp) {
+        inp.focus();
+        smokeAnswers[qid].detail = inp.value;
+      }
+    }
+  }
+  updateSmokeProgress();
 }
 
 el("btn-smoke-load").onclick = async () => {
@@ -425,19 +458,30 @@ el("btn-smoke-load").onclick = async () => {
         <div class="yn">
           <button type="button" class="yn-btn y" data-v="y">Y</button>
           <button type="button" class="yn-btn n" data-v="n">N</button>
+          <button type="button" class="yn-btn other" data-v="other">Другое</button>
+        </div>
+        <div class="smoke-other">
+          <input type="text" data-other="${q.id}" placeholder="Уточни по этому пункту: что именно не так / как работает" />
         </div>
       </div>`).join("") || "<p class='muted'>нет вопросов</p>";
     el("smoke").querySelectorAll(".yn-btn").forEach(btn => {
       btn.onclick = () => {
         const qid = btn.closest(".q").getAttribute("data-id");
-        smokeAnswers[qid] = btn.getAttribute("data-v");
-        btn.closest(".yn").querySelectorAll(".yn-btn").forEach(b => b.classList.remove("active"));
-        btn.classList.add("active");
+        setSmokeChoice(qid, btn.getAttribute("data-v"));
+      };
+    });
+    el("smoke").querySelectorAll("input[data-other]").forEach(inp => {
+      inp.oninput = () => {
+        const qid = inp.getAttribute("data-other");
+        if (!smokeAnswers[qid] || smokeAnswers[qid].answer !== "other") {
+          setSmokeChoice(qid, "other");
+        }
+        smokeAnswers[qid].detail = inp.value;
         updateSmokeProgress();
       };
     });
     updateSmokeProgress();
-    toast("Отметь Y/N. Best можно N.");
+    toast("Y / N / Другое — у каждого вопроса своё уточнение");
   } catch (e) { toast(String(e.message || e)); }
 };
 
@@ -445,23 +489,33 @@ el("btn-smoke-submit").onclick = async () => {
   const answers = {};
   let yes = 0, total = 0;
   for (const q of smokeQs) {
-    const v = smokeAnswers[q.id];
-    if (v !== "y" && v !== "n") {
-      toast("Отметь все пункты Y или N");
+    const a = smokeAnswers[q.id];
+    if (!smokeAnswered(q.id)) {
+      toast("Отметь все пункты: Y, N или Другое (с текстом)");
       return;
     }
-    answers[q.id] = { answer: v, prompt: q.prompt };
+    const detail = (a.detail || "").trim();
+    answers[q.id] = {
+      answer: a.answer,
+      prompt: q.prompt,
+      detail: a.answer === "other" ? detail : "",
+    };
     total += 1;
-    if (v === "y") yes += 1;
+    if (a.answer === "y") yes += 1;
   }
+  // "other" counts as partial — promote if enough clear Y (>=70% of total as y)
   const overall_ok = total > 0 && yes / total >= 0.7;
+  const notes = Object.entries(answers)
+    .filter(([, v]) => v.answer === "other" && v.detail)
+    .map(([id, v]) => `${id}: ${v.detail}`)
+    .join(" | ");
   try {
     const j = await api("/api/smoke/submit", {
       method: "POST",
       body: JSON.stringify({
         project: "game1",
         answers,
-        notes: el("smoke-notes").value || "",
+        notes,
         overall_ok,
         promote_skills: overall_ok
           ? ["forge-player-attrs", "forge-luau-touch", "forge-ui-modern", "forge-ui-animation"]

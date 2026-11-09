@@ -313,7 +313,7 @@ input:focus, textarea:focus, button:focus-visible {
   padding: 0.75rem 0;
   border-bottom: 1px solid var(--line);
 }
-.yn { display: flex; gap: 0.5rem; }
+.yn { display: flex; gap: 0.5rem; flex-wrap: wrap; }
 .yn-btn {
   min-width: 2.6rem;
   margin: 0;
@@ -327,6 +327,24 @@ input:focus, textarea:focus, button:focus-visible {
 }
 .yn-btn.active.y { border-color: var(--ok); color: var(--ok); }
 .yn-btn.active.n { border-color: var(--err); color: var(--err); }
+.yn-btn.active.other {
+  border-color: var(--amber);
+  color: var(--amber-hot);
+}
+.yn-btn.other { min-width: auto; font-weight: 600; }
+.smoke-other {
+  display: none;
+  margin-top: 0.45rem;
+}
+.smoke-other.open { display: block; }
+.smoke-other input {
+  width: 100%;
+  background: var(--coal-0);
+  border: 1px solid var(--line);
+  color: var(--ink);
+  padding: 0.5rem 0.65rem;
+  font: inherit;
+}
 
 .foot {
   display: flex;
