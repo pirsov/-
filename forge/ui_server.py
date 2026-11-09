@@ -2,15 +2,54 @@
 from __future__ import annotations
 
 import json
+import time
+import urllib.error
 import urllib.parse
+import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, Optional, Tuple
 
 from . import deepseek, progress_hub, projects_hub, run_hub, skills_hub
 
 ROOT = Path(__file__).resolve().parents[1]
 UI_DIR = ROOT / "ui"
+
+# Health probe cache (avoid stalling UI when Ollama is slow/down).
+_health_cache: Dict[str, Any] = {"at": 0.0, "payload": None}
+_HEALTH_TTL = 15.0
+
+
+def _probe_ollama(timeout: float = 1.2) -> Dict[str, Any]:
+    url = "http://127.0.0.1:11434/api/tags"
+    try:
+        with urllib.request.urlopen(url, timeout=timeout) as resp:
+            raw = json.loads(resp.read().decode("utf-8", errors="replace"))
+        models = [m.get("name") for m in (raw.get("models") or []) if m.get("name")]
+        return {"ok": True, "models": models[:24], "count": len(models)}
+    except Exception as e:
+        return {"ok": False, "error": f"{type(e).__name__}: {e}", "models": [], "count": 0}
+
+
+def health_snapshot(*, force: bool = False) -> Dict[str, Any]:
+    now = time.time()
+    if (
+        not force
+        and _health_cache["payload"] is not None
+        and (now - float(_health_cache["at"])) < _HEALTH_TTL
+    ):
+        return dict(_health_cache["payload"])
+    ollama = _probe_ollama()
+    payload = {
+        "ok": True,
+        "deepseek": deepseek.available(),
+        "ollama": ollama,
+        "cached_for_s": _HEALTH_TTL,
+        "ts": now,
+    }
+    _health_cache["at"] = now
+    _health_cache["payload"] = payload
+    return dict(payload)
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -19,11 +58,14 @@ class Handler(BaseHTTPRequestHandler):
 
     def _json(self, code: int, payload: Any) -> None:
         raw = json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8")
-        self.send_response(code)
-        self.send_header("Content-Type", "application/json; charset=utf-8")
-        self.send_header("Content-Length", str(len(raw)))
-        self.end_headers()
-        self.wfile.write(raw)
+        try:
+            self.send_response(code)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Content-Length", str(len(raw)))
+            self.end_headers()
+            self.wfile.write(raw)
+        except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
+            return
 
     def _read_json(self) -> Dict[str, Any]:
         n = int(self.headers.get("Content-Length") or 0)
@@ -34,6 +76,7 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:
         parsed = urllib.parse.urlparse(self.path)
         path = parsed.path
+        qs = urllib.parse.parse_qs(parsed.query)
         if path in {"/", "/index.html"}:
             self._file(UI_DIR / "index.html", "text/html; charset=utf-8")
             return
@@ -42,6 +85,14 @@ class Handler(BaseHTTPRequestHandler):
             return
         if path == "/styles.css":
             self._file(UI_DIR / "styles.css", "text/css; charset=utf-8")
+            return
+        if path == "/api/health":
+            force = (qs.get("force") or [""])[0] in {"1", "true", "yes"}
+            self._json(200, health_snapshot(force=force))
+            return
+        if path == "/api/progress":
+            smoke_loaded = (qs.get("smoke_loaded") or [""])[0] in {"1", "true", "yes"}
+            self._json(200, progress_hub.snapshot(ROOT, smoke_loaded=smoke_loaded))
             return
         if path == "/api/status":
             self._json(
@@ -53,6 +104,7 @@ class Handler(BaseHTTPRequestHandler):
                     "raw_count": len(skills_hub.list_raw(ROOT)),
                     "run": run_hub.status(),
                     "progress": progress_hub.snapshot(ROOT),
+                    "health": health_snapshot(),
                 },
             )
             return
@@ -69,7 +121,6 @@ class Handler(BaseHTTPRequestHandler):
             self._json(200, {"files": run_hub.list_code_files(ROOT)})
             return
         if path == "/api/run/file":
-            qs = urllib.parse.parse_qs(parsed.query)
             rel = (qs.get("path") or [""])[0]
             try:
                 self._json(200, run_hub.read_code_file(rel, ROOT))
@@ -77,7 +128,6 @@ class Handler(BaseHTTPRequestHandler):
                 self._json(400, {"error": f"{type(e).__name__}: {e}"})
             return
         if path == "/api/smoke/questions":
-            qs = urllib.parse.parse_qs(parsed.query)
             pid = (qs.get("project") or ["game1"])[0]
             self._json(200, deepseek.smoke_questionnaire(project_id=pid))
             return
@@ -125,7 +175,6 @@ class Handler(BaseHTTPRequestHandler):
                         compact = list(meta["skills_compact"])
                 files = [str(p.relative_to(ROOT)) for p in (ROOT / "projects" / pid).rglob("*.luau")]
                 if not deepseek.available():
-                    # still allow fallback TZ without key
                     tz = deepseek.horror_coins_tz_fallback(project_id=pid, goal=goal)
                 else:
                     tz = deepseek.generate_project_tz(
@@ -199,7 +248,6 @@ class Handler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(raw)
         except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
-            # Browser refresh / tab close mid-transfer — ignore.
             return
 
 

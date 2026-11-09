@@ -4,80 +4,131 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Quality Forge</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Chakra+Petch:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Spline+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/styles.css" />
 </head>
 <body>
-  <header class="top">
-    <div class="brand">Quality Forge</div>
-    <p class="tag">Окна 1→5 открываются по прогрессу · Ollama пишет код · DeepSeek — skills/TZ</p>
-    <div id="stage-rail" class="stage-rail"></div>
+  <div id="toast" class="toast" hidden></div>
+
+  <header class="hero">
+    <div class="hero-mark" aria-hidden="true"></div>
+    <div class="hero-copy">
+      <p class="eyebrow">control panel</p>
+      <h1 class="brand">Quality Forge</h1>
+      <p class="tag">1→5 по прогрессу · Ollama пишет Luau · DeepSeek — skills / TZ · Studio smoke — ты</p>
+    </div>
+    <div class="hero-meta">
+      <span id="ds-status" class="chip">DeepSeek: …</span>
+      <span id="ollama-status" class="chip">Ollama: …</span>
+      <span id="counts" class="chip muted-chip">—</span>
+    </div>
+    <nav id="stage-rail" class="stage-rail" aria-label="Этапы"></nav>
   </header>
+
+  <aside id="next-bar" class="next-bar" aria-live="polite">
+    <div class="next-label">Следующий шаг</div>
+    <div id="next-text" class="next-text">…</div>
+    <button id="btn-next" type="button" class="btn primary">…</button>
+  </aside>
 
   <main class="grid">
     <section class="panel" data-stage="1" id="panel-1">
-      <h1>1. Проект</h1>
-      <div id="projects"></div>
-      <button id="btn-activate" type="button">Активировать game1</button>
+      <header class="panel-head">
+        <span class="panel-num">01</span>
+        <h2>Проект</h2>
+      </header>
+      <p class="lock-msg" data-lock="1"></p>
+      <div class="panel-body">
+        <div id="projects" class="list"></div>
+        <button id="btn-activate" type="button" class="btn">Активировать game1</button>
+      </div>
     </section>
 
     <section class="panel locked" data-stage="2" id="panel-2">
-      <h1>2. Цель + skills</h1>
-      <p class="lock-msg">Сначала активируй проект (окно 1).</p>
+      <header class="panel-head">
+        <span class="panel-num">02</span>
+        <h2>Цель + skills</h2>
+      </header>
+      <p class="lock-msg" data-lock="2">Сначала активируй проект (окно 1).</p>
       <div class="panel-body">
         <label class="field">что сделать
           <textarea id="goal" rows="4">хоррор-обстакл с монетами. Тёмный Path, Neon CP, золотые монеты, HUD слева через player:GetAttribute, SpawnLocation, Void, PressurePlate.</textarea>
         </label>
-        <button id="btn-auto" type="button">DeepSeek: сам выбери skills</button>
+        <button id="btn-auto" type="button" class="btn">DeepSeek: сам выбери skills</button>
         <p class="muted">raw: <span id="raw-count">0</span></p>
-        <div id="compact"></div>
+        <div id="compact" class="list"></div>
         <pre id="compress-out" class="out"></pre>
       </div>
     </section>
 
     <section class="panel locked" data-stage="3" id="panel-3">
-      <h1>3. TZ</h1>
-      <p class="lock-msg">Сначала выбери/сожми skills (окно 2).</p>
+      <header class="panel-head">
+        <span class="panel-num">03</span>
+        <h2>TZ</h2>
+      </header>
+      <p class="lock-msg" data-lock="3">Сначала выбери/сожми skills (окно 2).</p>
       <div class="panel-body">
-        <button id="btn-tz" type="button">DeepSeek: сгенерировать PROJECT_TZ</button>
+        <button id="btn-tz" type="button" class="btn">DeepSeek: сгенерировать PROJECT_TZ</button>
         <pre id="tz-out" class="out"></pre>
       </div>
     </section>
 
     <section class="panel wide locked" data-stage="4" id="panel-4">
-      <h1>4. Генерация (Ollama week)</h1>
-      <p class="lock-msg">Сначала сгенерируй TZ (окно 3).</p>
+      <header class="panel-head">
+        <span class="panel-num">04</span>
+        <h2>Генерация (Ollama week)</h2>
+      </header>
+      <p class="lock-msg" data-lock="4">Сначала сгенерируй TZ (окно 3).</p>
       <div class="panel-body">
         <p class="muted">HITL human-гейты авто-<code>y</code>. Studio — в окне 5.</p>
         <div class="row">
-          <button id="btn-run" type="button">Старт генерации --week</button>
-          <span id="run-status" class="pill">idle</span>
+          <button id="btn-run" type="button" class="btn">Старт генерации --week</button>
+          <span id="run-status" class="run-pill idle"><i class="dot"></i><span class="run-label">idle</span></span>
+          <span id="run-timer" class="muted">00:00</span>
         </div>
-        <h2 class="sub">Отчёт</h2>
+        <h3 class="sub">Отчёт</h3>
         <pre id="run-report" class="out tall"></pre>
-        <h2 class="sub">Лог</h2>
-        <pre id="run-log" class="out tall"></pre>
-        <h2 class="sub">Готовый код</h2>
+        <div class="row between">
+          <h3 class="sub">Лог</h3>
+          <label class="toggle"><input id="log-autoscroll" type="checkbox" checked /> автоскролл</label>
+        </div>
+        <pre id="run-log" class="out tall" data-empty="лог появится после старта"></pre>
+        <div class="row between">
+          <h3 class="sub">Готовый код</h3>
+          <button id="btn-copy-code" type="button" class="btn ghost" disabled>Копировать</button>
+        </div>
         <div id="file-list" class="files"></div>
-        <pre id="file-view" class="out code"></pre>
+        <pre id="file-view" class="out code" data-empty="выбери файл"></pre>
       </div>
     </section>
 
     <section class="panel wide locked" data-stage="5" id="panel-5">
-      <h1>5. Smoke после Studio</h1>
-      <p class="lock-msg">Сначала дождись генерации (окно 4).</p>
+      <header class="panel-head">
+        <span class="panel-num">05</span>
+        <h2>Smoke после Studio</h2>
+      </header>
+      <p class="lock-msg" data-lock="5">Сначала дождись генерации (окно 4).</p>
       <div class="panel-body">
         <p class="muted">Rojo sync → playtest → y/n → promote skills.</p>
-        <div id="smoke"></div>
-        <button id="btn-smoke-load" type="button">Загрузить вопросы</button>
-        <button id="btn-smoke-submit" type="button">Сохранить ответы + promote</button>
+        <div class="smoke-progress">
+          <div id="smoke-bar" class="smoke-bar" style="--pct:0%"></div>
+          <span id="smoke-count" class="muted">0/0</span>
+        </div>
+        <div id="smoke" class="smoke-list"></div>
+        <div class="row">
+          <button id="btn-smoke-load" type="button" class="btn">Загрузить вопросы</button>
+          <button id="btn-smoke-submit" type="button" class="btn" disabled>Сохранить ответы + promote</button>
+        </div>
         <pre id="smoke-out" class="out"></pre>
       </div>
     </section>
   </main>
 
   <footer class="foot">
-    <span id="ds-status">DeepSeek: …</span>
-    <span>Claude+DeepSeek: scripts\start-claude-deepseek.bat</span>
+    <span>Claude+DeepSeek: scripts\start-claude-deepseek.ps1</span>
+    <span>python -u run.py --ui</span>
   </footer>
   <script src="/app.js"></script>
 </body>
