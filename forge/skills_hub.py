@@ -148,15 +148,40 @@ def auto_select_and_compress(
     }
 
 
-def promote_compact(skill_id: str, root: Optional[Path] = None, *, smoke_ok: bool = True, notes: str = "") -> Path:
+def promote_compact(
+    skill_id: str,
+    root: Optional[Path] = None,
+    *,
+    smoke_ok: bool = True,
+    notes: str = "",
+    missing_ok: bool = False,
+) -> Optional[Path]:
     """Mark a compact skill as proven after smoke — DeepSeek 'learns' by keeping winners."""
-    d = skills_root(root) / "compact" / skill_id
+    sid = (skill_id or "").strip()
+    if not sid:
+        if missing_ok:
+            return None
+        raise FileNotFoundError("empty skill_id")
+    d = skills_root(root) / "compact" / sid
     if not (d / "SKILL.md").exists():
-        raise FileNotFoundError(skill_id)
+        if missing_ok:
+            return None
+        raise FileNotFoundError(sid)
     payload = {"promoted": True, "smoke_ok": smoke_ok, "notes": notes}
     path = d / "PROMOTED.json"
     path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
     return path
+
+
+def existing_compact_ids(root: Optional[Path] = None, ids: Optional[List[str]] = None) -> List[str]:
+    """Filter skill ids to those that exist under skills/compact/*/SKILL.md."""
+    want = ids or [c["id"] for c in list_compact(root)]
+    out: List[str] = []
+    base = skills_root(root) / "compact"
+    for sid in want:
+        if (base / sid / "SKILL.md").exists():
+            out.append(sid)
+    return out
 
 
 def _heuristic_compress(raw: str, *, name: str, max_chars: int) -> str:

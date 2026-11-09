@@ -240,19 +240,19 @@ class Handler(BaseHTTPRequestHandler):
                 return
             if path == "/api/smoke/submit":
                 pid = body.get("project") or "game1"
+                # Only promote compact skills that exist locally (Desktop may miss some).
+                default_promote = [
+                    "forge-player-attrs",
+                    "forge-luau-touch",
+                    "forge-ui-modern",
+                    "forge-ui-animation",
+                ]
+                want = body.get("promote_skills")
+                if not isinstance(want, list) or not want:
+                    want = default_promote if body.get("overall_ok") else []
+                body = dict(body)
+                body["promote_skills"] = skills_hub.existing_compact_ids(ROOT, want)
                 path_out = projects_hub.save_smoke(ROOT, pid, body)
-                if body.get("overall_ok"):
-                    for sid in body.get("promote_skills") or [
-                        "forge-player-attrs",
-                        "forge-luau-touch",
-                        "forge-ui-modern",
-                        "forge-ui-animation",
-                    ]:
-                        try:
-                            note = body.get("notes") or "ui smoke"
-                            skills_hub.promote_compact(sid, ROOT, smoke_ok=True, notes=note)
-                        except FileNotFoundError:
-                            pass
                 progress_hub.mark(ROOT, smoke_done=True)
                 saved = {}
                 try:
@@ -266,6 +266,8 @@ class Handler(BaseHTTPRequestHandler):
                         "saved": str(path_out),
                         "others": saved.get("others") or [],
                         "answers": saved.get("answers") or {},
+                        "promoted": saved.get("promoted") or body.get("promote_skills") or [],
+                        "skipped_missing": saved.get("skipped_missing") or [],
                         "progress": progress_hub.snapshot(ROOT),
                     },
                 )

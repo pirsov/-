@@ -566,12 +566,18 @@ el("btn-smoke-submit").onclick = async () => {
       ok: j.ok,
       saved: j.saved,
       others: j.others,
+      promoted: j.promoted,
+      skipped_missing: j.skipped_missing,
       answers: j.answers,
     }, null, 2);
+    const miss = (j.skipped_missing || []).length;
+    const promo = (j.promoted || []).length;
     toast(
-      (j.others && j.others.length)
-        ? `Сохранено · Другое: ${j.others.length}`
-        : (overall_ok ? "Smoke сохранён · promote" : "Smoke сохранён")
+      miss
+        ? `Сохранено · promote ${promo} · нет файлов: ${(j.skipped_missing || []).join(", ")}`
+        : ((j.others && j.others.length)
+          ? `Сохранено · Другое: ${j.others.length} · promote ${promo}`
+          : (overall_ok ? `Smoke сохранён · promote ${promo}` : "Smoke сохранён"))
     );
     await refresh();
   } catch (e) { toast(String(e.message || e)); }
