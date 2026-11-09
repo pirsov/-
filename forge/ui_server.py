@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import re
 import time
 import urllib.error
 import urllib.parse
@@ -130,6 +131,44 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/smoke/questions":
             pid = (qs.get("project") or ["game1"])[0]
             self._json(200, deepseek.smoke_questionnaire(project_id=pid))
+            return
+        if path == "/api/smoke/latest":
+            pid = (qs.get("project") or ["game1"])[0]
+            smoke = fix_hub.latest_smoke(ROOT, pid)
+            if not smoke:
+                self._json(200, {"ok": True, "saved": False, "answers": {}, "questions": []})
+                return
+            answers = smoke.get("answers") or {}
+            questions = []
+            for qid, val in answers.items():
+                if not isinstance(val, dict):
+                    continue
+                questions.append(
+                    {
+                        "id": str(qid),
+                        "prompt": str(val.get("prompt") or qid),
+                        "expect_yes_means": "",
+                    }
+                )
+            # Stable order q1..q9 then others
+            def _qkey(q: dict) -> tuple:
+                m = re.match(r"q?(\d+)$", str(q.get("id") or ""), re.I)
+                return (0, int(m.group(1))) if m else (1, str(q.get("id") or ""))
+
+            questions.sort(key=_qkey)
+            self._json(
+                200,
+                {
+                    "ok": True,
+                    "saved": True,
+                    "when": smoke.get("when"),
+                    "answers": answers,
+                    "others": smoke.get("others") or [],
+                    "overall_ok": smoke.get("overall_ok"),
+                    "questions": questions,
+                    "notes": smoke.get("notes") or "",
+                },
+            )
             return
         if path == "/api/fix/issues":
             pid = (qs.get("project") or ["game1"])[0]

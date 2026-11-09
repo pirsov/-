@@ -75,6 +75,7 @@ function setFocus(n, { scroll = true } = {}) {
     if (panel) panel.scrollIntoView({ behavior: "smooth", block: "start" });
   }
   if (focusStage === 6) loadFixIssues().catch(() => {});
+  if (focusStage === 5) restoreSmokeIfSaved().catch(() => {});
   syncPrimary();
 }
 
@@ -479,34 +480,93 @@ function bindOtherInput(inp) {
   });
 }
 
+function renderSmokeQuestions(questions, savedAnswers) {
+  smokeQs = questions || [];
+  smokeLoaded = smokeQs.length > 0;
+  Object.keys(smokeAnswers).forEach(k => delete smokeAnswers[k]);
+  el("smoke").innerHTML = smokeQs.map((q, i) => `
+    <div class="q" data-id="${q.id}">
+      <div class="q-prompt"><span class="muted">${String(i + 1).padStart(2, "0")}</span> ${q.prompt}</div>
+      <div class="yn">
+        <button type="button" class="yn-btn y" data-v="y">Y</button>
+        <button type="button" class="yn-btn n" data-v="n">N</button>
+        <button type="button" class="yn-btn other" data-v="other">Другое</button>
+      </div>
+      <div class="smoke-other">
+        <input type="text" data-other="${q.id}" autocomplete="off" placeholder="Уточни: что именно (например Best: -- не пишется)" />
+      </div>
+    </div>`).join("") || "<p class='muted'>нет вопросов</p>";
+  el("smoke").querySelectorAll(".yn-btn").forEach(btn => {
+    btn.onclick = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const qid = btn.closest(".q").getAttribute("data-id");
+      setSmokeChoice(qid, btn.getAttribute("data-v"));
+    };
+  });
+  el("smoke").querySelectorAll("input[data-other]").forEach(bindOtherInput);
+
+  // Restore previously saved answers (after refresh)
+  const saved = savedAnswers || {};
+  for (const q of smokeQs) {
+    const a = saved[q.id];
+    if (!a || typeof a !== "object") continue;
+    let ans = String(a.answer || "").toLowerCase();
+    if (ans === "другое" || ans === "o") ans = "other";
+    if (ans !== "y" && ans !== "n" && ans !== "other") continue;
+    const row = el("smoke").querySelector(`.q[data-id="${q.id}"]`);
+    if (!row) continue;
+    const inp = row.querySelector("input[data-other]");
+    if (inp && a.detail) inp.value = String(a.detail);
+    smokeAnswers[q.id] = { answer: ans, detail: ans === "other" ? String(a.detail || "") : "" };
+    row.querySelectorAll(".yn-btn").forEach(b => {
+      b.classList.toggle("active", b.getAttribute("data-v") === ans);
+    });
+    const otherBox = row.querySelector(".smoke-other");
+    if (otherBox) otherBox.classList.toggle("open", ans === "other");
+  }
+  updateSmokeProgress();
+}
+
+async function restoreSmokeIfSaved() {
+  try {
+    const latest = await api("/api/smoke/latest?project=game1");
+    if (!latest.saved || !latest.answers || !Object.keys(latest.answers).length) {
+      return false;
+    }
+    let questions = latest.questions || [];
+    if (!questions.length) {
+      // Fallback: rebuild question list from answer prompts
+      questions = Object.entries(latest.answers).map(([id, v]) => ({
+        id,
+        prompt: (v && v.prompt) || id,
+      }));
+    }
+    renderSmokeQuestions(questions, latest.answers);
+    if (latest.others && latest.others.length) {
+      el("smoke-out").textContent = JSON.stringify({
+        restored: true,
+        when: latest.when,
+        others: latest.others,
+        answers: latest.answers,
+      }, null, 2);
+    }
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
 el("btn-smoke-load").onclick = async () => {
   try {
+    // Prefer restoring saved smoke; only fetch fresh questions if none saved
+    const restored = await restoreSmokeIfSaved();
+    if (restored) {
+      toast("Восстановлены сохранённые ответы smoke");
+      return;
+    }
     const j = await api("/api/smoke/questions?project=game1");
-    smokeQs = j.questions || [];
-    smokeLoaded = smokeQs.length > 0;
-    Object.keys(smokeAnswers).forEach(k => delete smokeAnswers[k]);
-    el("smoke").innerHTML = smokeQs.map((q, i) => `
-      <div class="q" data-id="${q.id}">
-        <div class="q-prompt"><span class="muted">${String(i + 1).padStart(2, "0")}</span> ${q.prompt}</div>
-        <div class="yn">
-          <button type="button" class="yn-btn y" data-v="y">Y</button>
-          <button type="button" class="yn-btn n" data-v="n">N</button>
-          <button type="button" class="yn-btn other" data-v="other">Другое</button>
-        </div>
-        <div class="smoke-other">
-          <input type="text" data-other="${q.id}" autocomplete="off" placeholder="Уточни: что именно (например Best: -- не пишется)" />
-        </div>
-      </div>`).join("") || "<p class='muted'>нет вопросов</p>";
-    el("smoke").querySelectorAll(".yn-btn").forEach(btn => {
-      btn.onclick = (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        const qid = btn.closest(".q").getAttribute("data-id");
-        setSmokeChoice(qid, btn.getAttribute("data-v"));
-      };
-    });
-    el("smoke").querySelectorAll("input[data-other]").forEach(bindOtherInput);
-    updateSmokeProgress();
+    renderSmokeQuestions(j.questions || [], {});
     toast("Y / N / Другое — текст Другое обязателен");
   } catch (e) { toast(String(e.message || e)); }
 };
@@ -663,6 +723,14 @@ el("btn-fix-done").onclick = async () => {
   } catch (e) { toast(String(e.message || e)); }
 };
 
-refresh().then(() => {
+refresh().then(async () => {
   if (lastProgress) setFocus(lastProgress.stage || 1, { scroll: false });
+  // After reload: if smoke already done, put answers back into panel 5
+  const flags = (lastProgress && lastProgress.flags) || {};
+  if (flags.smoke_done || (lastProgress && lastProgress.issue_count > 0)) {
+    const ok = await restoreSmokeIfSaved();
+    if (ok) {
+      // keep focus on recommended stage (often 6), but answers stay visible in 5
+    }
+  }
 }).catch(e => toast(String(e.message || e)));
