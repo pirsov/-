@@ -154,10 +154,18 @@ class Handler(BaseHTTPRequestHandler):
                 self._json(200, {"ok": True, "progress": progress})
                 return
             if path == "/api/goal/improve":
-                goal = body.get("goal") or ""
+                goal = (body.get("goal") or "").strip()
+                if not goal:
+                    self._json(400, {"error": "goal empty"})
+                    return
                 pid = body.get("project") or "game1"
-                result = deepseek.improve_goal(goal, project_id=pid)
-                self._json(200, {"ok": True, **result})
+                compact = body.get("compact_skills")
+                result = deepseek.improve_goal(
+                    goal,
+                    project_id=pid,
+                    compact_skills=compact if isinstance(compact, list) else None,
+                )
+                self._json(200, {"ok": True, "goal": result["goal"], "skills_hint": result["skills_hint"]})
                 return
             if path == "/api/compress":
                 raw_id = body.get("raw_id") or ""

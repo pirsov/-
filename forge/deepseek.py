@@ -32,6 +32,7 @@ def chat(
     max_tokens: int = 2048,
     temperature: float = 0.2,
     model: Optional[str] = None,
+    timeout: float = 180,
 ) -> str:
     key = llm._clean_key(os.environ.get("DEEPSEEK_API_KEY"))
     if not key:
@@ -59,7 +60,7 @@ def chat(
         method="POST",
     )
     try:
-        with urllib.request.urlopen(req, timeout=180) as resp:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
             payload = json.loads(resp.read().decode("utf-8"))
     except urllib.error.HTTPError as e:
         detail = e.read().decode("utf-8", errors="replace")
@@ -269,61 +270,186 @@ def horror_coins_tz_fallback(*, project_id: str, goal: str) -> str:
 """
 
 
-def improve_goal(goal: str, *, project_id: str = "game1") -> Dict[str, Any]:
-    """Rewrite user goal so Ollama agent + skill picker understand intent."""
+_DEFAULT_COMPACT = [
+    "forge-player-attrs",
+    "forge-luau-touch",
+    "forge-ui-modern",
+    "forge-ui-animation",
+]
+
+_CONTRACT_RU = (
+    "Контракт: attrs Score/Checkpoint/Coins/BestTime только на Player "
+    "(GetAttribute/SetAttribute); НЕ Character. Remotes whitelist: "
+    "Checkpoint, CheckpointReached, UpdateLeaderboard, CoinCollected."
+)
+_CONTRACT_EN = (
+    "Contract: Score/Checkpoint/Coins/BestTime attrs on Player only "
+    "(never Character). Remotes whitelist: Checkpoint, CheckpointReached, "
+    "UpdateLeaderboard, CoinCollected."
+)
+
+
+def pick_skill_hints(goal: str, compact_skills: Optional[List[str]] = None) -> List[str]:
+    """Heuristic skill ids from goal keywords (2-4)."""
+    allowed = list(compact_skills or _DEFAULT_COMPACT)
+    g = (goal or "").lower()
+    scored: List[tuple] = []
+    rules = [
+        ("forge-player-attrs", ("hud", "attr", "best", "coin", "checkpoint", "score", "худ", "монет", "чек")),
+        ("forge-luau-touch", ("touch", "coin", "checkpoint", "void", "plate", "каса", "монет", "плит")),
+        ("forge-ui-modern", ("ui", "hud", "button", "menu", "интерф", "кноп", "меню")),
+        ("forge-ui-animation", ("anim", "tween", "juice", "анима", "эффект")),
+    ]
+    for sid, keys in rules:
+        if sid not in allowed:
+            continue
+        hits = sum(1 for k in keys if k in g)
+        if hits:
+            scored.append((hits, sid))
+    scored.sort(key=lambda x: (-x[0], x[1]))
+    out = [sid for _, sid in scored[:4]]
+    if len(out) < 2:
+        for sid in allowed:
+            if sid not in out:
+                out.append(sid)
+            if len(out) >= 3:
+                break
+    return out[:4]
+
+
+def extract_skill_hints(text: str, compact_skills: Optional[List[str]] = None) -> List[str]:
+    """Parse 'Skills needed:' line or fall back to keyword pick."""
+    allowed = list(compact_skills or _DEFAULT_COMPACT)
+    m = re.search(r"Skills needed:\s*(.+)$", text or "", re.I | re.M)
+    if m:
+        parts = re.split(r"[,;\s]+", m.group(1).strip())
+        found = [p for p in parts if p in allowed]
+        if found:
+            return found[:4]
+    return pick_skill_hints(text, allowed)
+
+
+def _looks_russian(text: str) -> bool:
+    return sum(1 for c in text if "а" <= c.lower() <= "я" or c in "ёЁ") >= 3
+
+
+def _quality_gate(text: str, *, russian: bool, skills: List[str]) -> str:
+    """Ensure systems + contract + skills line are present; clamp to ~900 chars."""
+    t = (text or "").strip()
+    systems = ("HUD", "Coin", "Checkpoint", "Spawn", "Void", "Best", "монет", "чек", "худ")
+    if not any(s.lower() in t.lower() for s in systems):
+        extra = (
+            "Системы: HUD, Coins, Checkpoints, SpawnLocation, Void, BestTime."
+            if russian
+            else "Systems: HUD, Coins, Checkpoints, SpawnLocation, Void, BestTime."
+        )
+        t = f"{t}\n{extra}".strip()
+    contract = _CONTRACT_RU if russian else _CONTRACT_EN
+    if "Remotes" not in t and "remotes" not in t.lower() and "whitelist" not in t.lower():
+        t = f"{t}\n{contract}"
+    if "Skills needed:" not in t:
+        t = f"{t}\nSkills needed: {', '.join(skills[:3])}"
+    return _clamp_goal(t, limit=900)
+
+
+def _clamp_goal(text: str, *, limit: int = 900) -> str:
+    if len(text) <= limit:
+        return text
+    # Keep tail blocks: Contract/Контракт + Skills needed
+    skills_m = re.search(r"(Skills needed:\s*.+)$", text, re.I | re.M)
+    contract_m = re.search(r"((?:Контракт|Contract):.+?)(?=\nSkills needed:|\Z)", text, re.I | re.S)
+    tail_parts = []
+    if contract_m:
+        tail_parts.append(contract_m.group(1).strip())
+    if skills_m:
+        tail_parts.append(skills_m.group(1).strip())
+    tail = ("\n" + "\n".join(tail_parts)) if tail_parts else ""
+    head_budget = max(120, limit - len(tail) - 1)
+    head = text[:head_budget].rstrip()
+    if tail and head.endswith(tail.strip()):
+        return head[:limit]
+    out = (head + tail).strip()
+    return out[:limit]
+
+
+def improve_goal(
+    goal: str,
+    *,
+    project_id: str = "game1",
+    compact_skills: Optional[List[str]] = None,
+) -> Dict[str, Any]:
+    """Rewrite user goal so Ollama agent + skill picker understand intent.
+
+    Returns {goal, skills_hint}. Local template if no DeepSeek key / timeout.
+    """
     raw_goal = (goal or "").strip()
     if not raw_goal:
         raise ValueError("goal empty")
 
-    compact_ids = [
-        "forge-player-attrs",
-        "forge-luau-touch",
-        "forge-ui-modern",
-        "forge-ui-animation",
-    ]
+    compact_ids = list(compact_skills or _DEFAULT_COMPACT)
+    hints = pick_skill_hints(raw_goal, compact_ids)
+    russian = _looks_russian(raw_goal)
+
     system = (
         "You improve Roblox game goals for Quality Forge. "
         "Return ONLY the improved goal text (no markdown fences). "
         "Keep user intent. Make it concrete for a local coding agent. "
-        "Russian if input is Russian. 500-900 chars. "
-        "End with a line: Skills needed: id1, id2, id3"
+        "Russian if input is Russian else English. 500-900 chars. "
+        "Include systems (HUD/Coins/CP/BestTime/Spawn/Void) and a Contract line. "
+        "End with: Skills needed: id1, id2, id3"
     )
     prompt = (
         f"Project {project_id}. Raw goal:\n{raw_goal}\n\n"
-        "Rewrite so the agent knows: genre, systems to touch "
-        "(HUD/Coins/CP/BestTime/Spawn/Void/Puzzles), "
-        "hard rules (Player attrs not Character; remotes whitelist "
+        "Rewrite so the agent knows genre + systems + hard rules "
+        "(Player attrs not Character; remotes whitelist "
         "Checkpoint,CheckpointReached,UpdateLeaderboard,CoinCollected). "
-        f"Prefer skills from: {', '.join(compact_ids)}."
+        f"Prefer skills from: {', '.join(compact_ids)}. "
+        f"Suggested skills: {', '.join(hints)}."
     )
-    if not available():
-        improved = _fallback_improve_goal(raw_goal, compact_ids)
-        return {"goal": improved, "skills_hint": _skills_from_text(improved, compact_ids)}
 
-    text = chat(prompt, system=system, max_tokens=900, temperature=0.2).strip()
+    if not available():
+        improved = _fallback_improve_goal(raw_goal, hints, russian=russian)
+        improved = _quality_gate(improved, russian=russian, skills=hints)
+        return {"goal": improved, "skills_hint": extract_skill_hints(improved, compact_ids)}
+
+    try:
+        text = chat(
+            prompt,
+            system=system,
+            max_tokens=900,
+            temperature=0.2,
+            timeout=30,
+        ).strip()
+    except Exception:
+        text = _fallback_improve_goal(raw_goal, hints, russian=russian)
+
     if text.startswith("```"):
         text = re.sub(r"^```(?:\w+)?\n?", "", text)
         text = re.sub(r"\n?```$", "", text)
     if len(text) < 40:
-        text = _fallback_improve_goal(raw_goal, compact_ids)
-    if len(text) > 1200:
-        text = text[:1197] + "..."
-    return {"goal": text, "skills_hint": _skills_from_text(text, compact_ids)}
+        text = _fallback_improve_goal(raw_goal, hints, russian=russian)
+    text = _quality_gate(text, russian=russian, skills=hints)
+    return {"goal": text, "skills_hint": extract_skill_hints(text, compact_ids)}
 
 
-def _skills_from_text(text: str, allowed: List[str]) -> List[str]:
-    found = [sid for sid in allowed if sid in text]
-    return found or allowed[:3]
-
-
-def _fallback_improve_goal(goal: str, compact_ids: List[str]) -> str:
+def _fallback_improve_goal(goal: str, skills: List[str], *, russian: bool) -> str:
+    short = goal[:180].rstrip(".")
+    if russian:
+        return (
+            f"Цель ({short}): сделать играбельный Roblox-уровень. "
+            "Системы: Path + SpawnLocation, Neon Checkpoints, золотые Coins, "
+            "левый HUD Time/CP/Coins/Best через player:GetAttribute (НЕ Character), "
+            "Void Y<-20 LoadCharacter, PressurePlate→gate. "
+            f"{_CONTRACT_RU} "
+            f"Skills needed: {', '.join(skills[:3])}"
+        )
     return (
-        f"Цель ({goal[:180].rstrip('.')}): сделать играбельный Roblox-уровень. "
-        "Системы: Path + SpawnLocation, Neon Checkpoints, золотые Coins, "
-        "левый HUD Time/CP/Coins/Best через player:GetAttribute (НЕ Character), "
+        f"Goal ({short}): ship a playable Roblox level. "
+        "Systems: Path + SpawnLocation, Neon Checkpoints, gold Coins, "
+        "left HUD Time/CP/Coins/Best via player:GetAttribute (NOT Character), "
         "Void Y<-20 LoadCharacter, PressurePlate→gate. "
-        "Remotes только: Checkpoint, CheckpointReached, UpdateLeaderboard, CoinCollected. "
-        f"Skills needed: {', '.join(compact_ids[:3])}"
+        f"{_CONTRACT_EN} "
+        f"Skills needed: {', '.join(skills[:3])}"
     )
 
 
