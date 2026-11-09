@@ -2,7 +2,7 @@
 $ErrorActionPreference = "Stop"
 Set-Location $PSScriptRoot\..
 
-$ref = if ($env:FORGE_REF) { $env:FORGE_REF } else { "18276eb94014a6235a330159f6a8fe273402dc71" }
+$ref = if ($env:FORGE_REF) { $env:FORGE_REF } else { "48e13ccb9631d36381de68b9791b20f942955f52" }
 $bust = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
 $b = "https://raw.githubusercontent.com/pirsov/-/$ref"
 
