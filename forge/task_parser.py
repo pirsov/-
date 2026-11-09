@@ -30,8 +30,10 @@ class Task:
 
 # Sprint ids (A1, B2, Z3, G10, F1), human H1, week W1.5, legacy P30.1 / P20.20.a
 _TASK_ID = r"((?:[ABHZGF]\d+)|(?:[PW]\d+(?:\.\d+)*(?:\.[a-z])?))"
+# Accept unicode → or ASCII -> for Windows/UTF-8-safe TZ files
+_ARROW = r"(?:→|->)"
 _TASK_RE = re.compile(
-    rf"^\s*- \[ \] {_TASK_ID}\s*\|\s*(.+?)\s*\|\s*@(\w+)(?:\s*\|\s*→\s*(.+))?\s*$"
+    rf"^\s*- \[ \] {_TASK_ID}\s*\|\s*(.+?)\s*\|\s*@(\w+)(?:\s*\|\s*{_ARROW}\s*(.+))?\s*$"
 )
 
 
@@ -65,7 +67,7 @@ def parse_task_line(line: str) -> Optional[Task]:
             return None
         task_id, desc, owner, rest = m2.group(1), m2.group(2).strip(), m2.group(3), m2.group(4)
         target = section = None
-        am = re.search(r"→\s*([^\s|#]+)(?:#([^\s|]+))?", rest)
+        am = re.search(rf"{_ARROW}\s*([^\s|#]+)(?:#([^\s|]+))?", rest)
         if am:
             target, section = am.group(1), am.group(2)
         mode = detect_mode(desc)
