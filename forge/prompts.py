@@ -430,12 +430,14 @@ end
     generator_template = ""
     if task.target_path and "Generator.server.luau" in task.target_path.replace("\\", "/"):
         generator_template = """
-=== GENERATOR RULES (must follow) ===
-- CREATE folders with Instance.new — never WaitForChild("Map") before creating it.
-- ensureFolder("Map"), ensureFolder("Checkpoints"), ensureFolder("Coins").
-- Path Part Name="Path"; destroy Baseplate.
-- Spawn MUST be: local s = Instance.new("SpawnLocation") — NOT Instance.new("Part") renamed.
-- Checkpoints green Neon; Coins gold; obstacles Y on Path (~6); print "[Generator] map floor ready".
+=== GENERATOR RULES (must follow — validator will FAIL otherwise) ===
+- ensureFolder(Workspace, "Map"), ensureFolder(Workspace, "Checkpoints"), ensureFolder(Workspace, "Coins")
+  — the words Checkpoints and Coins MUST appear (folders created before spawning parts).
+- Path Part Name="Path"; destroy Baseplate if present.
+- Spawn MUST be exactly: Instance.new("SpawnLocation") — NEVER Instance.new("Part") with Name="SpawnLocation".
+- Checkpoint parts Name="Checkpoint"..id under Checkpoints folder; Coin parts under Coins folder.
+- Horror look OK (dark Path, neon CP) but folders+SpawnLocation rules are mandatory.
+- print "[Generator] map floor ready"
 """
     coins_template = ""
     if task.target_path and "Coins.server.luau" in task.target_path.replace("\\", "/"):

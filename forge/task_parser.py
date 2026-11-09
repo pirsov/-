@@ -44,8 +44,12 @@ def detect_mode(description: str) -> WriteMode:
         return WriteMode.APPEND
     if re.search(r"\brewrite\b|\bfrom scratch\b|\bwith exactly\b", d):
         return WriteMode.REWRITE
-    # "Fix HIGH/CRIT..." and integrator passes rewrite existing files
-    if re.search(r"\bfix\b|\bverify\b|\bmismatch|\bedit\b|\bpatch\b", d):
+    # DeepSeek often verbs without the word REWRITE — still full-file edits
+    if re.search(
+        r"\bfix\b|\bverify\b|\bmismatch|\bedit\b|\bpatch\b|\bwire\b|\bsync\b|"
+        r"\banchor\b|\bdefine\b|\bregister\b|\bspawns?\b|\bensure\b",
+        d,
+    ):
         return WriteMode.REWRITE
     if re.search(r"\bcreate\b|\bwrite\b", d):
         return WriteMode.CREATE
@@ -53,6 +57,9 @@ def detect_mode(description: str) -> WriteMode:
         return WriteMode.REVIEW
     if ".md" in d:
         return WriteMode.DOCS
+    # Default unknown file tasks to rewrite so Ollama gets full-file mode
+    if "->" in description or "→" in description or ".luau" in d:
+        return WriteMode.REWRITE
     return WriteMode.UNKNOWN
 
 

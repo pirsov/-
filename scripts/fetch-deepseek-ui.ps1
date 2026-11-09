@@ -21,6 +21,7 @@ $files = @(
   "forge/projects_hub.py",
   "forge/ui_server.py",
   "forge/run_hub.py",
+  "scripts/continue-week.ps1",
   "ui/index.html",
   "ui/app.js",
   "ui/styles.css",

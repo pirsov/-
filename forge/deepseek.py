@@ -196,17 +196,22 @@ def generate_project_tz(
     system = (
         "You write ONLY a Quality Forge PROJECT_TZ.md task list. "
         "EVERY actionable line MUST match exactly:\n"
-        "- [ ] T1 | short imperative | @gameplay_programmer | -> src/path/File.luau\n"
+        "- [ ] T1 | REWRITE ... | @gameplay_programmer | -> src/path/File.luau\n"
         "Rules:\n"
         "- Start with a 2-line # comment header, then ## AGENT, then ## HUMAN\n"
         "- Use IDs T1..T12 then H1..H3\n"
         "- ASCII arrow -> only (never unicode)\n"
-        "- Roles only: @gameplay_programmer @client_programmer @integrator "
-        "@qa_engineer @game_designer @content_author @human\n"
-        "- NO prose sections, NO bullet design docs, NO code fences, NO Luau bodies\n"
+        "- ALWAYS start description with REWRITE or APPEND or CREATE\n"
+        "- Generator task MUST contain these exact words: Checkpoints Coins "
+        "Instance.new(\"SpawnLocation\") ensureFolder\n"
+        "- LevelConfig / Generator / Coins / Checkpoints / Void / Puzzles => "
+        "@gameplay_programmer (NOT @content_author)\n"
+        "- HUD / Effects / Leaderboard => @client_programmer\n"
+        "- H1 H2 H3 lines MUST use @human and MUST NOT have -> path\n"
+        "- NO prose sections, NO design essays, NO code fences, NO Luau bodies\n"
         "- Keep each description under 180 chars so Ollama 4k ctx fits\n"
-        "- Include REWRITE HUD player:GetAttribute, Generator SpawnLocation, "
-        "Coins Destroy+UpdateLeaderboard, Checkpoints, Void, Puzzles, Effects sounds, LevelConfig\n"
+        "- Include: HUD player:GetAttribute; Coins Destroy+UpdateLeaderboard; "
+        "Checkpoints; Void; Puzzles; Effects sounds; LevelConfig Luau id=\n"
     )
     prompt = (
         f"Project: {project_id}\nGoal:\n{goal}\n\n"
@@ -243,7 +248,7 @@ def horror_coins_tz_fallback(*, project_id: str, goal: str) -> str:
 
 ## AGENT
 - [ ] T1 | REWRITE LevelConfig array id= gap= coins= Luau = only never JS colon | @gameplay_programmer | -> src/shared/Content/LevelConfig.luau
-- [ ] T2 | REWRITE Generator dark Path BrickColor Really black; Instance.new SpawnLocation; green/red Neon CP; gold coins; destroy Baseplate; dim lighting PointLight optional | @gameplay_programmer | -> src/server/Level/Generator.server.luau
+- [ ] T2 | REWRITE Generator ensureFolder Map Checkpoints Coins; Instance.new(\"SpawnLocation\"); dark Path; Neon CP; gold coins; destroy Baseplate | @gameplay_programmer | -> src/server/Level/Generator.server.luau
 - [ ] T3 | REWRITE Checkpoints Player SetAttribute Checkpoint+Score; FireClient CheckpointReached; CanTouch; no CoinsCollected; no destroy coins | @gameplay_programmer | -> src/server/Gameplay/Checkpoints.server.luau
 - [ ] T4 | REWRITE Coins CanTouch coin:Destroy plr:SetAttribute Coins FireClient CoinCollected FireAllClients UpdateLeaderboard | @gameplay_programmer | -> src/server/Gameplay/Coins.server.luau
 - [ ] T5 | REWRITE Void Heartbeat HRP.Y<-20 LoadCharacter | @gameplay_programmer | -> src/server/Gameplay/Void.server.luau
