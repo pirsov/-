@@ -3,7 +3,7 @@ REM Launch Claude Code / FCC routed to DeepSeek Anthropic-compatible API.
 REM Do NOT paste your key into this file. Set User env DEEPSEEK_API_KEY once.
 REM DeepSeek Anthropic endpoint accepts ONLY: deepseek-flash | deepseek-v4-pro
 
-setlocal EnableExtensions
+setlocal EnableExtensions EnableDelayedExpansion
 
 if "%DEEPSEEK_API_KEY%"=="" (
   for /f "usebackq delims=" %%A in (`powershell -NoProfile -Command "[Environment]::GetEnvironmentVariable('DEEPSEEK_API_KEY','User')"`) do set "DEEPSEEK_API_KEY=%%A"
@@ -22,6 +22,7 @@ set "ANTHROPIC_BASE_URL=https://api.deepseek.com/anthropic"
 REM Claude Code: use AUTH_TOKEN only (both vars together break auth).
 set "ANTHROPIC_AUTH_TOKEN=%DEEPSEEK_API_KEY%"
 set "ANTHROPIC_API_KEY="
+
 REM Always force model - ignore leftover ANTHROPIC_MODEL=qwen... from forge/ollama.
 if /I "%DEEPSEEK_CLAUDE_MODEL%"=="pro" (
   set "ANTHROPIC_MODEL=deepseek-v4-pro"
@@ -33,25 +34,28 @@ set "CLAUDE_CODE_DISABLE_UNKNOWN_MODEL_WINDOW_ENFORCEMENT=1"
 
 cd /d "%~dp0\.."
 
-echo DeepSeek -^> Claude | model=%ANTHROPIC_MODEL% | base=%ANTHROPIC_BASE_URL%
+REM No raw pipe chars in echo - cmd treats | as pipe.
+echo DeepSeek -^> Claude
+echo   model=!ANTHROPIC_MODEL!
+echo   base=!ANTHROPIC_BASE_URL!
 powershell -NoProfile -Command "if ($env:DEEPSEEK_API_KEY.Length -lt 20) { exit 2 } else { Write-Host ('  key_len=' + $env:DEEPSEEK_API_KEY.Length) }"
 if errorlevel 2 (
-  echo ERROR: key looks too short ^(need full sk-... from platform.deepseek.com^)
+  echo ERROR: key looks too short - need full sk-... from platform.deepseek.com
   exit /b 2
 )
 
 where fcc-claude >nul 2>nul
-if %ERRORLEVEL%==0 (
-  echo Starting fcc-claude --model %ANTHROPIC_MODEL% ...
-  fcc-claude --model %ANTHROPIC_MODEL% %*
-  exit /b %ERRORLEVEL%
+if !ERRORLEVEL!==0 (
+  echo Starting fcc-claude --model !ANTHROPIC_MODEL! ...
+  fcc-claude --model !ANTHROPIC_MODEL! %*
+  exit /b !ERRORLEVEL!
 )
 
 where claude >nul 2>nul
-if %ERRORLEVEL%==0 (
-  echo Starting claude --model %ANTHROPIC_MODEL% ...
-  claude --model %ANTHROPIC_MODEL% %*
-  exit /b %ERRORLEVEL%
+if !ERRORLEVEL!==0 (
+  echo Starting claude --model !ANTHROPIC_MODEL! ...
+  claude --model !ANTHROPIC_MODEL! %*
+  exit /b !ERRORLEVEL!
 )
 
 echo Neither fcc-claude nor claude found on PATH.
