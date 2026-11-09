@@ -31,34 +31,32 @@ local function createPressurePlateAndGate(position: Vector3)
     local gate = Instance.new("Part")
     gate.Name = "Gate"
     gate.Size = Vector3.new(10, 5, 1)
-    gate.Position = Vector3.new(position.X, position.Y + 3, position.Z)
+    gate.Position = position + Vector3.new(0, 3, 0)
     gate.Anchored = true
     gate.CanCollide = true
     gate.Color = Color3.new(1, 0, 0) -- Red
     gate.Parent = Puzzles
 
-    local function openGate()
-        gate.Size = Vector3.new(10, 0.1, 1)
-    end
+    local sound = Instance.new("Sound")
+    sound.Name = "GateSound"
+    sound.SoundId = "rbxassetid://123456789" -- Replace with actual sound ID
+    sound.Parent = gate
 
-    local function closeGate()
-        gate.Size = Vector3.new(10, 5, 1)
-    end
-
-    pressurePlate.Touched:Connect(function(hit)
-        local character = hit.Parent
-        if character and character:FindFirstChild("Humanoid") then
-            openGate()
+    pressurePlate.Touched:Connect(function(hit: BasePart)
+        local char = hit.Parent
+        if char and char:IsA("Model") then
+            gate.CanCollide = false
+            sound:Play()
         end
     end)
 
-    pressurePlate.TouchEnded:Connect(function(hit)
-        local character = hit.Parent
-        if character and character:FindFirstChild("Humanoid") then
-            closeGate()
+    pressurePlate.TouchEnded:Connect(function(hit: BasePart)
+        local char = hit.Parent
+        if char and char:IsA("Model") then
+            gate.CanCollide = true
         end
     end)
 end
 
--- Example usage: Create a pressure plate and gate at a specific position
-createPressurePlateAndGate(Vector3.new(8, 5.5, 40))
+-- Example usage: create a pressure plate and gate at a specific position
+createPressurePlateAndGate(Vector3.new(0, 0, 0))

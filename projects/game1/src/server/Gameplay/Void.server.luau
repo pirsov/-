@@ -1,16 +1,23 @@
 --!strict
+local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 
-local function onHeartbeat()
-    for _, player in pairs(game.Players:GetPlayers()) do
-        local character = player.Character
-        if character then
-            local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
-            if humanoidRootPart and humanoidRootPart.Position.Y < -20 then
-                player:LoadCharacter()
-            end
-        end
-    end
+local function onCharacterAdded(plr: Player, char: Model)
+	local hrp = char:WaitForChild("HumanoidRootPart")
+	hrp:GetPropertyChangedSignal("Position"):Connect(function()
+		if hrp.Position.Y < -20 then
+			task.wait(0.1)
+			plr:LoadCharacter()
+		end
+	end)
 end
 
-RunService.Heartbeat:Connect(onHeartbeat)
+Players.PlayerAdded:Connect(function(plr)
+	plr.CharacterAdded:Connect(function(char) onCharacterAdded(plr, char) end)
+	if plr.Character then onCharacterAdded(plr, plr.Character) end
+end)
+
+for _, plr in ipairs(Players:GetPlayers()) do
+	plr.CharacterAdded:Connect(function(char) onCharacterAdded(plr, char) end)
+	if plr.Character then onCharacterAdded(plr, plr.Character) end
+end

@@ -35,9 +35,7 @@ Remotes.CheckpointReached.OnClientEvent:Connect(function()
 	flash("CheckpointCount")
 end)
 
-if Remotes.CoinCollected then
-	Remotes.CoinCollected.OnClientEvent:Connect(function()
-		play("rbxassetid://9114224690", 0.4)
-		flash("CoinCount")
-	end)
-end
+Remotes.CoinCollected.OnClientEvent:Connect(function()
+	play("rbxassetid://9114224690", 0.4)
+	flash("CoinCount")
+end)

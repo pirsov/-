@@ -194,6 +194,13 @@ def start_week(
                 (run_dir / "latest.log").write_text(text, encoding="utf-8")
             except OSError:
                 pass
+            if code == 0 or report.get("quality"):
+                try:
+                    from . import progress_hub
+
+                    progress_hub.mark(root, run_done=True)
+                except Exception:
+                    pass
 
     with _lock:
         _state.update(

@@ -7,7 +7,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, Dict
 
-from . import deepseek, projects_hub, run_hub, skills_hub
+from . import deepseek, progress_hub, projects_hub, run_hub, skills_hub
 
 ROOT = Path(__file__).resolve().parents[1]
 UI_DIR = ROOT / "ui"
@@ -52,6 +52,7 @@ class Handler(BaseHTTPRequestHandler):
                     "compact": skills_hub.list_compact(ROOT),
                     "raw_count": len(skills_hub.list_raw(ROOT)),
                     "run": run_hub.status(),
+                    "progress": progress_hub.snapshot(ROOT),
                 },
             )
             return
@@ -104,12 +105,14 @@ class Handler(BaseHTTPRequestHandler):
                     max_chars=int(body.get("max_chars") or 1200),
                     project_id=pid,
                 )
-                self._json(200, {"ok": True, **result})
+                progress_hub.mark(ROOT, skills_done=True)
+                self._json(200, {"ok": True, "progress": progress_hub.snapshot(ROOT), **result})
                 return
             if path == "/api/activate":
                 pid = body.get("project") or "game1"
                 projects_hub.activate_project(ROOT, pid)
-                self._json(200, {"ok": True, "project": pid})
+                progress_hub.mark(ROOT, activated=True)
+                self._json(200, {"ok": True, "project": pid, "progress": progress_hub.snapshot(ROOT)})
                 return
             if path == "/api/tz":
                 pid = body.get("project") or "game1"
@@ -133,6 +136,8 @@ class Handler(BaseHTTPRequestHandler):
                 out.write_text(tz, encoding="utf-8")
                 (ROOT / "PROJECT_TZ.md").write_text(tz, encoding="utf-8")
                 (ROOT / "projects" / pid / "PROJECT_TZ.md").write_text(tz, encoding="utf-8")
+                if n_tasks >= 5:
+                    progress_hub.mark(ROOT, tz_done=True)
                 self._json(
                     200,
                     {
@@ -142,6 +147,7 @@ class Handler(BaseHTTPRequestHandler):
                         "task_lines": n_tasks,
                         "fits_ctx": n_tasks > 0 and len(tz) < 8000,
                         "preview": tz[:1800],
+                        "progress": progress_hub.snapshot(ROOT),
                     },
                 )
                 return
@@ -158,12 +164,18 @@ class Handler(BaseHTTPRequestHandler):
                 pid = body.get("project") or "game1"
                 path_out = projects_hub.save_smoke(ROOT, pid, body)
                 if body.get("overall_ok"):
-                    for sid in body.get("promote_skills") or ["forge-player-attrs", "forge-luau-touch"]:
+                    for sid in body.get("promote_skills") or [
+                        "forge-player-attrs",
+                        "forge-luau-touch",
+                        "forge-ui-modern",
+                        "forge-ui-animation",
+                    ]:
                         try:
                             skills_hub.promote_compact(sid, ROOT, smoke_ok=True, notes="ui smoke")
                         except FileNotFoundError:
                             pass
-                self._json(200, {"ok": True, "saved": str(path_out)})
+                progress_hub.mark(ROOT, smoke_done=True)
+                self._json(200, {"ok": True, "saved": str(path_out), "progress": progress_hub.snapshot(ROOT)})
                 return
             if path == "/api/promote":
                 sid = body.get("skill_id") or ""

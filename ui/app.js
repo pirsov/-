@@ -12,6 +12,26 @@ function el(id) { return document.getElementById(id); }
 
 let pollTimer = null;
 
+function applyStage(progress) {
+  const unlocked = (progress && progress.unlocked) || { "1": true };
+  const stage = (progress && progress.stage) || 1;
+  const labels = (progress && progress.labels) || {};
+  el("stage-rail").innerHTML = [1, 2, 3, 4, 5].map(n => {
+    const on = !!unlocked[String(n)];
+    const cur = n === stage;
+    return `<span class="stage-dot ${on ? "on" : ""} ${cur ? "cur" : ""}">${n}. ${labels[n] || ""}</span>`;
+  }).join("");
+  document.querySelectorAll(".panel[data-stage]").forEach(panel => {
+    const n = panel.getAttribute("data-stage");
+    const on = !!unlocked[n];
+    panel.classList.toggle("locked", !on);
+    panel.querySelectorAll("button, textarea, input").forEach(ctrl => {
+      if (!on) ctrl.setAttribute("disabled", "disabled");
+      else ctrl.removeAttribute("disabled");
+    });
+  });
+}
+
 async function refresh() {
   const s = await api("/api/status");
   el("ds-status").textContent = s.deepseek ? "DeepSeek: OK (key)" : "DeepSeek: нет ключа (TZ fallback)";
@@ -22,6 +42,7 @@ async function refresh() {
   el("compact").innerHTML = (s.compact || []).map(c =>
     `<div class="card"><strong>${c.id}</strong> · ${c.chars}c · promoted=${c.promoted}</div>`
   ).join("");
+  applyStage(s.progress);
   if (s.run) renderRun(s.run);
 }
 
@@ -45,6 +66,7 @@ function renderRun(run) {
   if (st === "done" || st === "error") {
     stopPoll();
     loadFiles();
+    refresh();
   }
 }
 
@@ -121,6 +143,7 @@ el("btn-tz").onclick = async () => {
       body: JSON.stringify({ project: "game1", goal: el("goal").value }),
     });
     el("tz-out").textContent = `task_lines=${j.task_lines} fits_ctx=${j.fits_ctx}\n\n` + (j.preview || "");
+    await refresh();
   } catch (e) {
     el("tz-out").textContent = String(e);
   }
@@ -172,7 +195,9 @@ el("btn-smoke-submit").onclick = async () => {
       project: "game1",
       answers,
       overall_ok,
-      promote_skills: overall_ok ? ["forge-player-attrs", "forge-luau-touch"] : [],
+      promote_skills: overall_ok
+        ? ["forge-player-attrs", "forge-luau-touch", "forge-ui-modern", "forge-ui-animation"]
+        : [],
     }),
   });
   el("smoke-out").textContent = JSON.stringify(j, null, 2);

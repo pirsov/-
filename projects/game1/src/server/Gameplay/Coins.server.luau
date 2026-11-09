@@ -4,16 +4,17 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Remotes = require(ReplicatedStorage:WaitForChild("Gameplay"):WaitForChild("Remotes"))
 
 local function hook(coin: BasePart)
+	coin.CanTouch = true
 	coin.Touched:Connect(function(hit: BasePart)
 		local char = hit.Parent
 		if not char then return end
 		local plr = Players:GetPlayerFromCharacter(char)
 		if not plr then return end
 		coin:Destroy()
-		local coins = (plr:GetAttribute("Coins") or 0) + 1
-		plr:SetAttribute("Coins", coins)
-		Remotes.CoinCollected:FireClient(plr, coins)
-		Remotes.UpdateLeaderboard:FireAllClients(plr.Name .. ": " .. tostring(coins))
+		local n = (plr:GetAttribute("Coins") or 0) + 1
+		plr:SetAttribute("Coins", n) -- PLAYER attrs, not character
+		Remotes.CoinCollected:FireClient(plr, n)
+		Remotes.UpdateLeaderboard:FireAllClients(plr.Name .. ": " .. tostring(n))
 	end)
 end
 

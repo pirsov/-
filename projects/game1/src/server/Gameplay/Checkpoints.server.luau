@@ -12,6 +12,7 @@ end
 local function hookPart(part: BasePart)
 	local idx = tonumber(string.match(part.Name, "%d+"))
 	if not idx then return end
+	part.CanTouch = true
 	part.Touched:Connect(function(hit: BasePart)
 		local char = hit.Parent
 		if not char then return end
@@ -20,21 +21,9 @@ local function hookPart(part: BasePart)
 		local current = plr:GetAttribute("Checkpoint") or 0
 		if typeof(current) ~= "number" then current = 0 end
 		if idx > (current :: number) then
-			local coinsFolder = workspace:FindFirstChild("Coins")
-			if coinsFolder then
-				for _, coin in ipairs(coinsFolder:GetChildren()) do
-					if coin:IsA("BasePart") and coin.Position == part.Position then
-						coin:Destroy()
-						local currentCoins = plr:GetAttribute("Coins") or 0
-						plr:SetAttribute("Coins", currentCoins + 1)
-						Remotes.CoinsCollected:FireClient(plr, currentCoins + 1)
-					end
-				end
-			end
 			plr:SetAttribute("Checkpoint", idx)
-			local score = idx * 100
-			plr:SetAttribute("Score", score)
-			Remotes.CheckpointReached:FireClient(plr, idx, score)
+			plr:SetAttribute("Score", idx * 100)
+			Remotes.CheckpointReached:FireClient(plr, idx)
 		end
 	end)
 end

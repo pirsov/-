@@ -5,13 +5,18 @@
   "created": "2026-11-09T13:52:18.039103+00:00",
   "backend_code": "ollama",
   "backend_prompt": "deepseek",
-  "status": "snapshot-pre-repair-r",
-  "notes": "Saved after polish P; left HUD bug known (Character attrs). Repair R pending on live src.",
+  "status": "horror-week-complete",
+  "notes": "Validator PASS all key files. Studio smoke pending. Void uses Position Changed not Heartbeat.",
   "skills_compact": [
     "forge-player-attrs",
-    "forge-luau-touch"
+    "forge-luau-touch",
+    "roblox-code",
+    "roblox-code-maintenance-refactor",
+    "roblox-luau-architecture"
   ],
   "smoke": {
     "pending": true
-  }
+  },
+  "skills_auto_goal": "fix left HUD player attrs SpawnLocation coins checkpoints",
+  "updated": "2026-11-09T15:10:18.402037+00:00"
 }

@@ -1,4 +1,3 @@
---!strict
 return {
 	{ id = 1, gap = 50, coins = 5 },
 	{ id = 2, gap = 70, coins = 5 },

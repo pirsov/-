@@ -39,7 +39,7 @@ local function createSpawnPlaza(): Instance
 end
 
 local function createSpawnLocation(): Instance
-    local spawnLocation = Instance.new("Part")
+    local spawnLocation = Instance.new("SpawnLocation")
     spawnLocation.Name = "SpawnLocation"
     spawnLocation.Size = Vector3.new(2, 2, 2)
     spawnLocation.Position = Vector3.new(0, 6, 20)

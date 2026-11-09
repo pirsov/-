@@ -33,6 +33,29 @@ html, body {
   color: var(--accent);
 }
 .tag { margin: 0.4rem 0 0; color: var(--muted); max-width: 40rem; }
+.stage-rail {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-top: 1rem;
+}
+.stage-dot {
+  border: 1px solid var(--line);
+  color: var(--muted);
+  padding: 0.3rem 0.55rem;
+  font-size: 0.78rem;
+  opacity: 0.55;
+  transition: opacity 180ms ease, border-color 180ms ease, color 180ms ease;
+}
+.stage-dot.on { opacity: 1; color: var(--ink); }
+.stage-dot.cur { border-color: var(--accent); color: var(--accent); }
+.panel.locked { opacity: 0.55; }
+.panel.locked .panel-body { display: none; }
+.panel:not(.locked) .lock-msg { display: none; }
+.panel.locked .lock-msg { color: var(--muted); font-size: 0.9rem; }
+.panel:not(.locked) {
+  transition: opacity 200ms ease, border-color 200ms ease;
+}
 
 .grid {
   display: grid;

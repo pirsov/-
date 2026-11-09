@@ -15,6 +15,7 @@ label.BackgroundTransparency = 0.35
 label.TextColor3 = Color3.new(1, 1, 1)
 label.Text = "Leaderboard (waiting...)"
 label.Parent = gui
+
 if Remotes.UpdateLeaderboard then
 	Remotes.UpdateLeaderboard.OnClientEvent:Connect(function(payload)
 		label.Text = tostring(payload or "Leaderboard updated")
