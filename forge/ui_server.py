@@ -1,4 +1,4 @@
-"""Minimal Quality Forge control UI: projects, skills, DeepSeek, smoke."""
+"""Minimal Quality Forge control UI: projects, skills, DeepSeek, week run, smoke."""
 from __future__ import annotations
 
 import json
@@ -7,7 +7,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, Dict
 
-from . import deepseek, projects_hub, skills_hub
+from . import deepseek, projects_hub, run_hub, skills_hub
 
 ROOT = Path(__file__).resolve().parents[1]
 UI_DIR = ROOT / "ui"
@@ -51,11 +51,29 @@ class Handler(BaseHTTPRequestHandler):
                     "projects": projects_hub.list_projects(ROOT),
                     "compact": skills_hub.list_compact(ROOT),
                     "raw_count": len(skills_hub.list_raw(ROOT)),
+                    "run": run_hub.status(),
                 },
             )
             return
         if path == "/api/raw":
             self._json(200, {"raw": skills_hub.list_raw(ROOT)})
+            return
+        if path == "/api/run/status":
+            self._json(200, run_hub.status())
+            return
+        if path == "/api/run/log":
+            self._json(200, {"log": run_hub.full_log(ROOT)})
+            return
+        if path == "/api/run/files":
+            self._json(200, {"files": run_hub.list_code_files(ROOT)})
+            return
+        if path == "/api/run/file":
+            qs = urllib.parse.parse_qs(parsed.query)
+            rel = (qs.get("path") or [""])[0]
+            try:
+                self._json(200, run_hub.read_code_file(rel, ROOT))
+            except Exception as e:
+                self._json(400, {"error": f"{type(e).__name__}: {e}"})
             return
         if path == "/api/smoke/questions":
             qs = urllib.parse.parse_qs(parsed.query)
@@ -96,7 +114,6 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/api/tz":
                 pid = body.get("project") or "game1"
                 goal = body.get("goal") or "Improve playable obstacle course"
-                # Prefer project meta compact list (after auto-select)
                 compact = [c["id"] for c in skills_hub.list_compact(ROOT)]
                 meta_p = ROOT / "projects" / pid / "meta.json"
                 if meta_p.exists():
@@ -105,15 +122,15 @@ class Handler(BaseHTTPRequestHandler):
                         compact = list(meta["skills_compact"])
                 files = [str(p.relative_to(ROOT)) for p in (ROOT / "projects" / pid).rglob("*.luau")]
                 if not deepseek.available():
-                    self._json(400, {"error": "DEEPSEEK_API_KEY required for TZ generation"})
-                    return
-                tz = deepseek.generate_project_tz(
-                    project_id=pid, goal=goal, compact_skills=compact, existing_files=files
-                )
+                    # still allow fallback TZ without key
+                    tz = deepseek.horror_coins_tz_fallback(project_id=pid, goal=goal)
+                else:
+                    tz = deepseek.generate_project_tz(
+                        project_id=pid, goal=goal, compact_skills=compact, existing_files=files
+                    )
                 n_tasks = deepseek.count_tz_tasks(tz)
                 out = ROOT / "projects" / pid / "PROJECT_TZ.generated.md"
                 out.write_text(tz, encoding="utf-8")
-                # Also copy to live PROJECT_TZ.md so --week can run
                 (ROOT / "PROJECT_TZ.md").write_text(tz, encoding="utf-8")
                 (ROOT / "projects" / pid / "PROJECT_TZ.md").write_text(tz, encoding="utf-8")
                 self._json(
@@ -128,10 +145,18 @@ class Handler(BaseHTTPRequestHandler):
                     },
                 )
                 return
+            if path == "/api/run/start":
+                result = run_hub.start_week(
+                    ROOT,
+                    sleep=float(body.get("sleep") if body.get("sleep") is not None else 0),
+                    hitl=str(body.get("hitl") or "y"),
+                    max_steps=body.get("max"),
+                )
+                self._json(200 if result.get("ok") else 409, result)
+                return
             if path == "/api/smoke/submit":
                 pid = body.get("project") or "game1"
                 path_out = projects_hub.save_smoke(ROOT, pid, body)
-                # promote default forge skills if overall ok
                 if body.get("overall_ok"):
                     for sid in body.get("promote_skills") or ["forge-player-attrs", "forge-luau-touch"]:
                         try:
@@ -165,5 +190,5 @@ class Handler(BaseHTTPRequestHandler):
 def serve(host: str = "127.0.0.1", port: int = 8787) -> None:
     httpd = ThreadingHTTPServer((host, port), Handler)
     print(f"Quality Forge UI http://{host}:{port}")
-    print("  projects / skills / DeepSeek compress / smoke Q")
+    print("  projects / skills / TZ / week run / smoke")
     httpd.serve_forever()

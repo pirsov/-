@@ -9,7 +9,7 @@
 <body>
   <header class="top">
     <div class="brand">Quality Forge</div>
-    <p class="tag">Ollama пишет Luau · DeepSeek сам выбирает skills и TZ · ты только smoke y/n</p>
+    <p class="tag">DeepSeek → TZ · Ollama пишет код здесь · smoke y/n после Studio</p>
   </header>
 
   <main class="grid">
@@ -20,26 +20,41 @@
     </section>
 
     <section class="panel">
-      <h1>2. Цель</h1>
-      <label class="field">что сделать (своими словами)
-        <textarea id="goal" rows="4">Починить left HUD (читать attrs с Player), реальный SpawnLocation, убрать CoinsCollected, монеты и CP работают</textarea>
+      <h1>2. Цель + skills</h1>
+      <label class="field">что сделать
+        <textarea id="goal" rows="4">хоррор-обстакл с монетами. Тёмный Path, Neon CP, золотые монеты, HUD слева через player:GetAttribute, SpawnLocation, Void, PressurePlate.</textarea>
       </label>
-      <button id="btn-auto" type="button">DeepSeek: сам выбери skills и сжатие</button>
-      <p class="muted">raw: <span id="raw-count">0</span> — id выбирать не нужно</p>
+      <button id="btn-auto" type="button">DeepSeek: сам выбери skills</button>
+      <p class="muted">raw: <span id="raw-count">0</span></p>
       <div id="compact"></div>
       <pre id="compress-out" class="out"></pre>
     </section>
 
     <section class="panel">
-      <h1>3. TZ для Ollama</h1>
+      <h1>3. TZ</h1>
       <button id="btn-tz" type="button">DeepSeek: сгенерировать PROJECT_TZ</button>
       <pre id="tz-out" class="out"></pre>
-      <p class="muted">Потом в другом терминале: <code>python -u run.py --week --sleep 0</code></p>
     </section>
 
     <section class="panel wide">
-      <h1>4. Smoke после прогона</h1>
-      <p class="muted">После week ответь y/n — рабочие compact skills сохраним (promote).</p>
+      <h1>4. Генерация (Ollama week)</h1>
+      <p class="muted">Старт пишет Luau по TZ. HITL human-гейты авто-<code>y</code> (Studio проверишь в шаге 5).</p>
+      <div class="row">
+        <button id="btn-run" type="button">Старт генерации --week</button>
+        <span id="run-status" class="pill">idle</span>
+      </div>
+      <h2 class="sub">Отчёт</h2>
+      <pre id="run-report" class="out tall"></pre>
+      <h2 class="sub">Лог</h2>
+      <pre id="run-log" class="out tall"></pre>
+      <h2 class="sub">Готовый код</h2>
+      <div id="file-list" class="files"></div>
+      <pre id="file-view" class="out code"></pre>
+    </section>
+
+    <section class="panel wide">
+      <h1>5. Smoke после Studio</h1>
+      <p class="muted">Синкни Rojo, поиграй, ответь y/n — promote рабочих skills.</p>
       <div id="smoke"></div>
       <button id="btn-smoke-load" type="button">Загрузить вопросы</button>
       <button id="btn-smoke-submit" type="button">Сохранить ответы + promote</button>
@@ -49,7 +64,7 @@
 
   <footer class="foot">
     <span id="ds-status">DeepSeek: …</span>
-    <span>код: ollama · промпты/skills: deepseek</span>
+    <span>код: ollama · промпты: deepseek</span>
   </footer>
   <script src="/app.js"></script>
 </body>

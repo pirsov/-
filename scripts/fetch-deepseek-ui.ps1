@@ -2,7 +2,7 @@
 $ErrorActionPreference = "Stop"
 Set-Location $PSScriptRoot\..
 
-$ref = if ($env:FORGE_REF) { $env:FORGE_REF } else { "8da3c6c" }
+$ref = if ($env:FORGE_REF) { $env:FORGE_REF } else { "bcfc6eb" }
 $bust = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
 $b = "https://raw.githubusercontent.com/pirsov/-/$ref"
 
@@ -20,6 +20,7 @@ $files = @(
   "forge/skills_hub.py",
   "forge/projects_hub.py",
   "forge/ui_server.py",
+  "forge/run_hub.py",
   "ui/index.html",
   "ui/app.js",
   "ui/styles.css",
