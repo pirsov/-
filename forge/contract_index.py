@@ -35,6 +35,17 @@ BUILTIN_EXPORTS = {
     "Color3",
     "WaitForChild",
     "FindFirstChild",
+    # DataStore (server-only; client_ui META still forbids)
+    "DataStoreService",
+    "GetDataStore",
+    "GetAsync",
+    "SetAsync",
+    "UpdateAsync",
+    "BindToClose",
+    "PlayerAdded",
+    "PlayerRemoving",
+    "UserId",
+    "typeof",
 }
 
 

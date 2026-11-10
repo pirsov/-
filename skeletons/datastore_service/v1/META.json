@@ -1,0 +1,19 @@
+{
+  "id": "datastore_service",
+  "version": "v1",
+  "required": ["DataStoreService", "GetDataStore", "pcall"],
+  "required_any": [["PlayerRemoving", "PlayerAdded", "Players"]],
+  "forbid": ["ScreenGui", "LocalPlayer", "FireServer", "PlayerGui", "TextButton", "TextLabel"],
+  "forbid_regex": [
+    "(?m)^return\\s",
+    "GetService\\([\"']DataStoreService[\"']\\)[\\s\\S]{0,200}LocalPlayer"
+  ],
+  "prompt_budget_chars": 550,
+  "default_path_glob": "src/server/Data/**/*.server.luau",
+  "path_hints": [
+    "PlayerData.server.luau",
+    "PlayerSave.server.luau",
+    "src/server/Data/",
+    "DataStore"
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "cycle": "A10.1",
+  "plugin": "system.player_save",
+  "archetype": "datastore_service@v1",
+  "gate_action": "enqueue",
+  "gate_ok": true,
+  "bundle_chars": 1215,
+  "bundle_only_datastore": true,
+  "validator_ok": true,
+  "negative_client_datastore_blocked": true,
+  "hallucination_demo_blocked": true,
+  "artifact": "artifacts/a10_e2e/PlayerSave.server.luau",
+  "required_meta": [
+    "DataStoreService",
+    "GetDataStore",
+    "pcall"
+  ],
+  "forbid_meta": [
+    "ScreenGui",
+    "LocalPlayer",
+    "FireServer"
+  ]
+}

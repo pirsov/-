@@ -20,6 +20,11 @@
       "latest": "v1",
       "versions": ["v1"],
       "summary": "Remotes ModuleScript — getOrCreate whitelist only"
+    },
+    "datastore_service": {
+      "latest": "v1",
+      "versions": ["v1"],
+      "summary": "Server PlayerSave — DataStoreService + GetDataStore + pcall only"
     }
   }
 }

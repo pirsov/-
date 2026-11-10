@@ -363,6 +363,13 @@
       "status": "closed",
       "type": "infra",
       "closed_at": "2026-11-10T08:40:00+00:00"
+    },
+    {
+      "id": "A10.1",
+      "title": "datastore_service@v1 PlayerSave archetype",
+      "status": "closed",
+      "type": "infra",
+      "closed_at": "2026-11-10T09:00:00+00:00"
     }
   ],
   "open_questions": [
@@ -387,8 +394,8 @@
     "next_compact_at_cycle": 5,
     "next_metrics_at_cycle": 8,
     "e2e_at": "2026-11-10T07:13:42.087643+00:00",
-    "status": "a9_0_ui_pass",
-    "focus": "ui_api_hub + waiting_human + loop_24h",
+    "status": "a10_1_datastore_pass",
+    "focus": "datastore_service@v1 + player_save E2E",
     "last_compact_cycle": 6,
     "last_compact_at": "2026-11-10T07:28:51.769663+00:00"
   },
@@ -563,5 +570,17 @@
     "next_plan": "docs/A10_PLAN.md",
     "next_title": "A10.0 DataStore & Networking Archetypes",
     "absorbs": ["A7.3 datastore_service → A10.1"]
+  },
+  "a10_1": {
+    "cycle": "A10.1",
+    "archetype": "datastore_service@v1",
+    "plugin": "system.player_save",
+    "gate_ok": true,
+    "validator_ok": true,
+    "negative_client_datastore_blocked": true,
+    "hallucination_demo_blocked": true,
+    "bundle_chars": 1215,
+    "artifact": "artifacts/a10_e2e/PlayerSave.server.luau",
+    "contract": "contracts/system.player_save.json"
   }
 }

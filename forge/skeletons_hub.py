@@ -115,6 +115,13 @@ def infer_archetype_from_path(path: Path) -> Optional[str]:
         return "network_remote"
     if name.endswith(".client.luau") or "/src/client/" in s:
         return "client_ui"
+    # Persist/save scripts before generic server_script (which forbids DataStore).
+    # Note: legacy PlayerData.server.luau stays server_script via contract pin
+    # (Studio attrs-only); new save plugins use PlayerSave / DataStore in the name
+    # or an explicit datastore_service pin.
+    lower = name.lower()
+    if any(token in lower for token in ("playersave", "datastore")):
+        return "datastore_service"
     if name.endswith(".server.luau") or "/src/server/" in s:
         return "server_script"
     if "/src/shared/" in s or name.endswith("Config.luau"):
@@ -164,6 +171,13 @@ def find_contract_pin(root: Path, path: Path) -> Tuple[Optional[str], Optional[s
             hit = True
         if name == "LevelConfig.luau" and ("levelconfig" in stem or "shared" in stem):
             hit = True
+        # Precise save/data pins (server only) — avoid PlayerSave↔player_data crossover
+        if name.endswith(".server.luau"):
+            base = name[: -len(".server.luau")].lower()
+            if base == "playersave" and ("player_save" in stem or "playersave" in stem):
+                hit = True
+            if base == "playerdata" and ("player_data" in stem or "playerdata" in stem):
+                hit = True
         if hit:
             best = (str(arch), str(ver) if ver else None)
             if ver:

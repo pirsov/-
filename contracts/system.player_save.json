@@ -1,0 +1,30 @@
+{
+  "plugin": "system.player_save",
+  "archetype": "datastore_service",
+  "skeleton_version": "v1",
+  "contract_snapshot": {
+    "name": "system.player_save",
+    "purpose": "Server PlayerSave: load/save Coins via DataStoreService with pcall; attrs on Player",
+    "exports": [
+      "loadPlayer(player)",
+      "savePlayer(player)",
+      "get_player_coins(player) -> number",
+      "GetAsync",
+      "SetAsync",
+      "GetDataStore",
+      "DataStoreService"
+    ],
+    "forbidden": [
+      "ScreenGui",
+      "LocalPlayer",
+      "DataStore on client",
+      "FireServer from save module"
+    ],
+    "archetype": "datastore_service",
+    "skeleton_version": "v1",
+    "files": [
+      "artifacts/a10_e2e/PlayerSave.server.luau",
+      "src/server/Data/PlayerSave.server.luau"
+    ]
+  }
+}
