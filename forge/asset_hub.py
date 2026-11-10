@@ -39,8 +39,37 @@ def asset_id_from_filename(name: str) -> str:
     return re.sub(r"\s+", "", stem) or stem
 
 
+def _load_place_meshes(root: Path) -> List[Dict[str, Any]]:
+    """Meshes referenced from a Studio .rbxl (see assets/catalog/place_meshes.json)."""
+    p = catalog_dir(root) / "place_meshes.json"
+    if not p.is_file():
+        return []
+    try:
+        data = json.loads(p.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return []
+    out: List[Dict[str, Any]] = []
+    for m in data.get("meshes") or []:
+        if not isinstance(m, dict) or not m.get("id"):
+            continue
+        out.append(
+            {
+                "id": str(m["id"]),
+                "file": f"{m['id']}.rbxassetid",
+                "ext": ".rbxassetid",
+                "rel": "assets/catalog/place_meshes.json",
+                "bytes": 0,
+                "mesh_id": m.get("mesh_id"),
+                "texture_id": m.get("texture_id"),
+                "source": "place_rbxl",
+                "kind": m.get("kind") or "mesh",
+            }
+        )
+    return out
+
+
 def scan_models(root: Optional[Path] = None) -> Dict[str, Any]:
-    """Read assets/models/* and build catalog dict (does not write)."""
+    """Read assets/models/* (+ place_meshes.json) and build catalog dict (does not write)."""
     root = root or ROOT_DEFAULT
     mdir = models_dir(root)
     assets: List[Dict[str, Any]] = []
@@ -72,6 +101,13 @@ def scan_models(root: Optional[Path] = None) -> Dict[str, Any]:
                     "bytes": p.stat().st_size,
                 }
             )
+    # Merge Studio place refs (Banana from working_game.rbxl, etc.)
+    for extra in _load_place_meshes(root):
+        key = str(extra["id"]).lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        assets.append(extra)
     return {
         "version": 1,
         "scanned_at": now_iso(),

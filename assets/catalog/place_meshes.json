@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "source": "artifacts/reference_place/working_game.rbxl",
+  "note": "Meshes referenced inside the place (not glb on disk). Banana is the only fruit-named model found.",
+  "meshes": [
+    {
+      "id": "Banana",
+      "kind": "fruit",
+      "mesh_id": "rbxassetid://178186804",
+      "texture_id": "152661377",
+      "place_instance": "Banana"
+    }
+  ]
+}

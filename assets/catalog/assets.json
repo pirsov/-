@@ -1,8 +1,22 @@
 {
   "version": 1,
-  "scanned_at": "2026-11-10T09:59:13.013473+00:00",
+  "scanned_at": "2026-11-10T15:28:47.063985+00:00",
   "models_dir": "assets/models",
-  "count": 0,
-  "ids": [],
-  "assets": []
+  "count": 1,
+  "ids": [
+    "Banana"
+  ],
+  "assets": [
+    {
+      "id": "Banana",
+      "file": "Banana.rbxassetid",
+      "ext": ".rbxassetid",
+      "rel": "assets/catalog/place_meshes.json",
+      "bytes": 0,
+      "mesh_id": "rbxassetid://178186804",
+      "texture_id": "152661377",
+      "source": "place_rbxl",
+      "kind": "fruit"
+    }
+  ]
 }
