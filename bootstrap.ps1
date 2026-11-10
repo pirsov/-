@@ -36,6 +36,18 @@ if (-not $py) {
 }
 Write-Host "[ok] Python: $py" -ForegroundColor Green
 
+# 2b) Python deps (zstandard needed for --scan-place-fruits)
+$req = Join-Path $PSScriptRoot 'requirements.txt'
+if (Test-Path $req) {
+    Write-Host "[deps] python -m pip install -r requirements.txt" -ForegroundColor Cyan
+    & $py -m pip install -r $req
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "[warn] pip install failed — for rbxl fruit scan run: python -m pip install zstandard" -ForegroundColor Yellow
+    } else {
+        Write-Host "[ok] Python deps from requirements.txt" -ForegroundColor Green
+    }
+}
+
 # 3) Ollama check
 try {
     $tags = Invoke-RestMethod -Uri 'http://localhost:11434/api/tags' -TimeoutSec 5

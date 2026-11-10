@@ -16,8 +16,15 @@ Catalog → `assets/catalog/assets.json`. Planner sees: `Available 3D assets: Ap
 
 ## From Studio place (`.rbxl`)
 
-`working_game.rbxl` contains Folder **`Fruits_Inventory`** with all fruit Models (Orange, Mango, DragonFruit, …) plus Accessory **Banana**.
+`working_game.rbxl` → Folder **`Fruits_Inventory`** holds Part-voxel fruit Models
+(Orange, Mango, DragonFruit, VoxelApple, …). Sibling **Banana** Accessory has a MeshId.
+`Apple` is registered as an alias of `VoxelApple`.
 
-They are registered in `assets/catalog/place_meshes.json` and merged on `--scan-assets` (no `.glb` required for Gate).
+```bash
+python -m pip install zstandard        # once (also: pip install -r requirements.txt)
+python -u run.py --scan-place-fruits   # refresh place_meshes.json + INVENTORY.md + catalog
+python -u run.py --scan-assets         # models dir + place_meshes → assets.json
+```
 
-Optional: export a Model from Studio as `.glb` into this folder if you want a file-based mesh for non-Roblox tooling.
+No `.glb` required for Gate ids from the place. Drop artist `.glb` here only for file-based meshes.
+If `place_meshes.json` is already committed, `--scan-assets` works without reinstalling `zstandard`; re-scan of the `.rbxl` still needs it.

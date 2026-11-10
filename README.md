@@ -6,6 +6,7 @@ Cursor only maintains the forge (`docs/FORGE_CONTRACT.md`).
 ## Start (Windows)
 ```powershell
 git pull
+python -m pip install -r requirements.txt  # zstandard for --scan-place-fruits
 $env:FORGE_BACKEND = "openrouter"          # or set SPACE_BUNNY_API_KEY
 $env:OPENROUTER_API_KEY = "sk-or-..."
 python run.py --doctor

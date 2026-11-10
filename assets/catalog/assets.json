@@ -1,9 +1,10 @@
 {
   "version": 1,
-  "scanned_at": "2026-11-10T15:35:49.575945+00:00",
+  "scanned_at": "2026-11-10T15:37:30.755597+00:00",
   "models_dir": "assets/models",
-  "count": 21,
+  "count": 22,
   "ids": [
+    "Apple",
     "Banana",
     "Blackberry",
     "Blueberry",
@@ -28,6 +29,23 @@
   ],
   "assets": [
     {
+      "id": "Apple",
+      "file": "Apple.rbxassetid",
+      "ext": ".rbxassetid",
+      "rel": "assets/catalog/place_meshes.json",
+      "bytes": 0,
+      "mesh_id": null,
+      "texture_id": null,
+      "source": "place_rbxl",
+      "kind": "fruit",
+      "geometry": "parts",
+      "parts": 212,
+      "folder": "Fruits_Inventory",
+      "class": "Model",
+      "alias_of": "VoxelApple",
+      "place_instance": "VoxelApple"
+    },
+    {
       "id": "Banana",
       "file": "Banana.rbxassetid",
       "ext": ".rbxassetid",
@@ -36,7 +54,12 @@
       "mesh_id": "rbxassetid://178186804",
       "texture_id": "152661377",
       "source": "place_rbxl",
-      "kind": "fruit"
+      "kind": "fruit",
+      "geometry": "mesh",
+      "parts": 0,
+      "class": "Accessory",
+      "place_instance": "Banana",
+      "sibling_of": "Fruits_Inventory"
     },
     {
       "id": "Blackberry",
@@ -47,7 +70,12 @@
       "mesh_id": null,
       "texture_id": null,
       "source": "place_rbxl",
-      "kind": "fruit"
+      "kind": "fruit",
+      "geometry": "parts",
+      "parts": 123,
+      "folder": "Fruits_Inventory",
+      "class": "Model",
+      "place_instance": "Blackberry"
     },
     {
       "id": "Blueberry",
@@ -58,7 +86,12 @@
       "mesh_id": null,
       "texture_id": null,
       "source": "place_rbxl",
-      "kind": "fruit"
+      "kind": "fruit",
+      "geometry": "parts",
+      "parts": 37,
+      "folder": "Fruits_Inventory",
+      "class": "Model",
+      "place_instance": "Blueberry"
     },
     {
       "id": "Cherry",
@@ -69,7 +102,12 @@
       "mesh_id": null,
       "texture_id": null,
       "source": "place_rbxl",
-      "kind": "fruit"
+      "kind": "fruit",
+      "geometry": "parts",
+      "parts": 229,
+      "folder": "Fruits_Inventory",
+      "class": "Model",
+      "place_instance": "Cherry"
     },
     {
       "id": "Coconut",
@@ -80,7 +118,12 @@
       "mesh_id": null,
       "texture_id": null,
       "source": "place_rbxl",
-      "kind": "fruit"
+      "kind": "fruit",
+      "geometry": "parts",
+      "parts": 257,
+      "folder": "Fruits_Inventory",
+      "class": "Model",
+      "place_instance": "Coconut"
     },
     {
       "id": "DragonFruit",
@@ -91,7 +134,12 @@
       "mesh_id": null,
       "texture_id": null,
       "source": "place_rbxl",
-      "kind": "fruit"
+      "kind": "fruit",
+      "geometry": "parts",
+      "parts": 355,
+      "folder": "Fruits_Inventory",
+      "class": "Model",
+      "place_instance": "DragonFruit"
     },
     {
       "id": "Grapes",
@@ -102,7 +150,12 @@
       "mesh_id": null,
       "texture_id": null,
       "source": "place_rbxl",
-      "kind": "fruit"
+      "kind": "fruit",
+      "geometry": "parts",
+      "parts": 175,
+      "folder": "Fruits_Inventory",
+      "class": "Model",
+      "place_instance": "Grapes"
     },
     {
       "id": "Kiwi",
@@ -113,7 +166,12 @@
       "mesh_id": null,
       "texture_id": null,
       "source": "place_rbxl",
-      "kind": "fruit"
+      "kind": "fruit",
+      "geometry": "parts",
+      "parts": 191,
+      "folder": "Fruits_Inventory",
+      "class": "Model",
+      "place_instance": "Kiwi"
     },
     {
       "id": "Lemon",
@@ -124,7 +182,12 @@
       "mesh_id": null,
       "texture_id": null,
       "source": "place_rbxl",
-      "kind": "fruit"
+      "kind": "fruit",
+      "geometry": "parts",
+      "parts": 226,
+      "folder": "Fruits_Inventory",
+      "class": "Model",
+      "place_instance": "Lemon"
     },
     {
       "id": "Mango",
@@ -135,7 +198,12 @@
       "mesh_id": null,
       "texture_id": null,
       "source": "place_rbxl",
-      "kind": "fruit"
+      "kind": "fruit",
+      "geometry": "parts",
+      "parts": 184,
+      "folder": "Fruits_Inventory",
+      "class": "Model",
+      "place_instance": "Mango"
     },
     {
       "id": "Orange",
@@ -146,7 +214,12 @@
       "mesh_id": null,
       "texture_id": null,
       "source": "place_rbxl",
-      "kind": "fruit"
+      "kind": "fruit",
+      "geometry": "parts",
+      "parts": 148,
+      "folder": "Fruits_Inventory",
+      "class": "Model",
+      "place_instance": "Orange"
     },
     {
       "id": "Peach",
@@ -157,7 +230,12 @@
       "mesh_id": null,
       "texture_id": null,
       "source": "place_rbxl",
-      "kind": "fruit"
+      "kind": "fruit",
+      "geometry": "parts",
+      "parts": 119,
+      "folder": "Fruits_Inventory",
+      "class": "Model",
+      "place_instance": "Peach"
     },
     {
       "id": "Pear",
@@ -168,7 +246,12 @@
       "mesh_id": null,
       "texture_id": null,
       "source": "place_rbxl",
-      "kind": "fruit"
+      "kind": "fruit",
+      "geometry": "parts",
+      "parts": 478,
+      "folder": "Fruits_Inventory",
+      "class": "Model",
+      "place_instance": "Pear"
     },
     {
       "id": "Pineapple",
@@ -179,7 +262,12 @@
       "mesh_id": null,
       "texture_id": null,
       "source": "place_rbxl",
-      "kind": "fruit"
+      "kind": "fruit",
+      "geometry": "parts",
+      "parts": 310,
+      "folder": "Fruits_Inventory",
+      "class": "Model",
+      "place_instance": "Pineapple"
     },
     {
       "id": "Pomegranate",
@@ -190,7 +278,12 @@
       "mesh_id": null,
       "texture_id": null,
       "source": "place_rbxl",
-      "kind": "fruit"
+      "kind": "fruit",
+      "geometry": "parts",
+      "parts": 261,
+      "folder": "Fruits_Inventory",
+      "class": "Model",
+      "place_instance": "Pomegranate"
     },
     {
       "id": "Raspberry",
@@ -201,7 +294,12 @@
       "mesh_id": null,
       "texture_id": null,
       "source": "place_rbxl",
-      "kind": "fruit"
+      "kind": "fruit",
+      "geometry": "parts",
+      "parts": 123,
+      "folder": "Fruits_Inventory",
+      "class": "Model",
+      "place_instance": "Raspberry"
     },
     {
       "id": "Strawberry",
@@ -212,7 +310,12 @@
       "mesh_id": null,
       "texture_id": null,
       "source": "place_rbxl",
-      "kind": "fruit"
+      "kind": "fruit",
+      "geometry": "parts",
+      "parts": 346,
+      "folder": "Fruits_Inventory",
+      "class": "Model",
+      "place_instance": "Strawberry"
     },
     {
       "id": "Trash_Mango",
@@ -223,7 +326,12 @@
       "mesh_id": null,
       "texture_id": null,
       "source": "place_rbxl",
-      "kind": "fruit"
+      "kind": "fruit",
+      "geometry": "parts",
+      "parts": 184,
+      "class": "Model",
+      "place_instance": "Trash_Mango",
+      "sibling_of": "Fruits_Inventory"
     },
     {
       "id": "Trash_Orange",
@@ -234,7 +342,12 @@
       "mesh_id": null,
       "texture_id": null,
       "source": "place_rbxl",
-      "kind": "fruit"
+      "kind": "fruit",
+      "geometry": "parts",
+      "parts": 148,
+      "class": "Model",
+      "place_instance": "Trash_Orange",
+      "sibling_of": "Fruits_Inventory"
     },
     {
       "id": "VoxelApple",
@@ -245,7 +358,12 @@
       "mesh_id": null,
       "texture_id": null,
       "source": "place_rbxl",
-      "kind": "fruit"
+      "kind": "fruit",
+      "geometry": "parts",
+      "parts": 212,
+      "folder": "Fruits_Inventory",
+      "class": "Model",
+      "place_instance": "VoxelApple"
     },
     {
       "id": "Watermelon",
@@ -256,7 +374,12 @@
       "mesh_id": null,
       "texture_id": null,
       "source": "place_rbxl",
-      "kind": "fruit"
+      "kind": "fruit",
+      "geometry": "parts",
+      "parts": 476,
+      "folder": "Fruits_Inventory",
+      "class": "Model",
+      "place_instance": "Watermelon"
     }
   ]
 }

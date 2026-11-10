@@ -1,0 +1,2 @@
+# Optional but required for --scan-place-fruits (ZSTD .rbxl chunks)
+zstandard>=0.22.0

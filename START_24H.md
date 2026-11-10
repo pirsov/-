@@ -35,8 +35,11 @@ git pull
 2. Сканер:
 
 ```bash
+python -m pip install -r requirements.txt   # zstandard — для --scan-place-fruits
 python -u run.py --scan-assets
 # → assets/catalog/assets.json
+# опционально обновить фрукты из .rbxl:
+# python -u run.py --scan-place-fruits
 ```
 
 Gate блокирует `proposed_assets`, которых нет в каталоге.

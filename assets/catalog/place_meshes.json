@@ -2,13 +2,26 @@
   "version": 2,
   "source": "artifacts/reference_place/working_game.rbxl",
   "folder": "Fruits_Inventory",
-  "note": "Fruit Models live under Folder Fruits_Inventory in the place. Most are CSG/Union (no MeshId); Banana is an Accessory with SpecialMesh rbxassetid://178186804.",
+  "note": "Fruit Models under Folder Fruits_Inventory are Part-voxel builds (no MeshId). Banana is a sibling Accessory with SpecialMesh rbxassetid. Trash_* are sibling variants outside the inventory folder. Apple aliases VoxelApple.",
   "meshes": [
+    {
+      "id": "Apple",
+      "kind": "fruit",
+      "place_instance": "VoxelApple",
+      "class": "Model",
+      "geometry": "parts",
+      "parts": 212,
+      "folder": "Fruits_Inventory",
+      "alias_of": "VoxelApple"
+    },
     {
       "id": "Banana",
       "kind": "fruit",
       "place_instance": "Banana",
       "class": "Accessory",
+      "geometry": "mesh",
+      "parts": 0,
+      "sibling_of": "Fruits_Inventory",
       "mesh_id": "rbxassetid://178186804",
       "texture_id": "152661377"
     },
@@ -17,6 +30,8 @@
       "kind": "fruit",
       "place_instance": "Blackberry",
       "class": "Model",
+      "geometry": "parts",
+      "parts": 123,
       "folder": "Fruits_Inventory"
     },
     {
@@ -24,6 +39,8 @@
       "kind": "fruit",
       "place_instance": "Blueberry",
       "class": "Model",
+      "geometry": "parts",
+      "parts": 37,
       "folder": "Fruits_Inventory"
     },
     {
@@ -31,6 +48,8 @@
       "kind": "fruit",
       "place_instance": "Cherry",
       "class": "Model",
+      "geometry": "parts",
+      "parts": 229,
       "folder": "Fruits_Inventory"
     },
     {
@@ -38,6 +57,8 @@
       "kind": "fruit",
       "place_instance": "Coconut",
       "class": "Model",
+      "geometry": "parts",
+      "parts": 257,
       "folder": "Fruits_Inventory"
     },
     {
@@ -45,6 +66,8 @@
       "kind": "fruit",
       "place_instance": "DragonFruit",
       "class": "Model",
+      "geometry": "parts",
+      "parts": 355,
       "folder": "Fruits_Inventory"
     },
     {
@@ -52,6 +75,8 @@
       "kind": "fruit",
       "place_instance": "Grapes",
       "class": "Model",
+      "geometry": "parts",
+      "parts": 175,
       "folder": "Fruits_Inventory"
     },
     {
@@ -59,6 +84,8 @@
       "kind": "fruit",
       "place_instance": "Kiwi",
       "class": "Model",
+      "geometry": "parts",
+      "parts": 191,
       "folder": "Fruits_Inventory"
     },
     {
@@ -66,6 +93,8 @@
       "kind": "fruit",
       "place_instance": "Lemon",
       "class": "Model",
+      "geometry": "parts",
+      "parts": 226,
       "folder": "Fruits_Inventory"
     },
     {
@@ -73,6 +102,8 @@
       "kind": "fruit",
       "place_instance": "Mango",
       "class": "Model",
+      "geometry": "parts",
+      "parts": 184,
       "folder": "Fruits_Inventory"
     },
     {
@@ -80,6 +111,8 @@
       "kind": "fruit",
       "place_instance": "Orange",
       "class": "Model",
+      "geometry": "parts",
+      "parts": 148,
       "folder": "Fruits_Inventory"
     },
     {
@@ -87,6 +120,8 @@
       "kind": "fruit",
       "place_instance": "Peach",
       "class": "Model",
+      "geometry": "parts",
+      "parts": 119,
       "folder": "Fruits_Inventory"
     },
     {
@@ -94,6 +129,8 @@
       "kind": "fruit",
       "place_instance": "Pear",
       "class": "Model",
+      "geometry": "parts",
+      "parts": 478,
       "folder": "Fruits_Inventory"
     },
     {
@@ -101,6 +138,8 @@
       "kind": "fruit",
       "place_instance": "Pineapple",
       "class": "Model",
+      "geometry": "parts",
+      "parts": 310,
       "folder": "Fruits_Inventory"
     },
     {
@@ -108,6 +147,8 @@
       "kind": "fruit",
       "place_instance": "Pomegranate",
       "class": "Model",
+      "geometry": "parts",
+      "parts": 261,
       "folder": "Fruits_Inventory"
     },
     {
@@ -115,6 +156,8 @@
       "kind": "fruit",
       "place_instance": "Raspberry",
       "class": "Model",
+      "geometry": "parts",
+      "parts": 123,
       "folder": "Fruits_Inventory"
     },
     {
@@ -122,6 +165,8 @@
       "kind": "fruit",
       "place_instance": "Strawberry",
       "class": "Model",
+      "geometry": "parts",
+      "parts": 346,
       "folder": "Fruits_Inventory"
     },
     {
@@ -129,20 +174,26 @@
       "kind": "fruit",
       "place_instance": "Trash_Mango",
       "class": "Model",
-      "folder": "Fruits_Inventory"
+      "geometry": "parts",
+      "parts": 184,
+      "sibling_of": "Fruits_Inventory"
     },
     {
       "id": "Trash_Orange",
       "kind": "fruit",
       "place_instance": "Trash_Orange",
       "class": "Model",
-      "folder": "Fruits_Inventory"
+      "geometry": "parts",
+      "parts": 148,
+      "sibling_of": "Fruits_Inventory"
     },
     {
       "id": "VoxelApple",
       "kind": "fruit",
       "place_instance": "VoxelApple",
       "class": "Model",
+      "geometry": "parts",
+      "parts": 212,
       "folder": "Fruits_Inventory"
     },
     {
@@ -150,6 +201,8 @@
       "kind": "fruit",
       "place_instance": "Watermelon",
       "class": "Model",
+      "geometry": "parts",
+      "parts": 476,
       "folder": "Fruits_Inventory"
     }
   ]

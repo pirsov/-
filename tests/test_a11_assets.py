@@ -108,17 +108,50 @@ class TestAssetHub(unittest.TestCase):
         data = json.loads(place.read_text(encoding="utf-8"))
         self.assertEqual(data.get("folder"), "Fruits_Inventory")
         ids = {m["id"] for m in data.get("meshes") or []}
-        for must in ("Banana", "Orange", "Mango", "DragonFruit", "Strawberry", "VoxelApple"):
+        for must in (
+            "Apple",
+            "Banana",
+            "Orange",
+            "Mango",
+            "DragonFruit",
+            "Strawberry",
+            "VoxelApple",
+        ):
             self.assertIn(must, ids)
+        apple = next(m for m in data["meshes"] if m["id"] == "Apple")
+        self.assertEqual(apple.get("alias_of"), "VoxelApple")
+        banana = next(m for m in data["meshes"] if m["id"] == "Banana")
+        self.assertTrue(str(banana.get("mesh_id") or "").startswith("rbxassetid://"))
+        trash = next(m for m in data["meshes"] if m["id"] == "Trash_Orange")
+        self.assertEqual(trash.get("sibling_of"), "Fruits_Inventory")
+        self.assertNotEqual(trash.get("folder"), "Fruits_Inventory")
         cat = asset_hub.scan_models(ROOT)
-        for must in ("Orange", "DragonFruit", "Watermelon"):
+        for must in ("Apple", "Orange", "DragonFruit", "Watermelon"):
             self.assertIn(must, cat["ids"])
         ok, unknown, _ = asset_hub.gate_assets(
             ROOT,
-            {"proposed_assets": ["Orange", "DragonFruit"]},
+            {"proposed_assets": ["Apple", "Orange", "DragonFruit"]},
             catalog=cat,
         )
         self.assertTrue(ok, unknown)
+
+    def test_rbxl_inventory_scanner(self):
+        from forge import rbxl_inventory
+
+        rbxl = ROOT / "artifacts" / "reference_place" / "working_game.rbxl"
+        self.assertTrue(rbxl.is_file())
+        scan = rbxl_inventory.extract_fruits_inventory(rbxl)
+        self.assertEqual(scan["folder"], "Fruits_Inventory")
+        named = [f for f in scan["fruits"] if f.get("id")]
+        self.assertGreaterEqual(len(named), 15)
+        ids = {f["id"] for f in named}
+        self.assertIn("Orange", ids)
+        self.assertIn("VoxelApple", ids)
+        banana = next(e for e in scan["extras"] if e["id"] == "Banana")
+        self.assertEqual(banana.get("class"), "Accessory")
+        self.assertTrue(str(banana.get("mesh_id") or "").startswith("rbxassetid://"))
+        doc = rbxl_inventory.build_place_meshes_doc(scan)
+        self.assertIn("Apple", {m["id"] for m in doc["meshes"]})
 
 
 if __name__ == "__main__":
