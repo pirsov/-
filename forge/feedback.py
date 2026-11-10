@@ -286,12 +286,29 @@ def _default_files_for_plugin(plugin: str) -> List[str]:
     return mapping.get(plugin, [])
 
 
+def _check_gated(content: str, check: Dict[str, Any]) -> bool:
+    """A14/A15: if_present — only run require_* when gate token/regex is in file."""
+    gate = check.get("if_present") or check.get("when_substr")
+    if not gate:
+        return True
+    g = str(gate)
+    try:
+        if g.startswith("re:"):
+            return bool(re.search(g[3:], content))
+        return g in content
+    except re.error:
+        return g in content
+
+
 def apply_checks_to_text(content: str, checks: List[Dict[str, Any]], *, rule_id: str = "") -> List[str]:
     errors: List[str] = []
     for c in checks:
         ctype = c.get("type")
         msg = c.get("msg") or f"rule {rule_id} failed"
         prefix = f"[{rule_id}] " if rule_id else ""
+        # Gate require_* so files without the feature aren't false-red (A14 activate)
+        if ctype in {"require_regex", "require_substr"} and not _check_gated(content, c):
+            continue
         if ctype == "forbid_regex":
             try:
                 if re.search(str(c.get("pattern") or ""), content):
@@ -332,8 +349,10 @@ def rule_matches_file(rule: Dict[str, Any], path: Path, *, root: Optional[Path] 
 
             pinned_a, _ = skeletons_hub.find_contract_pin(root, path) if root else (None, None)
             inferred = skeletons_hub.infer_archetype_from_path(path)
-            arch = pinned_a or inferred
-            arch_ok = arch in {str(a) for a in archetypes}
+            wanted = {str(a) for a in archetypes}
+            # Match pin OR path-inference so client_ui rules still catch *.client.luau
+            # even when a BAD fixture is wrongly pinned to another archetype.
+            arch_ok = (pinned_a in wanted) or (inferred in wanted)
         except Exception:
             arch_ok = True
     if files and archetypes:
@@ -360,12 +379,36 @@ def apply_rules_to_file(root: Path, path: Path, content: str) -> List[str]:
     return errors
 
 
+_DRY_RUN_SKIP_PARTS = (
+    "/legacy_project/",
+    "/artifacts/",
+    "/skeletons/",
+    "/.forge/",
+    "/tests/",
+    "_BAD.",
+    "_bad.",
+    "/a12_audit_fixture/",
+)
+
+
+def _dry_run_skip_path(path: Path, root: Path) -> bool:
+    """Skip intentional BAD fixtures / audit drop-zones during activate dry-run."""
+    try:
+        rel = "/" + path.resolve().relative_to(root.resolve()).as_posix()
+    except ValueError:
+        rel = "/" + path.as_posix().replace("\\", "/")
+    name = path.name
+    if any(s in rel for s in _DRY_RUN_SKIP_PARTS):
+        return True
+    if "_BAD" in name or name.endswith(".BAD.luau"):
+        return True
+    return False
+
+
 def dry_run_rule_on_golden(root: Path, rule: Dict[str, Any]) -> Tuple[bool, List[str]]:
     """
-    Green if rule does NOT fire on any golden contract *source* samples.
-    Golden JSON holds contract snapshots (metadata), not Luau — so we also
-    scan src/ files matching rule.match.files when present. If no files exist,
-    treat as green (nothing to regress against).
+    Green if rule does NOT fire on live good sources (src/ + contracts golden).
+    Skips legacy_project/, artifacts/*_BAD*, skeletons (A14 activate).
     """
     errs: List[str] = []
     match = rule.get("match") or {}
@@ -374,6 +417,8 @@ def dry_run_rule_on_golden(root: Path, rule: Dict[str, Any]) -> Tuple[bool, List
     # Prefer live src matches
     archetypes = list((match.get("archetypes") if isinstance(match, dict) else None) or [])
     for p in root.rglob("*.luau"):
+        if _dry_run_skip_path(p, root):
+            continue
         if not rule_matches_file(rule, p, root=root):
             continue
         if not files and not archetypes and GOLDEN_DIR not in str(p):

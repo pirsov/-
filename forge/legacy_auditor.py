@@ -208,10 +208,11 @@ def find_pitfalls(project: Path) -> List[Pitfall]:
                 snippet=snip,
                 why="DataStore failures throw; without pcall the script dies and progress is lost.",
                 rule_hint={
-                    # Require pcall in DS files (do NOT forbid :SetAsync itself — that breaks safe pcall wraps)
+                    # Require pcall when DS calls present (gated via if_present at activate/apply)
                     "type": "require_regex",
                     "pattern": r"\bpcall\s*\(",
                     "msg": f"HITL/legacy: wrap DataStore {m.group(1)} in pcall",
+                    "if_present": r"re:(?:GetAsync|SetAsync|UpdateAsync)\s*\(",
                     "match_files": [],
                     "archetypes": ["datastore_service", "server_script"],
                 },
@@ -229,10 +230,10 @@ def find_pitfalls(project: Path) -> List[Pitfall]:
                     snippet=snip,
                     why="Clients must not touch DataStore — exploit + replication risk.",
                     rule_hint={
-                        "type": "forbid_substr",
-                        "text": "DataStoreService",
+                        "type": "forbid_regex",
+                        "pattern": r"GetService\s*\(\s*[\"']DataStoreService[\"']\s*\)",
                         "msg": "HITL/legacy: DataStoreService forbidden on client",
-                        "match_files": [Path(rel).name],
+                        "match_files": [],
                         "archetypes": ["client_ui"],
                     },
                 )
@@ -302,7 +303,8 @@ def find_pitfalls(project: Path) -> List[Pitfall]:
                         "type": "require_regex",
                         "pattern": r"OnServerEvent[\s\S]{0,500}(?:typeof|assert)",
                         "msg": "HITL/legacy: validate RemoteEvent args on server",
-                        "match_files": [Path(rel).name],
+                        "if_present": "OnServerEvent",
+                        "match_files": [],
                         "archetypes": ["datastore_service", "server_script"],
                     },
                 )
@@ -385,6 +387,8 @@ def pitfalls_to_draft_rules(
             check["pattern"] = hint.get("pattern") or "NEVER"
         else:
             check["text"] = hint.get("text") or p.title[:40]
+        if hint.get("if_present"):
+            check["if_present"] = hint["if_present"]
         checks = [check]
         companion = hint.get("companion_require")
         if isinstance(companion, dict):

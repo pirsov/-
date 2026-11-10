@@ -1088,6 +1088,11 @@ def main(argv: Optional[List[str]] = None) -> int:
         help="Activate draft rule id after dry-run (e.g. R001)",
     )
     parser.add_argument(
+        "--rules-force",
+        action="store_true",
+        help="With --rules-activate: skip dry-run (human override)",
+    )
+    parser.add_argument(
         "--ask-pack",
         action="store_true",
         help="A7.1: print DeepSeek HITL pack (A/B/C/Другое) and save pending_hitl_pack",
@@ -1172,7 +1177,9 @@ def main(argv: Optional[List[str]] = None) -> int:
     if args.rules_activate:
         from . import feedback as feedback_hub
 
-        report = feedback_hub.activate_rule(root, args.rules_activate)
+        report = feedback_hub.activate_rule(
+            root, args.rules_activate, force=bool(getattr(args, "rules_force", False))
+        )
         print(json.dumps(report, ensure_ascii=False, indent=2))
         return 0 if report.get("ok") else 1
 

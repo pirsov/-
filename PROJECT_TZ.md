@@ -1,4 +1,4 @@
-# LAST_UPDATE: A15.0 PASS — Advanced Context Opt (num_predict≤1024, SEARCH/REPLACE, prune, 7B compact).
+# LAST_UPDATE: A15.0 PASS + R001/R004/R006 ACTIVE. Suite green. Ready for 24h marathon.
 
 ## AGENT CORE DONE
 - [x] A6.*–A11.0 agent core + UI + DataStore + net + full-stack + assets + START_24H
