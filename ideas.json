@@ -1,0 +1,104 @@
+{
+  "ideas": [
+    {
+      "id": "I001",
+      "title": "BestTime on last CP",
+      "one_liner": "Писать BestTime при достижении последнего чекпоинта, не только на leave",
+      "type": "mechanic",
+      "cost": "S",
+      "needs": [
+        "game1.checkpoints",
+        "game1.player_data"
+      ],
+      "status": "ready",
+      "reason": "Q1 answered: float BestTime if new < current"
+    },
+    {
+      "id": "I002",
+      "title": "Generator deferred props",
+      "one_liner": "Отложить декоративные Parts после SpawnLocation, ускорить join",
+      "type": "mechanic",
+      "cost": "M",
+      "needs": [
+        "game1.generator"
+      ],
+      "status": "proposed",
+      "reason": "Q2: 60s async poll OK"
+    },
+    {
+      "id": "I003",
+      "title": "HUD Best flash on new record",
+      "one_liner": "Короткий tween на Best label при обновлении рекорда",
+      "type": "ui",
+      "cost": "S",
+      "needs": [
+        "game1.hud"
+      ],
+      "status": "proposed",
+      "reason": "polish after Best works"
+    },
+    {
+      "id": "I004",
+      "title": "Fix-panel auto-queue F*",
+      "one_liner": "После smoke N/Другое сразу ставить F* в голову task_queue без ручного TZ",
+      "type": "infra",
+      "cost": "L",
+      "needs": [
+        "forge.ui_control",
+        "forge.fix_hub"
+      ],
+      "status": "infra_backlog",
+      "reason": "milestone decision — L infra"
+    },
+    {
+      "id": "I005",
+      "title": "Sound asset fallback",
+      "one_liner": "Убрать битый rbxassetid://9114224690 или заменить валидным id",
+      "type": "content",
+      "cost": "S",
+      "needs": [
+        "game1.leaderboard_client"
+      ],
+      "status": "proposed",
+      "reason": "Studio Output Asset type mismatch"
+    },
+    {
+      "id": "I006",
+      "title": "Checkpoints regression guard",
+      "one_liner": "Validator unit keeps forbidding CoinsCollected forever",
+      "type": "infra",
+      "cost": "S",
+      "needs": [
+        "forge.validator",
+        "game1.checkpoints"
+      ],
+      "status": "proposed",
+      "reason": "cycle1 close"
+    },
+    {
+      "id": "I007",
+      "title": "BestTime HUD format %.1f",
+      "one_liner": "Show Best as one decimal when >0",
+      "type": "ui",
+      "cost": "S",
+      "needs": [
+        "game1.hud",
+        "game1.player_data"
+      ],
+      "status": "proposed",
+      "reason": "cycle1"
+    },
+    {
+      "id": "I008",
+      "title": "RunStartedAt on first CP",
+      "one_liner": "Start timer attr when Checkpoint becomes >=1",
+      "type": "mechanic",
+      "cost": "S",
+      "needs": [
+        "game1.checkpoints"
+      ],
+      "status": "proposed",
+      "reason": "cycle1"
+    }
+  ]
+}

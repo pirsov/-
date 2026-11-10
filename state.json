@@ -1,0 +1,390 @@
+{
+  "milestone": "game1-horror-coins-stabilize",
+  "inventory_at": "2026-11-10T06:57:00Z",
+  "repo": {
+    "name": "quality-forge-orchestrator",
+    "entry": "run.py",
+    "contract": "docs/FORGE_CONTRACT.md",
+    "tests": "tests/test_orchestrator.py (26 tests)",
+    "ui": "http://127.0.0.1:8787 via python run.py --ui"
+  },
+  "roles_map": {
+    "orchestrator": "forge/deepseek.py + forge/fix_hub.py + forge/prompts.py (DeepSeek cloud)",
+    "code_generator": "forge/orchestrator.py + forge/ollama_client.py + forge/llm.py (Qwen 14b via Ollama)",
+    "repairer": "orchestrator repair attempts 2-3 with qwen2.5-coder:7b-2k",
+    "validator": "forge/validator.py (deterministic; sole closed gate)",
+    "human": "HITL y/n + UI stage 5 smoke + open_questions pack every 5 cycles"
+  },
+  "done": [
+    {
+      "plugin": "forge.task_parser",
+      "status": "done",
+      "tests": [
+        "test_append_mode_detected",
+        "test_rewrite_mode",
+        "test_fix_mode_is_rewrite",
+        "test_week_human_task_parsed",
+        "test_agent_sprint_id_parsed",
+        "test_z_sprint_id_parsed"
+      ],
+      "contract_snapshot": {
+        "name": "forge.task_parser",
+        "purpose": "Parse PROJECT_TZ checkbox lines into Task objects",
+        "exports": [
+          "detect_mode(description) -> WriteMode",
+          "parse_task_line(line) -> Optional[Task]",
+          "find_pending_tasks(tz_text) -> List[Task]"
+        ]
+      }
+    },
+    {
+      "plugin": "forge.validator",
+      "status": "done",
+      "tests": [
+        "test_accept_table_return_remotes",
+        "test_reject_return_folder",
+        "test_reject_stub_checkpoints_and_playerrespawn",
+        "test_reject_checkpoints_setattr_part_and_hit_parent",
+        "test_qa_allows_playerrespawn_disclaimer_not_bug"
+      ],
+      "contract_snapshot": {
+        "name": "forge.validator",
+        "purpose": "Deterministic Luau integrity checks; sole source of closed truth",
+        "exports": [
+          "validate_file(path) -> (ok, errors)",
+          "validate_project_integrity(root) -> (ok, errors)"
+        ]
+      }
+    },
+    {
+      "plugin": "forge.llm_backends",
+      "status": "done",
+      "tests": [
+        "test_clean_key_strips_quotes",
+        "test_auto_spacebunny_when_key_set",
+        "test_explicit_openrouter"
+      ],
+      "contract_snapshot": {
+        "name": "forge.llm / forge.ollama_client",
+        "purpose": "Route generate/ping to Ollama | OpenRouter | Space Bunny",
+        "exports": [
+          "llm.generate(model, prompt) -> str",
+          "llm.ping() -> bool",
+          "llm.backend_name() -> str",
+          "ollama_client.generate(...) -> str",
+          "ollama_client.list_models() -> List[str]"
+        ]
+      }
+    },
+    {
+      "plugin": "forge.orchestrator_core",
+      "status": "done",
+      "tests": [
+        "test_hitl_y_marks_done",
+        "test_hitl_n_stops",
+        "test_parse_file_tags",
+        "test_parse_sprint_done_a1",
+        "test_done_without_file_does_not_complete"
+      ],
+      "contract_snapshot": {
+        "name": "forge.orchestrator",
+        "purpose": "Week loop: pick TZ task → prompt → model → FILE write → validate → repair",
+        "exports": [
+          "Orchestrator.next_task() / invoke_step()",
+          "run_loop(root, max_steps, validate_every, gate_strict) -> int",
+          "quality_score(root) -> (score, notes)",
+          "main(argv) -> int"
+        ]
+      }
+    },
+    {
+      "plugin": "forge.deepseek_planner",
+      "status": "done",
+      "tests": [],
+      "contract_snapshot": {
+        "name": "forge.deepseek",
+        "purpose": "Plan/compress only: skills, TZ, goal improve, smoke Q — never writes Luau",
+        "exports": [
+          "available() -> bool",
+          "chat(prompt, system, ...) -> str",
+          "select_skills(...) -> List[str]",
+          "compress_skill(raw_md) -> str",
+          "generate_project_tz(...) -> str",
+          "improve_goal(goal) -> {goal, skills_hint}",
+          "smoke_questionnaire(...) -> {questions}"
+        ]
+      }
+    },
+    {
+      "plugin": "forge.skills_hub",
+      "status": "done",
+      "tests": [],
+      "contract_snapshot": {
+        "name": "forge.skills_hub",
+        "purpose": "Raw→compact skill catalog, inject into prompts, promote after smoke",
+        "exports": [
+          "list_raw/list_compact",
+          "auto_select_and_compress(goal, root) -> dict",
+          "promote_compact(skill_id, missing_ok=True) -> Optional[Path]",
+          "existing_compact_ids(root, ids) -> List[str]"
+        ]
+      }
+    },
+    {
+      "plugin": "forge.ui_control",
+      "status": "done",
+      "tests": [],
+      "contract_snapshot": {
+        "name": "forge.ui_server + progress/run/projects/fix hubs + ui/*",
+        "purpose": "Stages 1-6 control panel: project→skills→TZ→week→smoke→fix",
+        "exports": [
+          "serve(host, port)",
+          "GET /api/status|/api/progress|/api/health|/api/smoke/latest|/api/fix/issues",
+          "POST /api/activate|/api/skills/auto|/api/tz|/api/goal/improve|/api/run/start|/api/smoke/submit|/api/fix/from-smoke|/api/progress/skip"
+        ]
+      }
+    },
+    {
+      "plugin": "game1.remotes",
+      "status": "done",
+      "tests": [
+        "validator Remotes path rules"
+      ],
+      "contract_snapshot": {
+        "name": "src/shared/Gameplay/Remotes.luau",
+        "purpose": "Whitelist remotes getOrCreate",
+        "exports": [
+          "Checkpoint",
+          "CheckpointReached",
+          "UpdateLeaderboard",
+          "CoinCollected"
+        ]
+      }
+    },
+    {
+      "plugin": "game1.coins",
+      "status": "done",
+      "tests": [
+        "validator coin touch rules"
+      ],
+      "contract_snapshot": {
+        "name": "src/server/Gameplay/Coins.server.luau",
+        "purpose": "Touch coin → Player.Coins + CoinCollected + UpdateLeaderboard",
+        "exports": [
+          "Touched handler on workspace.Coins"
+        ]
+      }
+    },
+    {
+      "plugin": "game1.void",
+      "status": "done",
+      "tests": [],
+      "contract_snapshot": {
+        "name": "src/server/Gameplay/Void.server.luau",
+        "purpose": "Y < -20 → LoadCharacter",
+        "exports": [
+          "heartbeat/void loop"
+        ]
+      }
+    },
+    {
+      "plugin": "game1.puzzles",
+      "status": "done",
+      "tests": [],
+      "contract_snapshot": {
+        "name": "src/server/Gameplay/Puzzles.server.luau",
+        "purpose": "Blue plate opens red gate",
+        "exports": [
+          "PressurePlate touch"
+        ]
+      }
+    },
+    {
+      "plugin": "game1.leaderboard_client",
+      "status": "done",
+      "tests": [],
+      "contract_snapshot": {
+        "name": "src/client/Leaderboard.client.luau",
+        "purpose": "Render UpdateLeaderboard",
+        "exports": [
+          "OnClientEvent UpdateLeaderboard"
+        ]
+      }
+    },
+    {
+      "plugin": "game1.checkpoints",
+      "status": "done",
+      "closed_cycle": 1,
+      "tests": [
+        "validator validate_file PASS"
+      ],
+      "contract_snapshot": {
+        "name": "game1.checkpoints",
+        "purpose": "Checkpoint touch progress on Player; never touches Coins remotes/parts",
+        "exports": [
+          "hookPart(part): Touched -> Player.Checkpoint/Score + CheckpointReached",
+          "teleportToCheckpoint(plr, char)",
+          "RunStartedAt set if nil on progress (BestTime deferred to PlayerData F3)"
+        ],
+        "forbidden": [
+          "Remotes.CoinsCollected",
+          "destroy Coins folder",
+          "character attrs for Checkpoint"
+        ]
+      },
+      "via": "activate game1 snapshot + validator (cloud VM no Ollama; Windows --week if dirty)"
+    },
+    {
+      "plugin": "game1.coins_cycle1_confirm",
+      "status": "done",
+      "closed_cycle": 1,
+      "tests": [
+        "validator validate_file PASS"
+      ],
+      "contract_snapshot": {
+        "name": "game1.coins",
+        "purpose": "Coin touch → Player.Coins + CoinCollected + UpdateLeaderboard",
+        "exports": [
+          "Touched on workspace.Coins parts",
+          "FireClient CoinCollected",
+          "FireAllClients UpdateLeaderboard"
+        ],
+        "forbidden": [
+          "CoinsCollected typo remote",
+          "character attrs"
+        ]
+      },
+      "via": "C1.F2 confirm"
+    }
+  ],
+  "partial": [
+    {
+      "plugin": "game1.player_data",
+      "status": "open",
+      "reason": "BestTime stays math.huge / -- in HUD; smoke q7=n",
+      "contract_target": "BestTime=0 init; update on leave/finish from RunStartedAt; attrs on Player only"
+    },
+    {
+      "plugin": "game1.hud",
+      "status": "open",
+      "reason": "Best -- ; must stay on player:GetAttribute; regression risk if character attrs return",
+      "contract_target": "Time/CP/Coins/Best from player attrs; Best -- only if nil/0"
+    },
+    {
+      "plugin": "game1.generator",
+      "status": "open",
+      "reason": "Smoke other: spawn load ~1 min; must keep Instance.new('SpawnLocation') + lighter map",
+      "contract_target": "Fast join <~10s Studio; real SpawnLocation; Path/Checkpoints/Coins; no Baseplate"
+    }
+  ],
+  "task_queue": [
+    {
+      "id": "C1.F1",
+      "title": "Rewrite Checkpoints — kill CoinsCollected",
+      "needs": [
+        "forge.validator",
+        "game1.remotes"
+      ],
+      "cost": "M",
+      "type": "mechanic",
+      "deps": [],
+      "status": "closed"
+    },
+    {
+      "id": "C1.F2",
+      "title": "Rewrite Coins (confirm whitelist remotes)",
+      "needs": [
+        "game1.remotes"
+      ],
+      "cost": "S",
+      "type": "mechanic",
+      "deps": [],
+      "status": "closed"
+    },
+    {
+      "id": "C1.F3",
+      "title": "PlayerData BestTime + RunStartedAt",
+      "needs": [
+        "game1.checkpoints"
+      ],
+      "cost": "M",
+      "type": "mechanic",
+      "deps": [
+        "C1.F1"
+      ],
+      "status": "ready",
+      "contract_note": "BestTime float; set only if new < current; async leave write"
+    },
+    {
+      "id": "C2.F4",
+      "title": "Generator lighter SpawnLocation map",
+      "needs": [
+        "game1.remotes"
+      ],
+      "cost": "M",
+      "type": "mechanic",
+      "deps": [],
+      "status": "ready"
+    },
+    {
+      "id": "C2.F5",
+      "title": "HUD Best via player attrs",
+      "needs": [
+        "game1.player_data"
+      ],
+      "cost": "S",
+      "type": "ui",
+      "deps": [
+        "C1.F3"
+      ],
+      "status": "blocked"
+    },
+    {
+      "id": "C3.E2E",
+      "title": "Studio smoke re-run + promote; pulse E2E",
+      "needs": [
+        "game1.checkpoints",
+        "game1.hud",
+        "game1.generator"
+      ],
+      "cost": "M",
+      "type": "polish",
+      "deps": [
+        "C1.F1",
+        "C1.F3",
+        "C2.F4",
+        "C2.F5"
+      ],
+      "status": "blocked"
+    }
+  ],
+  "open_questions": [
+    {
+      "id": "Q1",
+      "topic": "BestTime trigger",
+      "status": "answered",
+      "answer": "BestTime float seconds in PlayerData; set_best_time only if new < current (and >0); NOT tied to Last CP alone; write on leave/finish elapsed",
+      "contract": "set_best_time(val: float), get_best_time() -> float"
+    },
+    {
+      "id": "Q2",
+      "topic": "spawn load budget",
+      "status": "answered",
+      "answer": "1 minute OK for spawn check; light async polling; do not block main thread",
+      "budget_s": 60
+    }
+  ],
+  "pulse": {
+    "cycle": 1,
+    "next_e2e_at_cycle": 4,
+    "next_compact_at_cycle": 5,
+    "next_metrics_at_cycle": 8
+  },
+  "cycle1_report": {
+    "at": "2026-11-10T07:02:36.854490+00:00",
+    "F1": "closed — validator PASS after activate; Qwen NOT invoked (Ollama absent on cloud agent VM)",
+    "F2": "closed — validator PASS",
+    "next": "C1.F3 PlayerData BestTime on user Windows via: python -u run.py --week --sleep 0 --max 3",
+    "user_action_required": "On Desktop with Ollama: pull TZ+activate if Checkpoints still has CoinsCollected, then week for F3+"
+  }
+}
