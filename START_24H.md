@@ -84,12 +84,12 @@ JSON чеклиста: `GET /api/checklist`
 
 `POST /api/start_24h` → `run_hub.start_24h`:
 
-- цикл ≤ `max_cycles` (UI по умолчанию 48)
-- `plan_next` → HITL/verify → `waiting_human` + sleep 1с
+- цикл ≤ `max_cycles` (UI по умолчанию 48) — **считаются только рабочие week-бёрсты**
+- `plan_next` → HITL/verify → `waiting_human`: парк ≥5с, **счётчик циклов не крутится**, пока человек не ответит
 - иначе короткий `--week` (`week_max_steps`, default 5)
 - 14B пишет **SEARCH/REPLACE** патчи, если файл уже есть (A15)
 - Validator гоняет **active** rules (R001/R004/R006)
-- пауза `sleep` между циклами
+- пауза `sleep` между рабочими циклами
 
 ## 3. Где логи и статус
 
@@ -153,7 +153,7 @@ python -u run.py --reset-state --project game2
 python -u run.py --reset-state
 ```
 
-Сбрасывает `task_queue`, `pulse.cycle`, UI progress и счётчики 24h (`loop_cycle`/`loop_max`), пишет пустой `PROJECT_TZ.md`. С `--project` не трогает другие `projects/*`.
+Сбрасывает `task_queue`, `pulse.cycle`, UI progress и счётчики 24h (`loop_cycle`/`loop_max`), пишет пустой `PROJECT_TZ.md`. С `--project` не трогает другие `projects/*`. Без `--project` ещё чистит game.* из `done[]` (старый `verify_plugin` больше не всплывает).
 
 **DeepSeek:** без `DEEPSEEK_API_KEY` генерация TZ **не** подставляет старый horror-coins шаблон — будет явная ошибка. Задай ключ и повтори.
 
