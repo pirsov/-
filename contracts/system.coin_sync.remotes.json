@@ -1,0 +1,22 @@
+{
+  "plugin": "system.coin_sync.remotes",
+  "archetype": "network_remote",
+  "skeleton_version": "v1.1",
+  "contract_snapshot": {
+    "name": "system.coin_sync.remotes",
+    "purpose": "Whitelist Remotes including CoinSync",
+    "exports": [
+      "getOrCreate",
+      "RemoteEvent",
+      "CoinSync",
+      "CoinCollected",
+      "DonateRequest",
+      "SaveAck",
+      "CheckpointReached"
+    ],
+    "forbidden": ["DataStoreService", "LocalPlayer", "FireServer", "GetAsync", "SetAsync"],
+    "archetype": "network_remote",
+    "skeleton_version": "v1.1",
+    "files": ["artifacts/a10_2_e2e/Remotes.luau"]
+  }
+}

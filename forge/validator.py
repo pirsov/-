@@ -364,10 +364,13 @@ def validate_file(path: Path, *, root: Optional[Path] = None) -> Tuple[bool, Lis
                     "Checkpoints must not destroy Coins — coin pickup belongs in Coins.server only"
                 )
 
-    # A10.1: DataStore is server-only — hard fail on client LocalScripts
+    # A10.1: DataStore is server-only — hard fail on client LocalScripts (ignore comments)
     rel = str(path).replace("\\", "/")
     if name.endswith(".client.luau") or "/src/client/" in rel:
-        if "DataStoreService" in content or re.search(r":GetDataStore\s*\(", content):
+        code_no_comments = re.sub(r"--[^\n]*", "", content)
+        if "DataStoreService" in code_no_comments or re.search(
+            r":GetDataStore\s*\(", code_no_comments
+        ):
             errors.append("DataStoreService forbidden on client — use server datastore_service archetype")
 
     # A6.3: active JSON rules from knowledge_base.json (HITL-learned)

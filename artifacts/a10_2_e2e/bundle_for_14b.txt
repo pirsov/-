@@ -1,0 +1,24 @@
+=== CONTRACT CARDS (for 14B) ===
+{"id":"forge-luau-touch","exports":["forge_luau_touch()"],"attrs":[],"forbid":["- Destroy the **coin Part**, never `hit` / `hit.Parent` (cha","- Puzzles: Touched open, TouchEnded close — never `.Left`."],"files":[]}
+{"id":"forge-player-attrs","exports":["GetAttribute(\"Coins\")","Destroy()","SetAttribute(\"Coins\", n)"],"attrs":["BestTime","Checkpoint","Coins","Score"],"forbid":["- NEVER `character:GetAttribute(\"Coins\")` — Character attrs ","- NEVER invent `CoinsCollected`.","- LevelConfig: Luau `id = n` only (never JS `id:`)."],"files":[]}
+{"id":"forge-ui-animation","exports":["forge_ui_animation()"],"attrs":[],"forbid":[],"files":[]}
+=== SKELETON network_remote@v1.1 ===
+--!strict
+-- archetype: network_remote@v1.1 — whitelist only; no DataStore/UI
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local folder = ReplicatedStorage:FindFirstChild("Remotes") or Instance.new("Folder")
+folder.Name = "Remotes"
+folder.Parent = ReplicatedStorage
+local function getOrCreate(name: string): RemoteEvent
+	local r = folder:FindFirstChild(name)
+	if not r then
+		r = Instance.new("RemoteEvent")
+		r.Name = name
+		r.Parent = folder
+	end
+	return r :: RemoteEvent
+end
+-- CoinSync = Server→Client coins; DonateRequest = Client→Server; SaveAck = save ok
+local Remotes = {
+	CheckpointReached = getOrCreate("CheckpointReached"),
+	CoinCollected = getOrCreate("CoinCollected"),

@@ -370,6 +370,13 @@
       "status": "closed",
       "type": "infra",
       "closed_at": "2026-11-10T09:00:00+00:00"
+    },
+    {
+      "id": "A10.2",
+      "title": "networking glue CoinSync remotes + client HUD",
+      "status": "closed",
+      "type": "infra",
+      "closed_at": "2026-11-10T09:15:00+00:00"
     }
   ],
   "open_questions": [
@@ -394,8 +401,8 @@
     "next_compact_at_cycle": 5,
     "next_metrics_at_cycle": 8,
     "e2e_at": "2026-11-10T07:13:42.087643+00:00",
-    "status": "a10_1_datastore_pass",
-    "focus": "datastore_service@v1 + player_save E2E",
+    "status": "a10_2_networking_pass",
+    "focus": "network_remote@v1.1 + system.coin_sync",
     "last_compact_cycle": 6,
     "last_compact_at": "2026-11-10T07:28:51.769663+00:00"
   },
@@ -582,5 +589,19 @@
     "bundle_chars": 1215,
     "artifact": "artifacts/a10_e2e/PlayerSave.server.luau",
     "contract": "contracts/system.player_save.json"
+  },
+  "a10_2": {
+    "cycle": "A10.2",
+    "archetype": "network_remote@v1.1",
+    "plugin": "system.coin_sync",
+    "gate_client_datastore_blocked": true,
+    "bundle_chars": 1415,
+    "bundle_has_coinsync": true,
+    "artifacts": [
+      "artifacts/a10_2_e2e/Remotes.luau",
+      "artifacts/a10_2_e2e/CoinSync.server.luau",
+      "artifacts/a10_2_e2e/CoinHUD.client.luau"
+    ],
+    "tests": "73 OK"
   }
 }

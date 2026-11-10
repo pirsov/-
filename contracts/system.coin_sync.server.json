@@ -1,0 +1,14 @@
+{
+  "plugin": "system.coin_sync.server",
+  "archetype": "server_script",
+  "skeleton_version": "v1",
+  "contract_snapshot": {
+    "name": "system.coin_sync.server",
+    "purpose": "Push Coins attr to client via CoinSync:FireClient",
+    "exports": ["FireClient", "CoinSync", "GetAttribute", "SetAttribute", "Players"],
+    "forbidden": ["LocalPlayer", "FireServer", "ScreenGui"],
+    "archetype": "server_script",
+    "skeleton_version": "v1",
+    "files": ["artifacts/a10_2_e2e/CoinSync.server.luau"]
+  }
+}
