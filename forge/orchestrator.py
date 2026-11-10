@@ -26,6 +26,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 from . import llm
+from . import state_hub
 from .prompts import (
     AGENT_MODELS,
     ESCALATION,
@@ -129,7 +130,10 @@ KNOWN_SEEDS = {
 
 
 # Sprint A1/B2/Z3/G10/F1, human H1, week W1.5, legacy P30.1 / P20.20.a
-_DONE_ID = r"((?:[ABHZGFPRT]\d+)|(?:[PW]\d+(?:\.\d+)*(?:\.[a-z])?))"
+# Keep in sync with forge.task_parser._TASK_ID (P20.18, F1a, A1, …).
+# Dotted P/W ids MUST come first: closing </DONE> is optional in the DONE matcher,
+# so a leading [ABHZGFPRT] alt would otherwise capture only "P20" from "P20.20".
+_DONE_ID = r"((?:[PW]\d+(?:\.\d+)*(?:\.[a-z])?)|(?:[ABHZGFRT]\d+[a-z]?))"
 
 
 def parse_agent_output(text: str, expected_id: str) -> Tuple[Optional[str], str, List[FileOp], Optional[str]]:
@@ -488,8 +492,16 @@ def pick_model(owner: str, attempt: int, escalate: bool) -> dict:
 def doctor(root: Path) -> int:
     print("Quality Forge doctor")
     print(f"  root: {root}")
-    be = llm.backend_name()
-    print(f"  backend: {be}")
+    llm.reset_runtime_backend()
+    be, reason = llm.resolve_runtime_backend()
+    print(f"  preferred backend_name(): {llm.backend_name()}")
+    print(f"  runtime backend: {be}")
+    print(f"  resolve reason: {reason}")
+    if be == "stub":
+        print("  STUB mode: week will skip generation and leave tasks [ ] (never closed)")
+        print("  FIX optional: start ollama serve, OR set SPACE_BUNNY_API_KEY / OPENROUTER_API_KEY")
+        print("  Ready (degraded). Run: python run.py --week  # will stub-skip")
+        return 0
     if be in {"spacebunny", "openrouter"}:
         env_name = "SPACE_BUNNY_API_KEY" if be == "spacebunny" else "OPENROUTER_API_KEY"
         raw = os.environ.get(env_name) or ""
@@ -511,10 +523,12 @@ def doctor(root: Path) -> int:
         print("  Ready. Run: python run.py --week")
         return 0
 
-    ok_ping = llm.ping()
+    from . import ollama_client as _ollama
+
+    ok_ping = _ollama.ping()
     print(f"  ollama reachable: {ok_ping}")
     if not ok_ping:
-        print("  FIX: start Ollama, OR set SPACE_BUNNY_API_KEY for Space Bunny backend")
+        print("  (unexpected) runtime said ollama but ping failed — cascade should have stubbed")
         return 1
     installed = installed_models(force=True)
     print(f"  installed models ({len(installed)}):")
@@ -671,6 +685,35 @@ class Orchestrator:
         print(f"[{task.task_id}] -> @{task.owner}  mode={task.mode.value}")
         write_heartbeat(self.root, {"status": "running", "task": task.task_id, "owner": task.owner})
 
+        # A6.1 stub: never generate, never mark TZ/plugin closed
+        be, be_reason = llm.resolve_runtime_backend()
+        if be == "stub" and task.task_id not in self.mock_responses and not self.dry_run:
+            print(f"[STUB] Dry run: пропускаю генерацию кода ({task.task_id})")
+            print(f"   reason: {be_reason}")
+            state_hub.record_task_status(
+                self.root,
+                task.task_id,
+                status="failed",
+                note=f"stub skip — {be_reason}",
+                backend="stub",
+            )
+            add_tz_note(
+                self.root,
+                task.task_id,
+                "STUB",
+                "skipped generation; left [ ] — not closed",
+            )
+            write_heartbeat(
+                self.root,
+                {"status": "stub_skip", "task": task.task_id, "backend": "stub", "closed": False},
+            )
+            return StepResult(
+                ok=False,
+                task_id=task.task_id,
+                reason="stub",
+                note="stub skip — not closed",
+            )
+
         max_attempts = 3
         validator_feedback = None
         repair_draft: Optional[str] = None  # last rejected model body — fix in place, don't restart
@@ -700,6 +743,19 @@ class Orchestrator:
             temp = 0.1 if attempt == 1 else 0.0
             try:
                 out = self._call_model(task, prompt, cfg, attempt, temp)
+            except llm.StubModeError as e:
+                print(f"[STUB] Dry run: пропускаю генерацию кода ({task.task_id})")
+                print(f"   {e}")
+                state_hub.record_task_status(
+                    self.root,
+                    task.task_id,
+                    status="failed",
+                    note=str(e),
+                    backend="stub",
+                )
+                add_tz_note(self.root, task.task_id, "STUB", "skipped; left [ ] — not closed")
+                write_heartbeat(self.root, {"status": "stub_skip", "task": task.task_id, "closed": False})
+                return StepResult(ok=False, task_id=task.task_id, reason="stub", note="stub skip — not closed")
             except llm.AuthError as e:
                 print(f"   AUTH FAIL (no retries): {e}")
                 write_heartbeat(self.root, {"status": "auth_failed", "task": task.task_id})
@@ -940,13 +996,21 @@ def run_loop(
     for i in range(max_steps):
         result = orch.invoke_step()
         if not result.ok:
-            if result.reason in {"no_tasks", "human", "failed", "auth", "retry"}:
+            if result.reason in {"no_tasks", "human", "failed", "auth", "retry", "stub"}:
                 if result.reason == "retry":
                     print("   Stopping so you can fix model/parser and re-run --week (task left pending).")
+                if result.reason == "stub":
+                    print("   Stub backend — task left pending (not closed). Continuing only if more steps+backends.")
                 break
             break
         completed += 1
         if validate_every > 0 and completed % validate_every == 0:
+            # A6.2: every N successful steps, bump pulse + compact state contracts
+            try:
+                state_hub.maybe_compact_after_week_gate(root, completed, every_n=validate_every)
+            except Exception as e:
+                print(f"   [compact] warn: {e}")
+
             ok, errs = validate_project_integrity(root)
             print(f"   [gate] validate after {completed} steps: {'OK' if ok else 'INVALID'}")
             if not ok:
@@ -987,6 +1051,11 @@ def main(argv: Optional[List[str]] = None) -> int:
     parser.add_argument("--validate", action="store_true", help="Validate all src files and exit")
     parser.add_argument("--eval", action="store_true", help="Write docs/AGENT_RUN_REPORT.md assessment and exit")
     parser.add_argument("--doctor", action="store_true", help="Check Ollama + model tags, then exit")
+    parser.add_argument(
+        "--compact-state",
+        action="store_true",
+        help="Compact state.json contract snapshots into contracts/ and exit",
+    )
     parser.add_argument("--ui", action="store_true", help="Open control UI (projects/skills/DeepSeek/smoke)")
     parser.add_argument("--ui-port", type=int, default=8787, help="UI port (default 8787)")
     parser.add_argument("--project", type=str, default=None, help="Activate projects/<id> into live src+TZ")
@@ -1007,6 +1076,11 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     root = Path(args.root).resolve()
     ensure_dirs(root)
+
+    if args.compact_state:
+        report = state_hub.compact_state(root, force=True)
+        print(f"compact_state: {json.dumps(report, ensure_ascii=False)}")
+        return 0
 
     if args.ui:
         from .ui_server import serve
@@ -1076,20 +1150,24 @@ def main(argv: Optional[List[str]] = None) -> int:
         sleep_s = 0.0 if args.sleep is None else float(args.sleep)
         validate_every = 0
 
-    be = llm.backend_name()
+    llm.reset_runtime_backend()
+    be, reason = llm.resolve_runtime_backend()
     print(
         f"Quality Forge | backend={be} | root={root} | max_steps={max_steps} | "
         f"sleep={sleep_s}s | gate_every={validate_every}"
     )
+    print(f"  resolve: {reason}")
     if not args.dry_run:
-        if not llm.ping():
-            print(f"ERROR: backend '{be}' not ready")
-            print("  Ollama: start ollama serve")
-            print("  Space Bunny: set SPACE_BUNNY_API_KEY (https://spacebunnymodel.com/get-jev)")
-            print("  OpenRouter: set OPENROUTER_API_KEY + FORGE_BACKEND=openrouter")
-            return 1
-        installed = installed_models(force=True)
-        print(f"Models: {', '.join(installed) if installed else '(cloud)'}")
+        # A6.1: never hard-exit on Ollama down — stub/cloud continue the pipeline
+        if be == "stub":
+            print("[STUB] No live LLM — tasks will be skipped and left pending (never closed)")
+        elif not llm.ping():
+            print(f"WARN: backend '{be}' ping unexpected fail — continuing with resolve cascade")
+            llm.reset_runtime_backend()
+            be, reason = llm.resolve_runtime_backend()
+            print(f"  re-resolve: {be} ({reason})")
+        installed = installed_models(force=True) if be != "stub" else ["stub"]
+        print(f"Models: {', '.join(installed) if installed else '(none)'}")
 
     hitl_auto: Optional[str] = None
     if args.yes:

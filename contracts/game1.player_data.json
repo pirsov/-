@@ -1,12 +1,6 @@
 {
   "plugin": "game1.player_data",
-  "closed_at": "2026-11-10T07:07:03.415698+00:00",
-  "cycle": 1,
-  "task": "C1.F3",
-  "path": "src/server/Data/PlayerData.server.luau",
-  "validator": "PASS",
-  "repair_attempts": 0,
-  "mode": "cloud_fallback",
+  "compacted_at": "2026-11-10T07:28:51.769097+00:00",
   "contract_snapshot": {
     "name": "game1.player_data",
     "purpose": "Player attrs Score/Checkpoint/Coins/BestTime; BestTime float seconds",

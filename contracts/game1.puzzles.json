@@ -1,0 +1,11 @@
+{
+  "plugin": "game1.puzzles",
+  "compacted_at": "2026-11-10T07:28:51.768800+00:00",
+  "contract_snapshot": {
+    "name": "src/server/Gameplay/Puzzles.server.luau",
+    "purpose": "Blue plate opens red gate",
+    "exports": [
+      "PressurePlate touch"
+    ]
+  }
+}

@@ -27,15 +27,8 @@
         "test_agent_sprint_id_parsed",
         "test_z_sprint_id_parsed"
       ],
-      "contract_snapshot": {
-        "name": "forge.task_parser",
-        "purpose": "Parse PROJECT_TZ checkbox lines into Task objects",
-        "exports": [
-          "detect_mode(description) -> WriteMode",
-          "parse_task_line(line) -> Optional[Task]",
-          "find_pending_tasks(tz_text) -> List[Task]"
-        ]
-      }
+      "contract_ref": "contracts/forge.task_parser.json",
+      "contract_summary": "Parse PROJECT_TZ checkbox lines into Task objects"
     },
     {
       "plugin": "forge.validator",
@@ -47,14 +40,8 @@
         "test_reject_checkpoints_setattr_part_and_hit_parent",
         "test_qa_allows_playerrespawn_disclaimer_not_bug"
       ],
-      "contract_snapshot": {
-        "name": "forge.validator",
-        "purpose": "Deterministic Luau integrity checks; sole source of closed truth",
-        "exports": [
-          "validate_file(path) -> (ok, errors)",
-          "validate_project_integrity(root) -> (ok, errors)"
-        ]
-      }
+      "contract_ref": "contracts/forge.validator.json",
+      "contract_summary": "Deterministic Luau integrity checks; sole source of closed truth"
     },
     {
       "plugin": "forge.llm_backends",
@@ -64,17 +51,8 @@
         "test_auto_spacebunny_when_key_set",
         "test_explicit_openrouter"
       ],
-      "contract_snapshot": {
-        "name": "forge.llm / forge.ollama_client",
-        "purpose": "Route generate/ping to Ollama | OpenRouter | Space Bunny",
-        "exports": [
-          "llm.generate(model, prompt) -> str",
-          "llm.ping() -> bool",
-          "llm.backend_name() -> str",
-          "ollama_client.generate(...) -> str",
-          "ollama_client.list_models() -> List[str]"
-        ]
-      }
+      "contract_ref": "contracts/forge.llm_backends.json",
+      "contract_summary": "Route generate/ping to Ollama | OpenRouter | Space Bunny"
     },
     {
       "plugin": "forge.orchestrator_core",
@@ -86,63 +64,29 @@
         "test_parse_sprint_done_a1",
         "test_done_without_file_does_not_complete"
       ],
-      "contract_snapshot": {
-        "name": "forge.orchestrator",
-        "purpose": "Week loop: pick TZ task → prompt → model → FILE write → validate → repair",
-        "exports": [
-          "Orchestrator.next_task() / invoke_step()",
-          "run_loop(root, max_steps, validate_every, gate_strict) -> int",
-          "quality_score(root) -> (score, notes)",
-          "main(argv) -> int"
-        ]
-      }
+      "contract_ref": "contracts/forge.orchestrator_core.json",
+      "contract_summary": "Week loop: pick TZ task → prompt → model → FILE write → validate → repair"
     },
     {
       "plugin": "forge.deepseek_planner",
       "status": "done",
       "tests": [],
-      "contract_snapshot": {
-        "name": "forge.deepseek",
-        "purpose": "Plan/compress only: skills, TZ, goal improve, smoke Q — never writes Luau",
-        "exports": [
-          "available() -> bool",
-          "chat(prompt, system, ...) -> str",
-          "select_skills(...) -> List[str]",
-          "compress_skill(raw_md) -> str",
-          "generate_project_tz(...) -> str",
-          "improve_goal(goal) -> {goal, skills_hint}",
-          "smoke_questionnaire(...) -> {questions}"
-        ]
-      }
+      "contract_ref": "contracts/forge.deepseek_planner.json",
+      "contract_summary": "Plan/compress only: skills, TZ, goal improve, smoke Q — never writes Luau"
     },
     {
       "plugin": "forge.skills_hub",
       "status": "done",
       "tests": [],
-      "contract_snapshot": {
-        "name": "forge.skills_hub",
-        "purpose": "Raw→compact skill catalog, inject into prompts, promote after smoke",
-        "exports": [
-          "list_raw/list_compact",
-          "auto_select_and_compress(goal, root) -> dict",
-          "promote_compact(skill_id, missing_ok=True) -> Optional[Path]",
-          "existing_compact_ids(root, ids) -> List[str]"
-        ]
-      }
+      "contract_ref": "contracts/forge.skills_hub.json",
+      "contract_summary": "Raw→compact skill catalog, inject into prompts, promote after smoke"
     },
     {
       "plugin": "forge.ui_control",
       "status": "done",
       "tests": [],
-      "contract_snapshot": {
-        "name": "forge.ui_server + progress/run/projects/fix hubs + ui/*",
-        "purpose": "Stages 1-6 control panel: project→skills→TZ→week→smoke→fix",
-        "exports": [
-          "serve(host, port)",
-          "GET /api/status|/api/progress|/api/health|/api/smoke/latest|/api/fix/issues",
-          "POST /api/activate|/api/skills/auto|/api/tz|/api/goal/improve|/api/run/start|/api/smoke/submit|/api/fix/from-smoke|/api/progress/skip"
-        ]
-      }
+      "contract_ref": "contracts/forge.ui_control.json",
+      "contract_summary": "Stages 1-6 control panel: project→skills→TZ→week→smoke→fix"
     },
     {
       "plugin": "game1.remotes",
@@ -150,16 +94,8 @@
       "tests": [
         "validator Remotes path rules"
       ],
-      "contract_snapshot": {
-        "name": "src/shared/Gameplay/Remotes.luau",
-        "purpose": "Whitelist remotes getOrCreate",
-        "exports": [
-          "Checkpoint",
-          "CheckpointReached",
-          "UpdateLeaderboard",
-          "CoinCollected"
-        ]
-      }
+      "contract_ref": "contracts/game1.remotes.json",
+      "contract_summary": "Whitelist remotes getOrCreate"
     },
     {
       "plugin": "game1.coins",
@@ -167,49 +103,29 @@
       "tests": [
         "validator coin touch rules"
       ],
-      "contract_snapshot": {
-        "name": "src/server/Gameplay/Coins.server.luau",
-        "purpose": "Touch coin → Player.Coins + CoinCollected + UpdateLeaderboard",
-        "exports": [
-          "Touched handler on workspace.Coins"
-        ]
-      }
+      "contract_ref": "contracts/game1.coins.json",
+      "contract_summary": "Touch coin → Player.Coins + CoinCollected + UpdateLeaderboard"
     },
     {
       "plugin": "game1.void",
       "status": "done",
       "tests": [],
-      "contract_snapshot": {
-        "name": "src/server/Gameplay/Void.server.luau",
-        "purpose": "Y < -20 → LoadCharacter",
-        "exports": [
-          "heartbeat/void loop"
-        ]
-      }
+      "contract_ref": "contracts/game1.void.json",
+      "contract_summary": "Y < -20 → LoadCharacter"
     },
     {
       "plugin": "game1.puzzles",
       "status": "done",
       "tests": [],
-      "contract_snapshot": {
-        "name": "src/server/Gameplay/Puzzles.server.luau",
-        "purpose": "Blue plate opens red gate",
-        "exports": [
-          "PressurePlate touch"
-        ]
-      }
+      "contract_ref": "contracts/game1.puzzles.json",
+      "contract_summary": "Blue plate opens red gate"
     },
     {
       "plugin": "game1.leaderboard_client",
       "status": "done",
       "tests": [],
-      "contract_snapshot": {
-        "name": "src/client/Leaderboard.client.luau",
-        "purpose": "Render UpdateLeaderboard",
-        "exports": [
-          "OnClientEvent UpdateLeaderboard"
-        ]
-      }
+      "contract_ref": "contracts/game1.leaderboard_client.json",
+      "contract_summary": "Render UpdateLeaderboard"
     },
     {
       "plugin": "game1.checkpoints",
@@ -218,21 +134,9 @@
       "tests": [
         "validator validate_file PASS"
       ],
-      "contract_snapshot": {
-        "name": "game1.checkpoints",
-        "purpose": "Checkpoint touch progress on Player; never touches Coins remotes/parts",
-        "exports": [
-          "hookPart(part): Touched -> Player.Checkpoint/Score + CheckpointReached",
-          "teleportToCheckpoint(plr, char)",
-          "RunStartedAt set if nil on progress (BestTime deferred to PlayerData F3)"
-        ],
-        "forbidden": [
-          "Remotes.CoinsCollected",
-          "destroy Coins folder",
-          "character attrs for Checkpoint"
-        ]
-      },
-      "via": "activate game1 snapshot + validator (cloud VM no Ollama; Windows --week if dirty)"
+      "via": "activate game1 snapshot + validator (cloud VM no Ollama; Windows --week if dirty)",
+      "contract_ref": "contracts/game1.checkpoints.json",
+      "contract_summary": "Checkpoint touch progress on Player; never touches Coins remotes/parts"
     },
     {
       "plugin": "game1.coins_cycle1_confirm",
@@ -241,20 +145,9 @@
       "tests": [
         "validator validate_file PASS"
       ],
-      "contract_snapshot": {
-        "name": "game1.coins",
-        "purpose": "Coin touch → Player.Coins + CoinCollected + UpdateLeaderboard",
-        "exports": [
-          "Touched on workspace.Coins parts",
-          "FireClient CoinCollected",
-          "FireAllClients UpdateLeaderboard"
-        ],
-        "forbidden": [
-          "CoinsCollected typo remote",
-          "character attrs"
-        ]
-      },
-      "via": "C1.F2 confirm"
+      "via": "C1.F2 confirm",
+      "contract_ref": "contracts/game1.coins_cycle1_confirm.json",
+      "contract_summary": "Coin touch → Player.Coins + CoinCollected + UpdateLeaderboard"
     },
     {
       "plugin": "game1.player_data",
@@ -264,22 +157,9 @@
         "validator validate_file PASS",
         "validate_project_integrity PASS"
       ],
-      "contract_snapshot": {
-        "name": "game1.player_data",
-        "purpose": "Player attrs Score/Checkpoint/Coins/BestTime; BestTime float seconds",
-        "exports": [
-          "set_best_time(player, val: float) — only if val>0 and (BestTime==0 or val<BestTime)",
-          "get_best_time(player) -> float",
-          "onPlayerRemoving: elapsed = os.clock()-RunStartedAt then set_best_time",
-          "init BestTime=0 (never math.huge)"
-        ],
-        "forbidden": [
-          "math.huge BestTime init",
-          "character attrs",
-          "blocking DataStore in Studio"
-        ]
-      },
-      "via": "cloud_fallback generator+repairer roles (Cursor); Ollama offline"
+      "via": "cloud_fallback generator+repairer roles (Cursor); Ollama offline",
+      "contract_ref": "contracts/game1.player_data.json",
+      "contract_summary": "Player attrs Score/Checkpoint/Coins/BestTime; BestTime float seconds"
     },
     {
       "plugin": "game1.generator",
@@ -289,21 +169,9 @@
         "validator validate_file PASS",
         "validate_project_integrity PASS"
       ],
-      "contract_snapshot": {
-        "name": "game1.generator",
-        "purpose": "Light map: Path, SpawnLocation class, Checkpoints/Coins folders",
-        "exports": [
-          "Instance.new(\"SpawnLocation\")",
-          "destroy Baseplate",
-          "async spawn poll budget 60s non-blocking",
-          "LevelConfig 3 short sections"
-        ],
-        "forbidden": [
-          "Part renamed \"SpawnLocation\"",
-          "heavy 5-section map"
-        ]
-      },
-      "via": "cloud_fallback generator+repairer roles (Cursor); Ollama offline"
+      "via": "cloud_fallback generator+repairer roles (Cursor); Ollama offline",
+      "contract_ref": "contracts/game1.generator.json",
+      "contract_summary": "Light map: Path, SpawnLocation class, Checkpoints/Coins folders"
     },
     {
       "plugin": "game1.hud",
@@ -313,20 +181,9 @@
         "validator validate_file PASS",
         "validate_project_integrity PASS"
       ],
-      "contract_snapshot": {
-        "name": "game1.hud",
-        "purpose": "Left HUD Time/CP/Coins/Best from player attrs",
-        "exports": [
-          "player:GetAttribute BestTime/Coins/Checkpoint",
-          "Best: -- if nil or <=0; else Best: %.1f",
-          "CheckpointReached + CoinCollected OnClientEvent"
-        ],
-        "forbidden": [
-          "character:GetAttribute",
-          "Best shows 0.0 as record"
-        ]
-      },
-      "via": "cloud_fallback generator+repairer roles (Cursor); Ollama offline"
+      "via": "cloud_fallback generator+repairer roles (Cursor); Ollama offline",
+      "contract_ref": "contracts/game1.hud.json",
+      "contract_summary": "Left HUD Time/CP/Coins/Best from player attrs"
     },
     {
       "plugin": "game1.checkpoints_i011",
@@ -336,21 +193,9 @@
       "tests": [
         "validator PASS"
       ],
-      "contract_snapshot": {
-        "name": "game1.checkpoints",
-        "purpose": "CP progress + finish BestTime + respawn RunStartedAt reset",
-        "exports": [
-          "tryWriteFinishBest on last Checkpoint index only",
-          "set_best_time only if val>0 and better",
-          "CharacterAdded: RunStartedAt=os.clock(); Finished=false",
-          "NEVER CoinsCollected; attrs on Player"
-        ],
-        "answers": {
-          "Q1": "B finish+leave",
-          "Q2": "B reset RunStartedAt on respawn"
-        }
-      },
-      "via": "cloud_fallback"
+      "via": "cloud_fallback",
+      "contract_ref": "contracts/game1.checkpoints_i011.json",
+      "contract_summary": "CP progress + finish BestTime + respawn RunStartedAt reset"
     },
     {
       "plugin": "game1.hud_i012",
@@ -360,19 +205,9 @@
       "tests": [
         "validator PASS"
       ],
-      "contract_snapshot": {
-        "name": "game1.hud",
-        "purpose": "HUD Time resets on death; Best/Coins/CP stable from player attrs",
-        "exports": [
-          "CharacterAdded + RunStartedAt changed → resetRunClock",
-          "Best -- if nil/<=0",
-          "player:GetAttribute only"
-        ],
-        "answers": {
-          "Q2": "B"
-        }
-      },
-      "via": "cloud_fallback"
+      "via": "cloud_fallback",
+      "contract_ref": "contracts/game1.hud_i012.json",
+      "contract_summary": "HUD Time resets on death; Best/Coins/CP stable from player attrs"
     },
     {
       "plugin": "game1.effects",
@@ -382,20 +217,9 @@
       "tests": [
         "validator PASS"
       ],
-      "contract_snapshot": {
-        "name": "game1.effects",
-        "purpose": "Client VFX on CheckpointReached / CoinCollected",
-        "exports": [
-          "pulseCheckpoint(idx): Neon flash + PointLight + ParticleEmitter Emit",
-          "flashHud CheckpointCount",
-          "CheckpointReached OnClientEvent"
-        ],
-        "forbidden": [
-          "character:GetAttribute",
-          "new unverified coin asset (I009 held)"
-        ]
-      },
-      "via": "cloud_fallback"
+      "via": "cloud_fallback",
+      "contract_ref": "contracts/game1.effects.json",
+      "contract_summary": "Client VFX on CheckpointReached / CoinCollected"
     },
     {
       "plugin": "game1.horror_fog",
@@ -405,20 +229,34 @@
       "tests": [
         "validator PASS"
       ],
-      "contract_snapshot": {
-        "name": "game1.horror_fog",
-        "purpose": "Lighting Fog + Atmosphere + ColorCorrection horror preset",
-        "exports": [
-          "FogEnd=90 FogStart=12",
-          "Atmosphere Density/Haze",
-          "ColorCorrection desaturate",
-          "ClockTime near midnight"
-        ],
-        "forbidden": [
-          "extra map prop spam"
-        ]
-      },
-      "via": "cloud_fallback"
+      "via": "cloud_fallback",
+      "contract_ref": "contracts/game1.horror_fog.json",
+      "contract_summary": "Lighting Fog + Atmosphere + ColorCorrection horror preset"
+    },
+    {
+      "plugin": "forge.llm_graceful_degrade",
+      "status": "done",
+      "closed_cycle": 6,
+      "tests": [
+        "test_ollama_down_no_keys_is_stub",
+        "test_ollama_down_falls_to_spacebunny",
+        "test_invoke_step_stub_leaves_tz_open_and_state_failed",
+        "test_generate_stub_raises"
+      ],
+      "contract_ref": "contracts/forge.llm_graceful_degrade.json",
+      "contract_summary": "resolve_runtime_backend cascade; stub never closes plugins",
+      "via": "A6.1"
+    },
+    {
+      "plugin": "forge.state_hub",
+      "status": "done",
+      "closed_cycle": 6,
+      "tests": [
+        "test_compact_moves_snapshots_to_contracts"
+      ],
+      "contract_ref": "contracts/forge.state_hub.json",
+      "contract_summary": "compact_state every 5 cycles; contract_ref in state.json",
+      "via": "A6.2"
     }
   ],
   "partial": [],
@@ -432,8 +270,9 @@
       ],
       "cost": "M",
       "type": "infra",
-      "status": "ready",
-      "idea": "A001"
+      "status": "closed",
+      "idea": "A001",
+      "closed_at": "2026-11-10T07:28:51.795947+00:00"
     },
     {
       "id": "A6.2",
@@ -443,9 +282,10 @@
       ],
       "cost": "M",
       "type": "infra",
-      "status": "ready",
+      "status": "closed",
       "idea": "A002",
-      "deps": []
+      "deps": [],
+      "closed_at": "2026-11-10T07:28:51.795947+00:00"
     }
   ],
   "open_questions": [
@@ -470,8 +310,10 @@
     "next_compact_at_cycle": 5,
     "next_metrics_at_cycle": 8,
     "e2e_at": "2026-11-10T07:13:42.087643+00:00",
-    "status": "agent_core_planning",
-    "focus": "graceful_degradation + state_compaction"
+    "status": "a6_closed",
+    "focus": "graceful_degradation + state_compaction",
+    "last_compact_cycle": 6,
+    "last_compact_at": "2026-11-10T07:28:51.769663+00:00"
   },
   "cycle1_report": {
     "at": "2026-11-10T07:02:36.854490+00:00",
@@ -515,20 +357,19 @@
     "next": "answer Q1-Q2 pack → cycle 4 from ideas + answers"
   },
   "stats_snapshot": {
-    "plugins_closed_done": 21,
-    "partial": 0,
+    "plugins_closed_done": 23,
     "task_queue": {
-      "ready": 2
+      "closed": 2
     },
     "ideas_by_status": {
       "deferred": 5,
       "infra_backlog": 1,
       "proposed": 1,
-      "shipped": 6,
-      "ready": 2
+      "shipped": 8
     },
     "pulse_cycle": 6,
-    "mode": "agent_core"
+    "mode": "agent_core",
+    "tests": 33
   },
   "e2e": {
     "H11": "PASS",
@@ -607,5 +448,17 @@
     "at": "2026-11-10T07:21:39.292096+00:00",
     "status": "awaiting_approval",
     "deliverable": "plan only this turn — no forge code until human confirms"
+  },
+  "compact_report": {
+    "at": "2026-11-10T07:28:51.769665+00:00",
+    "compacted": 21,
+    "every_n": 5
+  },
+  "cycle6_report": {
+    "at": "2026-11-10T07:28:51.795947+00:00",
+    "A6.1": "PASS — resolve_runtime_backend + stub never closed",
+    "A6.2": "PASS — state_hub.compact_state + --compact-state",
+    "tests": "33 OK",
+    "next": "DeepSeek planner redesign when Ollama returns"
   }
 }

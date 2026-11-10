@@ -31,7 +31,8 @@ class Task:
 # Sprint ids (A1, B2, Z3, G10, F1, F1a), human H1, week W1.5, legacy P30.1 / P20.20.a
 # Sprint letters: A/B, F fix, G create, H human, P polish, R repair, T DeepSeek TZ, Z misc; W week legacy
 # Optional letter suffix: F1a / F2b (smoke-fix subtasks)
-_TASK_ID = r"((?:[ABHZGFPRT]\d+[a-z]?)|(?:[PW]\d+(?:\.\d+)*(?:\.[a-z])?))"
+# Dotted P/W (P20.18, W1.5) before sprint letters so P20.18 is not truncated to P20
+_TASK_ID = r"((?:[PW]\d+(?:\.\d+)*(?:\.[a-z])?)|(?:[ABHZGFRT]\d+[a-z]?))"
 # Accept unicode → or ASCII -> for Windows/UTF-8-safe TZ files
 _ARROW = r"(?:→|->)"
 _TASK_RE = re.compile(

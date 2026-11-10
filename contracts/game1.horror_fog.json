@@ -1,12 +1,6 @@
 {
   "plugin": "game1.horror_fog",
-  "idea": "I013",
-  "closed_at": "2026-11-10T07:20:39.221862+00:00",
-  "cycle": 5,
-  "path": "src/server/Atmosphere/HorrorFog.server.luau",
-  "validator": "PASS",
-  "repair_attempts": 0,
-  "mode": "cloud_fallback",
+  "compacted_at": "2026-11-10T07:28:51.769560+00:00",
   "contract_snapshot": {
     "name": "game1.horror_fog",
     "purpose": "Lighting Fog + Atmosphere + ColorCorrection horror preset",

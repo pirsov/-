@@ -1,4 +1,4 @@
-"""Unified LLM backend: Ollama (local) or Space Bunny / OpenAI-compatible HTTP."""
+"""Unified LLM backend: Ollama (local) or Space Bunny / OpenAI-compatible HTTP + stub degrade."""
 from __future__ import annotations
 
 import json
@@ -14,15 +14,27 @@ class AuthError(RuntimeError):
     """API key rejected — do not retry the same key."""
 
 
-def backend_name() -> str:
-    explicit = (os.environ.get("FORGE_BACKEND") or "").strip().lower()
-    if explicit in {"ollama", "spacebunny", "openrouter"}:
-        return explicit
-    if os.environ.get("SPACE_BUNNY_API_KEY") or os.environ.get("OPENROUTER_API_KEY"):
-        if os.environ.get("OPENROUTER_API_KEY") and not os.environ.get("SPACE_BUNNY_API_KEY"):
-            return "openrouter"
-        return "spacebunny"
-    return "ollama"
+class StubModeError(RuntimeError):
+    """No live backend available — generation skipped (never closes plugins)."""
+
+
+# Cached after resolve_runtime_backend(); invalidated on env fingerprint change
+_RESOLVED: Optional[Tuple[str, str]] = None
+_ENV_FP: Optional[Tuple[Optional[str], bool, bool]] = None
+
+
+def reset_runtime_backend() -> None:
+    global _RESOLVED, _ENV_FP
+    _RESOLVED = None
+    _ENV_FP = None
+
+
+def _env_fingerprint() -> Tuple[Optional[str], bool, bool]:
+    return (
+        (os.environ.get("FORGE_BACKEND") or "").strip().lower() or None,
+        bool(_clean_key(os.environ.get("SPACE_BUNNY_API_KEY"))),
+        bool(_clean_key(os.environ.get("OPENROUTER_API_KEY"))),
+    )
 
 
 def _clean_key(raw: Optional[str]) -> str:
@@ -39,6 +51,93 @@ def _mask_key(key: str) -> str:
     if len(key) <= 8:
         return "(too short / empty)"
     return f"{key[:6]}…{key[-4:]} (len={len(key)})"
+
+
+def _spacebunny_key() -> str:
+    return _clean_key(os.environ.get("SPACE_BUNNY_API_KEY"))
+
+
+def _openrouter_key() -> str:
+    return _clean_key(os.environ.get("OPENROUTER_API_KEY"))
+
+
+def backend_name() -> str:
+    """
+    Preferred / configured backend name (legacy).
+    Prefer resolve_runtime_backend()[0] for the *active* runtime after degrade.
+    """
+    explicit = (os.environ.get("FORGE_BACKEND") or "").strip().lower()
+    if explicit in {"ollama", "spacebunny", "openrouter", "stub", "auto"}:
+        if explicit == "auto":
+            return resolve_runtime_backend()[0]
+        return explicit
+    if _spacebunny_key() or _openrouter_key():
+        if _openrouter_key() and not _spacebunny_key():
+            return "openrouter"
+        if _spacebunny_key():
+            return "spacebunny"
+    return "ollama"
+
+
+def resolve_runtime_backend(
+    *,
+    ollama_ping_fn=None,
+    log: bool = True,
+) -> Tuple[str, str]:
+    """
+    Cascade: explicit FORGE_BACKEND → ollama if up → spacebunny key → openrouter key → stub.
+
+    Returns (backend, reason). Logs when falling off Ollama. Never crashes — stub is valid.
+    """
+    global _RESOLVED, _ENV_FP
+    fp = _env_fingerprint()
+    if _RESOLVED is not None and ollama_ping_fn is None and fp == _ENV_FP:
+        return _RESOLVED
+
+    ping_fn = ollama_ping_fn or ollama_client.ping
+    explicit = (os.environ.get("FORGE_BACKEND") or "").strip().lower()
+
+    def _finish(be: str, reason: str) -> Tuple[str, str]:
+        global _RESOLVED, _ENV_FP
+        if log:
+            print(f"[llm] runtime backend={be} ({reason})")
+        _RESOLVED = (be, reason)
+        _ENV_FP = fp
+        return be, reason
+
+    def _cloud_or_stub(why: str) -> Tuple[str, str]:
+        if _spacebunny_key():
+            if log:
+                print("[llm] Ollama недоступна, переключаюсь на spacebunny")
+            return _finish("spacebunny", f"{why} → spacebunny")
+        if _openrouter_key():
+            if log:
+                print("[llm] Ollama недоступна, переключаюсь на openrouter")
+            return _finish("openrouter", f"{why} → openrouter")
+        if log:
+            print("[llm] Ollama недоступна, переключаюсь на заглушку/stub")
+        return _finish("stub", f"{why} → stub (dry skip, never closed)")
+
+    # 1) Explicit usable backends
+    if explicit == "stub":
+        return _finish("stub", "FORGE_BACKEND=stub")
+    if explicit == "spacebunny" and _spacebunny_key():
+        return _finish("spacebunny", "FORGE_BACKEND=spacebunny")
+    if explicit == "openrouter" and _openrouter_key():
+        return _finish("openrouter", "FORGE_BACKEND=openrouter")
+    if explicit in {"spacebunny", "openrouter"} and log:
+        print(f"[llm] FORGE_BACKEND={explicit} but key missing — cascade to ollama/stub")
+
+    # 2) Ollama when reachable
+    if ping_fn():
+        return _finish("ollama", "ollama ping ok")
+
+    # 3–4) Cloud keys, else stub
+    return _cloud_or_stub("Ollama недоступна")
+
+
+def active_backend() -> str:
+    return resolve_runtime_backend(log=False)[0]
 
 
 def _openai_compat_generate(
@@ -130,9 +229,14 @@ def generate(
     num_predict: int = 2048,
     timeout: int = 1800,
 ) -> str:
-    be = backend_name()
+    be, reason = resolve_runtime_backend()
+    if be == "stub":
+        raise StubModeError(
+            f"[STUB] Dry run: пропускаю генерацию кода ({reason}). "
+            "Plugin must NOT be marked closed."
+        )
     if be == "spacebunny":
-        key = _clean_key(os.environ.get("SPACE_BUNNY_API_KEY"))
+        key = _spacebunny_key()
         if not key:
             raise AuthError(
                 "FORGE_BACKEND=spacebunny but SPACE_BUNNY_API_KEY is unset. "
@@ -150,7 +254,7 @@ def generate(
             timeout=timeout,
         )
     if be == "openrouter":
-        key = _clean_key(os.environ.get("OPENROUTER_API_KEY"))
+        key = _openrouter_key()
         if not key:
             raise AuthError("FORGE_BACKEND=openrouter but OPENROUTER_API_KEY is unset.")
         if not key.startswith("sk-or-"):
@@ -179,17 +283,21 @@ def generate(
 
 
 def ping() -> bool:
-    be = backend_name()
+    be = active_backend()
+    if be == "stub":
+        return True  # stub is "ready" — pipeline continues with skips
     if be == "spacebunny":
-        return bool(_clean_key(os.environ.get("SPACE_BUNNY_API_KEY")))
+        return bool(_spacebunny_key())
     if be == "openrouter":
-        return bool(_clean_key(os.environ.get("OPENROUTER_API_KEY")))
+        return bool(_openrouter_key())
     return ollama_client.ping()
 
 
 def auth_probe(timeout: int = 20) -> Tuple[bool, str]:
     """Tiny chat call to verify the cloud key. Returns (ok, message)."""
-    be = backend_name()
+    be, reason = resolve_runtime_backend()
+    if be == "stub":
+        return True, f"stub ready ({reason}) — generation will skip, never closed"
     if be == "ollama":
         return ollama_client.ping(), "ollama ping"
     try:
@@ -203,12 +311,16 @@ def auth_probe(timeout: int = 20) -> Tuple[bool, str]:
         return True, f"ok ({len(out)} chars)"
     except AuthError as e:
         return False, str(e)
+    except StubModeError as e:
+        return True, str(e)
     except Exception as e:
         return False, f"{type(e).__name__}: {e}"
 
 
 def list_models() -> List[str]:
-    be = backend_name()
+    be = active_backend()
+    if be == "stub":
+        return ["stub"]
     if be == "spacebunny":
         return ["space-bunny-alpha"]
     if be == "openrouter":
@@ -217,7 +329,9 @@ def list_models() -> List[str]:
 
 
 def resolve_model(preferred: str, installed: Optional[List[str]] = None, *, allow_any: bool = True) -> Optional[str]:
-    be = backend_name()
+    be = active_backend()
+    if be == "stub":
+        return "stub"
     if be == "spacebunny":
         return "space-bunny-alpha"
     if be == "openrouter":

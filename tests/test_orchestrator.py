@@ -323,7 +323,11 @@ class TestLlmBackend(unittest.TestCase):
             os.environ.pop("FORGE_BACKEND", None)
             os.environ.pop("OPENROUTER_API_KEY", None)
             os.environ["SPACE_BUNNY_API_KEY"] = "sb_live_test"
+            llm.reset_runtime_backend()
             self.assertEqual(llm.backend_name(), "spacebunny")
+            # Ollama down → cascade to spacebunny; resolve_model follows active backend
+            be, _ = llm.resolve_runtime_backend(ollama_ping_fn=lambda: False, log=False)
+            self.assertEqual(be, "spacebunny")
             self.assertEqual(llm.resolve_model("anything"), "space-bunny-alpha")
             self.assertTrue(llm.ping())
         finally:
@@ -332,6 +336,7 @@ class TestLlmBackend(unittest.TestCase):
                     os.environ.pop(k, None)
                 else:
                     os.environ[k] = v
+            llm.reset_runtime_backend()
 
     def test_explicit_openrouter(self):
         import os
@@ -341,7 +346,10 @@ class TestLlmBackend(unittest.TestCase):
         try:
             os.environ["FORGE_BACKEND"] = "openrouter"
             os.environ["OPENROUTER_API_KEY"] = "sk-or-test"
+            llm.reset_runtime_backend()
             self.assertEqual(llm.backend_name(), "openrouter")
+            be, _ = llm.resolve_runtime_backend(ollama_ping_fn=lambda: False, log=False)
+            self.assertEqual(be, "openrouter")
             self.assertEqual(llm.resolve_model("x"), "stealth/space-bunny-alpha")
         finally:
             for k, v in old.items():
@@ -349,6 +357,7 @@ class TestLlmBackend(unittest.TestCase):
                     os.environ.pop(k, None)
                 else:
                     os.environ[k] = v
+            llm.reset_runtime_backend()
 
 
 class TestRemotesValidator(unittest.TestCase):
@@ -436,6 +445,7 @@ class TestValidatorGuards(unittest.TestCase):
                 "return {\n"
                 "  Checkpoint = getOrCreate(\"Checkpoint\"),\n"
                 "  CheckpointReached = getOrCreate(\"CheckpointReached\"),\n"
+                "  CoinCollected = getOrCreate(\"CoinCollected\"),\n"
                 "  UpdateLeaderboard = getOrCreate(\"UpdateLeaderboard\"),\n"
                 "}\n",
                 encoding="utf-8",
@@ -493,6 +503,157 @@ class TestValidatorGuards(unittest.TestCase):
                 "hit.Parent" in joined or "SetAttribute" in joined or "number" in joined,
                 errs,
             )
+
+
+class TestResolveRuntimeBackend(unittest.TestCase):
+    def setUp(self):
+        import os
+        from forge import llm
+
+        self.llm = llm
+        self.os = os
+        self._old = {
+            k: os.environ.get(k)
+            for k in ("FORGE_BACKEND", "SPACE_BUNNY_API_KEY", "OPENROUTER_API_KEY")
+        }
+        llm.reset_runtime_backend()
+
+    def tearDown(self):
+        for k, v in self._old.items():
+            if v is None:
+                self.os.environ.pop(k, None)
+            else:
+                self.os.environ[k] = v
+        self.llm.reset_runtime_backend()
+
+    def test_ollama_up_preferred(self):
+        self.os.environ.pop("FORGE_BACKEND", None)
+        self.os.environ.pop("SPACE_BUNNY_API_KEY", None)
+        self.os.environ.pop("OPENROUTER_API_KEY", None)
+        self.llm.reset_runtime_backend()
+        be, reason = self.llm.resolve_runtime_backend(ollama_ping_fn=lambda: True, log=False)
+        self.assertEqual(be, "ollama")
+        self.assertIn("ping", reason)
+
+    def test_ollama_down_falls_to_spacebunny(self):
+        self.os.environ.pop("FORGE_BACKEND", None)
+        self.os.environ["SPACE_BUNNY_API_KEY"] = "sb_live_test"
+        self.os.environ.pop("OPENROUTER_API_KEY", None)
+        self.llm.reset_runtime_backend()
+        be, reason = self.llm.resolve_runtime_backend(ollama_ping_fn=lambda: False, log=False)
+        self.assertEqual(be, "spacebunny")
+        self.assertIn("spacebunny", reason)
+
+    def test_ollama_down_no_keys_is_stub(self):
+        self.os.environ.pop("FORGE_BACKEND", None)
+        self.os.environ.pop("SPACE_BUNNY_API_KEY", None)
+        self.os.environ.pop("OPENROUTER_API_KEY", None)
+        self.llm.reset_runtime_backend()
+        be, reason = self.llm.resolve_runtime_backend(ollama_ping_fn=lambda: False, log=False)
+        self.assertEqual(be, "stub")
+        self.assertIn("stub", reason.lower())
+
+    def test_explicit_stub(self):
+        self.os.environ["FORGE_BACKEND"] = "stub"
+        self.llm.reset_runtime_backend()
+        be, _ = self.llm.resolve_runtime_backend(ollama_ping_fn=lambda: True, log=False)
+        self.assertEqual(be, "stub")
+
+    def test_generate_stub_raises(self):
+        self.os.environ["FORGE_BACKEND"] = "stub"
+        self.llm.reset_runtime_backend()
+        with self.assertRaises(self.llm.StubModeError) as ctx:
+            self.llm.generate("stub", "hello")
+        self.assertIn("STUB", str(ctx.exception))
+        self.assertIn("not", str(ctx.exception).lower())
+
+
+class TestStubNeverCloses(unittest.TestCase):
+    def test_invoke_step_stub_leaves_tz_open_and_state_failed(self):
+        import json
+        import os
+        from forge import llm
+        from forge.state_hub import load_state
+
+        old = {k: os.environ.get(k) for k in ("FORGE_BACKEND", "SPACE_BUNNY_API_KEY", "OPENROUTER_API_KEY")}
+        try:
+            os.environ["FORGE_BACKEND"] = "stub"
+            os.environ.pop("SPACE_BUNNY_API_KEY", None)
+            os.environ.pop("OPENROUTER_API_KEY", None)
+            llm.reset_runtime_backend()
+
+            with tempfile.TemporaryDirectory() as td:
+                root = Path(td)
+                (root / "logs").mkdir()
+                (root / ".forge" / "state").mkdir(parents=True)
+                (root / "PROJECT_TZ.md").write_text(
+                    "- [ ] A61 | REWRITE stub target | @gameplay_programmer | -> src/server/X.server.luau\n",
+                    encoding="utf-8",
+                )
+                (root / "state.json").write_text(
+                    json.dumps({"pulse": {"cycle": 1}, "done": [], "task_queue": []}),
+                    encoding="utf-8",
+                )
+                orch = Orchestrator(root)
+                result = orch.invoke_step()
+                self.assertFalse(result.ok)
+                self.assertEqual(result.reason, "stub")
+                tz = (root / "PROJECT_TZ.md").read_text(encoding="utf-8")
+                self.assertIn("- [ ] A61", tz)
+                self.assertNotIn("- [x] A61", tz)
+                st = load_state(root)
+                entry = next(t for t in st["task_queue"] if t["id"] == "A61")
+                self.assertEqual(entry["status"], "failed")
+                self.assertNotEqual(entry.get("status"), "closed")
+                self.assertFalse(entry.get("closed", False))
+                self.assertEqual(entry.get("backend"), "stub")
+        finally:
+            for k, v in old.items():
+                if v is None:
+                    os.environ.pop(k, None)
+                else:
+                    os.environ[k] = v
+            llm.reset_runtime_backend()
+
+
+class TestStateCompaction(unittest.TestCase):
+    def test_compact_moves_snapshots_to_contracts(self):
+        import json
+        from forge.state_hub import compact_state, load_state
+
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            fat = {
+                "name": "forge.demo",
+                "purpose": "demo purpose line for compaction",
+                "exports": ["a", "b", "c"] * 20,
+            }
+            state = {
+                "pulse": {"cycle": 5},
+                "done": [
+                    {
+                        "plugin": "forge.demo",
+                        "status": "done",
+                        "closed_cycle": 1,
+                        "contract_snapshot": fat,
+                    }
+                ],
+                "task_queue": [],
+            }
+            (root / "state.json").write_text(json.dumps(state), encoding="utf-8")
+            before = len((root / "state.json").read_text(encoding="utf-8"))
+            report = compact_state(root, force=True, keep_recent_cycles=0)
+            self.assertTrue(report["ran"])
+            self.assertEqual(report["compacted"], 1)
+            after_state = load_state(root)
+            entry = after_state["done"][0]
+            self.assertNotIn("contract_snapshot", entry)
+            self.assertTrue(str(entry.get("contract_ref", "")).startswith("contracts/"))
+            ref = root / entry["contract_ref"]
+            self.assertTrue(ref.is_file())
+            after = len((root / "state.json").read_text(encoding="utf-8"))
+            self.assertLess(after, before)
+            self.assertIn("demo purpose", entry.get("contract_summary", ""))
 
 
 if __name__ == "__main__":

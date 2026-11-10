@@ -1,0 +1,15 @@
+{
+  "plugin": "forge.llm_backends",
+  "compacted_at": "2026-11-10T07:28:51.768062+00:00",
+  "contract_snapshot": {
+    "name": "forge.llm / forge.ollama_client",
+    "purpose": "Route generate/ping to Ollama | OpenRouter | Space Bunny",
+    "exports": [
+      "llm.generate(model, prompt) -> str",
+      "llm.ping() -> bool",
+      "llm.backend_name() -> str",
+      "ollama_client.generate(...) -> str",
+      "ollama_client.list_models() -> List[str]"
+    ]
+  }
+}

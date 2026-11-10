@@ -1,12 +1,6 @@
 {
   "plugin": "game1.hud",
-  "closed_at": "2026-11-10T07:07:03.415698+00:00",
-  "cycle": 2,
-  "task": "C2.F5",
-  "path": "src/client/HUD.client.luau",
-  "validator": "PASS",
-  "repair_attempts": 0,
-  "mode": "cloud_fallback",
+  "compacted_at": "2026-11-10T07:28:51.769279+00:00",
   "contract_snapshot": {
     "name": "game1.hud",
     "purpose": "Left HUD Time/CP/Coins/Best from player attrs",

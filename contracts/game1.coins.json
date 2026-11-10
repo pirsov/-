@@ -1,21 +1,11 @@
 {
   "plugin": "game1.coins",
-  "closed_at": "2026-11-10T07:02:00Z",
-  "cycle": 1,
-  "task": "C1.F2",
-  "path": "src/server/Gameplay/Coins.server.luau",
-  "validator": "PASS",
+  "compacted_at": "2026-11-10T07:28:51.768560+00:00",
   "contract_snapshot": {
-    "name": "game1.coins",
-    "purpose": "Coin touch → Player.Coins + CoinCollected + UpdateLeaderboard",
+    "name": "src/server/Gameplay/Coins.server.luau",
+    "purpose": "Touch coin → Player.Coins + CoinCollected + UpdateLeaderboard",
     "exports": [
-      "Touched on workspace.Coins parts",
-      "FireClient CoinCollected",
-      "FireAllClients UpdateLeaderboard"
-    ],
-    "forbidden": [
-      "CoinsCollected typo remote",
-      "character attrs"
+      "Touched handler on workspace.Coins"
     ]
   }
 }

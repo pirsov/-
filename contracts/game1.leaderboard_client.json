@@ -1,0 +1,11 @@
+{
+  "plugin": "game1.leaderboard_client",
+  "compacted_at": "2026-11-10T07:28:51.768856+00:00",
+  "contract_snapshot": {
+    "name": "src/client/Leaderboard.client.luau",
+    "purpose": "Render UpdateLeaderboard",
+    "exports": [
+      "OnClientEvent UpdateLeaderboard"
+    ]
+  }
+}

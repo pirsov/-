@@ -179,8 +179,8 @@
         "forge.llm_backends",
         "forge.orchestrator_core"
       ],
-      "status": "ready",
-      "reason": "cloud agent hit Ollama-down hard fail"
+      "status": "shipped",
+      "reason": "A6.1/A6.2 implemented + tests OK"
     },
     {
       "id": "A002",
@@ -191,8 +191,8 @@
       "needs": [
         "forge.orchestrator_core"
       ],
-      "status": "ready",
-      "reason": "context budget for pulse/planner"
+      "status": "shipped",
+      "reason": "A6.1/A6.2 implemented + tests OK"
     }
   ],
   "pulse": {

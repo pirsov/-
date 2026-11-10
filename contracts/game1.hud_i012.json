@@ -1,0 +1,16 @@
+{
+  "plugin": "game1.hud_i012",
+  "compacted_at": "2026-11-10T07:28:51.769415+00:00",
+  "contract_snapshot": {
+    "name": "game1.hud",
+    "purpose": "HUD Time resets on death; Best/Coins/CP stable from player attrs",
+    "exports": [
+      "CharacterAdded + RunStartedAt changed → resetRunClock",
+      "Best -- if nil/<=0",
+      "player:GetAttribute only"
+    ],
+    "answers": {
+      "Q2": "B"
+    }
+  }
+}

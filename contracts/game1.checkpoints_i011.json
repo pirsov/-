@@ -1,0 +1,18 @@
+{
+  "plugin": "game1.checkpoints_i011",
+  "compacted_at": "2026-11-10T07:28:51.769354+00:00",
+  "contract_snapshot": {
+    "name": "game1.checkpoints",
+    "purpose": "CP progress + finish BestTime + respawn RunStartedAt reset",
+    "exports": [
+      "tryWriteFinishBest on last Checkpoint index only",
+      "set_best_time only if val>0 and better",
+      "CharacterAdded: RunStartedAt=os.clock(); Finished=false",
+      "NEVER CoinsCollected; attrs on Player"
+    ],
+    "answers": {
+      "Q1": "B finish+leave",
+      "Q2": "B reset RunStartedAt on respawn"
+    }
+  }
+}
