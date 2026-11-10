@@ -1,0 +1,13 @@
+{
+  "id": "client_script",
+  "version": "v1",
+  "required": ["LocalPlayer"],
+  "required_any": [["Players", "GetService", "SoundService", "Workspace"]],
+  "forbid": ["DataStoreService", "GetDataStore", "GetAsync", "SetAsync"],
+  "forbid_regex": [
+    "(?m)^return\\s"
+  ],
+  "prompt_budget_chars": 500,
+  "default_path_glob": "src/client/**/*.client.luau",
+  "path_hints": [".client.luau", "src/client/", "Effects", "Camera", "Sound"]
+}

@@ -109,11 +109,60 @@ def load_skeleton_text(
     return text[:budget]
 
 
+# A23.0: non-UI LocalScripts (sounds/camera/VFX) vs UI LocalScripts (HUD/menu).
+_CLIENT_SCRIPT_TOKENS = (
+    "effect",
+    "effects",
+    "sound",
+    "sounds",
+    "sfx",
+    "vfx",
+    "camera",
+    "cam",
+    "ambience",
+    "ambient",
+)
+_CLIENT_UI_TOKENS = (
+    "hud",
+    "menu",
+    "button",
+    "buttons",
+    "ui",
+    "gui",
+    "leaderboard",
+    "shop",
+    "donation",
+    "panel",
+    "frame",
+)
+
+
+def client_archetype_from_name(name: str) -> str:
+    """
+    A23.0: route *.client.luau by filename tokens.
+    sound/camera/effects → client_script; buttons/menu/HUD/UI → client_ui.
+    Default client_ui (preserves prior A18.1 behaviour for unlabeled clients).
+    """
+    lower = name.lower()
+    # Strip extension for token scan
+    stem = lower
+    for suf in (".client.luau", ".luau"):
+        if stem.endswith(suf):
+            stem = stem[: -len(suf)]
+            break
+    # Prefer UI when both match (e.g. SoundMenu.client.luau)
+    if any(tok in stem for tok in _CLIENT_UI_TOKENS):
+        return "client_ui"
+    if any(tok in stem for tok in _CLIENT_SCRIPT_TOKENS):
+        return "client_script"
+    return "client_ui"
+
+
 def hard_archetype_from_path(path: Path) -> Optional[str]:
     """
-    A18.1: HARD-map Roblox Script filenames to Script skeletons.
+    A18.1/A23.0: HARD-map Roblox Script filenames to Script skeletons.
     *.server.luau → server_script (or datastore_service by name token).
-    *.client.luau → client_ui.
+    *.client.luau → client_script (effects/camera/sound) or client_ui (HUD/menu/UI).
     Never shared_data / ModuleScript for these extensions.
     """
     name = path.name
@@ -123,7 +172,7 @@ def hard_archetype_from_path(path: Path) -> Optional[str]:
             return "datastore_service"
         return "server_script"
     if name.endswith(".client.luau"):
-        return "client_ui"
+        return client_archetype_from_name(name)
     return None
 
 
@@ -136,7 +185,7 @@ def infer_archetype_from_path(path: Path) -> Optional[str]:
     if hard:
         return hard
     if "/src/client/" in s:
-        return "client_ui"
+        return client_archetype_from_name(name)
     # Persist/save scripts before generic server_script (which forbids DataStore).
     lower = name.lower()
     if any(token in lower for token in ("playersave", "datastore")):
@@ -226,7 +275,7 @@ def find_contract_pin(root: Path, path: Path) -> Tuple[Optional[str], Optional[s
 
 # Script-compatible archetypes (never ModuleScript shared_data for *.server/*.client)
 _SERVER_OK = frozenset({"server_script", "datastore_service"})
-_CLIENT_OK = frozenset({"client_ui"})
+_CLIENT_OK = frozenset({"client_ui", "client_script"})
 
 
 def resolve_archetype_for_path(
@@ -237,8 +286,9 @@ def resolve_archetype_for_path(
     version: Optional[str] = None,
 ) -> Tuple[Optional[str], Optional[str]]:
     """
-    Resolve skeleton archetype with A18.1 extension HARD-map.
-    *.server.luau NEVER validates as shared_data; *.client.luau → client_ui.
+    Resolve skeleton archetype with A18.1/A23.0 extension HARD-map.
+    *.server.luau NEVER validates as shared_data.
+    *.client.luau → client_script (effects/camera/sound) or client_ui (HUD/menu/UI).
     Explicit datastore_service pins (DonationShop / PlayerSave) still win.
     """
     pinned_a, pinned_v = find_contract_pin(root, path)
@@ -261,9 +311,17 @@ def resolve_archetype_for_path(
         )
 
     if name.endswith(".client.luau"):
+        # Explicit compatible override (tests / callers)
         if archetype in _CLIENT_OK:
-            return str(archetype), version or pinned_v
-        return "client_ui", version or (pinned_v if pinned_a in _CLIENT_OK else None)
+            return str(archetype), version or (
+                pinned_v if pinned_a == archetype else None
+            )
+        # A23.0: path HARD-map wins over stale client_ui pins on Effects/camera
+        if hard in _CLIENT_OK:
+            return hard, version or (pinned_v if pinned_a == hard else None)
+        if pinned_a in _CLIENT_OK:
+            return pinned_a, version or pinned_v
+        return "client_ui", None
 
     arch = archetype or pinned_a or infer_archetype_from_path(path)
     ver = version or pinned_v
@@ -299,7 +357,10 @@ def is_skeleton_routing_failure(path: Path, errors: List[str]) -> bool:
             return True
         if hard == "datastore_service" and labeled not in _SERVER_OK:
             return True
-        if hard == "client_ui" and labeled not in _CLIENT_OK:
+        if hard in _CLIENT_OK and labeled not in _CLIENT_OK:
+            return True
+        # Wrong client sub-archetype (e.g. client_ui ScreenGui rules on Effects)
+        if hard in _CLIENT_OK and labeled in _CLIENT_OK and labeled != hard:
             return True
     return False
 
@@ -355,8 +416,9 @@ def validate_against_skeleton(
     version: Optional[str] = None,
 ) -> List[str]:
     """
-    Pin-by-contract + A18.1 extension HARD-map.
-    *.server.luau → server_script (never shared_data); *.client.luau → client_ui.
+    Pin-by-contract + A18.1/A23.0 extension HARD-map.
+    *.server.luau → server_script (never shared_data).
+    *.client.luau → client_script (effects/camera/sound) or client_ui (HUD/menu/UI).
     """
     arch, ver = resolve_archetype_for_path(
         path, root, archetype=archetype, version=version

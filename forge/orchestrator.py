@@ -967,6 +967,8 @@ class Orchestrator:
                 repair_errs = repair_errors_for_7b(err_msgs)
                 checklist = format_validator_checklist(err_msgs, first_only=True)
                 validator_feedback = (
+                    f"START YOUR REPLY WITH <DONE>{task.task_id}</DONE>. "
+                    "DO NOT FORGET THE XML TAGS.\n"
                     "REPAIR your previous draft (do not start over).\n"
                     + checklist
                     + "\nKeep the rest of the file identical."
