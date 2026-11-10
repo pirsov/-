@@ -230,17 +230,35 @@ EMPTY_TZ_TEMPLATE = """# LAST_UPDATE: {project_id} fresh start
 """
 
 
-def fresh_runtime_state(existing: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-    """Empty runtime overlay: cleared queue/pulse/HITL, keep forge inventory when present."""
+def _is_forge_done_entry(entry: Any) -> bool:
+    if not isinstance(entry, dict):
+        return False
+    plugin = str(entry.get("plugin") or "")
+    return plugin.startswith("forge.") or plugin in {"forge", "system"}
+
+
+def fresh_runtime_state(
+    existing: Optional[Dict[str, Any]] = None,
+    *,
+    keep_all_done: bool = False,
+) -> Dict[str, Any]:
+    """Empty runtime overlay: cleared queue/pulse/HITL.
+
+    By default (bare --reset-state) only forge.* done rows are kept so
+    leftover game1.* verify_plugin prompts cannot reappear. Pass
+    keep_all_done=True when a later project filter will trim done[].
+    """
     keep: Dict[str, Any] = {}
     if isinstance(existing, dict):
         for key in ("milestone", "inventory_at", "repo", "roles_map", "knowledge_ref"):
             if key in existing:
                 keep[key] = existing[key]
-        # Preserve forge/system plugin inventory; drop game-scoped done rows when filtered later.
         done = existing.get("done")
         if isinstance(done, list):
-            keep["done"] = list(done)
+            if keep_all_done:
+                keep["done"] = list(done)
+            else:
+                keep["done"] = [e for e in done if _is_forge_done_entry(e)]
     keep.update(
         {
             "pulse": {"cycle": 0, "status": "idle"},
@@ -249,9 +267,17 @@ def fresh_runtime_state(existing: Optional[Dict[str, Any]] = None) -> Dict[str, 
             "open_questions": [],
         }
     )
-    keep.pop("pending_hitl_pack", None)
-    keep.pop("last_chat", None)
-    keep.pop("compact_report", None)
+    # HITL / verify leftovers that would immediately re-park the 24h loop
+    for key in (
+        "pending_hitl_pack",
+        "last_chat",
+        "compact_report",
+        "verify_plugin",
+        "pending_verify_plugin",
+        "waiting_human",
+        "hitl_pack",
+    ):
+        keep.pop(key, None)
     return keep
 
 
@@ -377,10 +403,12 @@ def reset_state(root: Path, *, project_id: Optional[str] = None) -> Dict[str, An
     Clear task queue, reset pulse/cycles, and prepare a fresh empty runtime
     suitable for a new game. When project_id is set, only that project's TZ/meta
     are rewritten; other projects under projects/ are left untouched.
+    Bare --reset-state also drops game.* done rows (verify_plugin leftovers).
     """
     existing = load_state(root)
-    data = fresh_runtime_state(existing)
     if project_id:
+        # Keep sibling projects' done[]; filter this project after.
+        data = fresh_runtime_state(existing, keep_all_done=True)
         data["done"] = _filter_done_for_project(list(data.get("done") or []), project_id)
         ensure_project_scaffold(root, project_id)
         write_empty_project_tz(root, project_id)
@@ -392,7 +420,8 @@ def reset_state(root: Path, *, project_id: Optional[str] = None) -> Dict[str, An
         if smoke_latest.is_file():
             smoke_latest.unlink()
     else:
-        # Workspace-only reset: empty live TZ so week does not resume old checkboxes
+        # Full workspace wipe of game verify leftovers; keep forge.* inventory only
+        data = fresh_runtime_state(existing, keep_all_done=False)
         (root / "PROJECT_TZ.md").write_text(
             EMPTY_TZ_TEMPLATE.format(project_id="(none)"),
             encoding="utf-8",
@@ -412,5 +441,6 @@ def reset_state(root: Path, *, project_id: Optional[str] = None) -> Dict[str, An
         "loop_max": run_st.get("loop_max"),
         "run_status": run_st.get("status"),
         "tz": "empty",
+        "cleared_verify": project_id is None,
     }
     return report

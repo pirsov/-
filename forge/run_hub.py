@@ -137,60 +137,78 @@ def start_24h(
     stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
     log_path = run_dir / f"loop24-{stamp}.log"
 
+    def _park_waiting(logf, *, reason: str = "waiting_human") -> None:
+        """Block until human answers / stop — does NOT advance cycle."""
+        park_s = max(5.0, float(sleep) or 5.0)
+        logf.write(f"{reason} — parked (cycle paused, wake every {park_s:.0f}s)\n")
+        logf.flush()
+        # slice sleeps so stop_event + answer are responsive
+        slice_s = 1.0
+        slices = max(1, int(park_s / slice_s))
+        while not _stop_event.is_set():
+            if status().get("status") != "waiting_human":
+                return
+            for _ in range(slices):
+                if _stop_event.is_set():
+                    return
+                if status().get("status") != "waiting_human":
+                    return
+                time.sleep(slice_s)
+
     def _loop() -> None:
         cycle = 0
         with log_path.open("w", encoding="utf-8") as logf:
             logf.write(f"# 24h loop start {stamp} max_cycles={max_cycles}\n")
             logf.flush()
             while not _stop_event.is_set() and cycle < max_cycles:
-                cycle += 1
-                with _lock:
-                    _state.update(
-                        {
-                            "status": "looping",
-                            "mode": "loop_24h",
-                            "loop_cycle": cycle,
-                            "loop_max": max_cycles,
-                            "log_path": str(log_path),
-                            "started_at": _state.get("started_at")
-                            or datetime.now(timezone.utc).isoformat(),
-                        }
-                    )
-                logf.write(f"\n## cycle {cycle}/{max_cycles}\n")
-                logf.flush()
                 try:
                     from . import planner as planner_hub
 
-                    # If human must answer — park without subprocess
+                    # Never overwrite waiting_human → looping (that burned 48 cycles in ~1s)
                     st = status()
                     if st.get("status") == "waiting_human":
-                        logf.write("waiting_human — parked (no CPU)\n")
-                        logf.flush()
-                        # sleep in slices so stop_event is responsive
-                        for _ in range(max(1, int(sleep))):
-                            if _stop_event.is_set():
-                                break
-                            if status().get("status") != "waiting_human":
-                                break
-                            time.sleep(1)
+                        _park_waiting(logf)
                         continue
 
+                    with _lock:
+                        if _state.get("status") != "waiting_human":
+                            _state.update(
+                                {
+                                    "status": "looping",
+                                    "mode": "loop_24h",
+                                    "loop_cycle": cycle,
+                                    "loop_max": max_cycles,
+                                    "log_path": str(log_path),
+                                    "started_at": _state.get("started_at")
+                                    or datetime.now(timezone.utc).isoformat(),
+                                }
+                            )
+
                     plan = planner_hub.plan_next(root)
-                    logf.write(f"plan_next action={plan.get('action')}\n")
+                    logf.write(
+                        f"plan_next action={plan.get('action')} "
+                        f"(work_cycle={cycle}/{max_cycles})\n"
+                    )
                     logf.flush()
                     if plan.get("action") in {"ask_hitl", "verify_plugin"}:
                         set_waiting_human(
                             reason=str(plan.get("action")),
                             detail={k: plan.get(k) for k in ("plugin", "hint") if plan.get(k)},
                         )
-                        logf.write("→ waiting_human\n")
-                        logf.flush()
+                        # Park here without incrementing cycle — human answer resumes same budget
+                        _park_waiting(logf, reason=f"→ waiting_human ({plan.get('action')})")
                         continue
 
-                    # Short week burst
+                    # Count only productive work cycles (week bursts)
+                    cycle += 1
                     with _lock:
                         if _state.get("status") == "waiting_human":
+                            cycle = max(0, cycle - 1)
                             continue
+                        _state["loop_cycle"] = cycle
+                    logf.write(f"\n## cycle {cycle}/{max_cycles}\n")
+                    logf.flush()
+
                     burst = start_week(root, sleep=0.0, hitl="y", max_steps=week_max_steps)
                     logf.write(f"week burst: {json.dumps({k: burst.get(k) for k in ('ok','status','pid')})}\n")
                     logf.flush()
@@ -198,7 +216,8 @@ def start_24h(
                     while status().get("status") == "running" and not _stop_event.is_set():
                         time.sleep(1.0)
                     # pacing between cycles
-                    for _ in range(max(1, int(sleep))):
+                    pace = max(1, int(float(sleep) or 0) or 1)
+                    for _ in range(pace):
                         if _stop_event.is_set():
                             break
                         if status().get("status") == "waiting_human":

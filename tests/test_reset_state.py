@@ -151,6 +151,29 @@ class TestResetState(unittest.TestCase):
             self.assertEqual(st["pulse"]["cycle"], 0)
             self.assertTrue((root / "projects" / "game2" / "meta.json").is_file())
 
+    def test_bare_reset_clears_verify_plugin_leftovers(self):
+        """python -u run.py --reset-state must wipe game done[] that re-triggers verify."""
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            _seed_stuck_root(root)
+            report = state_hub.reset_state(root, project_id=None)
+            self.assertTrue(report["ok"])
+            self.assertTrue(report.get("cleared_verify"))
+            st = state_hub.load_state(root)
+            self.assertEqual(st["task_queue"], [])
+            self.assertEqual(st.get("partial"), [])
+            self.assertNotIn("pending_hitl_pack", st)
+            plugins = {d.get("plugin") for d in st.get("done") or []}
+            self.assertIn("forge.validator", plugins)
+            self.assertNotIn("game1.coins", plugins)
+            self.assertNotIn("game2.hud", plugins)
+            # planner must not immediately ask verify_plugin on leftover game1.coins
+            from forge import planner
+
+            with patch("forge.deepseek.ask_hitl_pack", return_value={"questions": []}):
+                plan = planner.plan_next(root)
+            self.assertNotEqual(plan.get("action"), "verify_plugin", plan)
+
 
 class TestDeepSeekMissingKey(unittest.TestCase):
     def test_generate_project_tz_raises_without_key(self):
