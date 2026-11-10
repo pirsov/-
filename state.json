@@ -273,6 +273,20 @@
       "contract_ref": "contracts/forge.feedback.json",
       "contract_summary": "HITL y/n → golden / JSON validator rules",
       "via": "A6.3"
+    },
+    {
+      "plugin": "forge.planner",
+      "status": "done",
+      "closed_cycle": 7,
+      "tests": [
+        "test_hitl_pack_requires_abc_and_other",
+        "test_skill_card_max_350_chars",
+        "test_unknown_proposed_call_blocked",
+        "test_bundle_cards_fit_budget",
+        "test_gate_and_plan_blocks_enqueue"
+      ],
+      "contract_summary": "planner schema + contract_index gate + HITL pack CLI",
+      "via": "A7.1"
     }
   ],
   "partial": [],
@@ -309,6 +323,13 @@
       "status": "closed",
       "type": "infra",
       "closed_at": "2026-11-10T07:34:44.436825+00:00"
+    },
+    {
+      "id": "A7.1",
+      "title": "DeepSeek planner redesign",
+      "status": "closed",
+      "type": "infra",
+      "closed_at": "2026-11-10T07:43:58.568613+00:00"
     }
   ],
   "open_questions": [
@@ -328,12 +349,12 @@
     }
   ],
   "pulse": {
-    "cycle": 6,
+    "cycle": 7,
     "next_e2e_at_cycle": 4,
     "next_compact_at_cycle": 5,
     "next_metrics_at_cycle": 8,
     "e2e_at": "2026-11-10T07:13:42.087643+00:00",
-    "status": "a6_3_closed",
+    "status": "a7_1_closed",
     "focus": "graceful_degradation + state_compaction",
     "last_compact_cycle": 6,
     "last_compact_at": "2026-11-10T07:28:51.769663+00:00"
@@ -380,19 +401,19 @@
     "next": "answer Q1-Q2 pack → cycle 4 from ideas + answers"
   },
   "stats_snapshot": {
-    "plugins_closed_done": 23,
+    "plugins_closed_done": 24,
     "task_queue": {
-      "closed": 3
+      "closed": 4
     },
     "ideas_by_status": {
       "deferred": 5,
       "infra_backlog": 1,
       "proposed": 1,
-      "shipped": 9
+      "shipped": 10
     },
-    "pulse_cycle": 6,
-    "mode": "agent_core",
-    "tests": 36
+    "pulse_cycle": 7,
+    "tests": 43,
+    "mode": "agent_core"
   },
   "e2e": {
     "H11": "PASS",

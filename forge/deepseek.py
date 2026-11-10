@@ -526,3 +526,235 @@ def _default_smoke() -> Dict[str, Any]:
             },
         ]
     }
+
+
+def _default_hitl_pack(*, cycle: int = 0, focus: str = "") -> Dict[str, Any]:
+    from .planner_schema import normalize_hitl_pack
+
+    pack = {
+        "kind": "hitl_pack",
+        "cycle": cycle,
+        "questions": [
+            {
+                "id": "Q1",
+                "topic": "next_priority",
+                "ask": "Что важнее сейчас для агента?",
+                "options": [
+                    {"key": "A", "label": "Стабильность BestTime / PlayerData"},
+                    {"key": "B", "label": "Скорость join / Generator"},
+                    {"key": "C", "label": "Полировка HUD / VFX"},
+                ],
+                "other": {"key": "other", "label": "Другое", "allows_text": True},
+                "default_if_timeout": "A",
+                "related_plugin": "game1.player_data",
+            },
+            {
+                "id": "Q2",
+                "topic": "verify_mode",
+                "ask": "Как принимать следующий плагин после validator PASS?",
+                "options": [
+                    {"key": "A", "label": "Сразу closed (без Studio)"},
+                    {"key": "B", "label": "HITL Да/Нет после Studio smoke"},
+                    {"key": "C", "label": "Только auto + golden regression"},
+                ],
+                "other": {"key": "other", "label": "Другое", "allows_text": True},
+                "default_if_timeout": "B",
+            },
+        ],
+    }
+    if focus:
+        pack["questions"][0]["ask"] = f"Фокус «{focus[:60]}»: что важнее сейчас?"
+    return normalize_hitl_pack(pack, cycle=cycle)
+
+
+def ask_hitl_pack(
+    *,
+    cycle: int = 0,
+    focus: str = "",
+    open_topics: Optional[List[str]] = None,
+) -> Dict[str, Any]:
+    """DeepSeek returns strict A/B/C/Другое pack (≤2 questions). Falls back to default."""
+    from .planner_schema import normalize_hitl_pack, parse_json_object, validate_hitl_pack
+
+    topics = ", ".join(open_topics or []) or "gameplay priority"
+    system = (
+        "Return ONLY valid JSON for kind=hitl_pack. "
+        "questions: 1 or 2 items. Each question MUST have id, ask, "
+        "options exactly [{key:A,label},{key:B,label},{key:C,label}], "
+        "other:{key:other,label:Другое,allows_text:true}, default_if_timeout A|B|C. "
+        "No open-ended questions. Prefer Russian ask/labels."
+    )
+    prompt = (
+        f"Cycle {cycle}. Focus: {focus or 'agent core'}. Topics: {topics}. "
+        "Ask the human what to do next with A/B/C/Другое only."
+    )
+    if not available():
+        return _default_hitl_pack(cycle=cycle, focus=focus)
+    try:
+        raw = chat(prompt, system=system, max_tokens=900, temperature=0.15)
+        data = parse_json_object(raw)
+        if not data:
+            return _default_hitl_pack(cycle=cycle, focus=focus)
+        data["cycle"] = cycle
+        ok, errs = validate_hitl_pack(data)
+        if not ok:
+            return _default_hitl_pack(cycle=cycle, focus=focus)
+        return normalize_hitl_pack(data, cycle=cycle)
+    except Exception:
+        return _default_hitl_pack(cycle=cycle, focus=focus)
+
+
+def clarify_other(
+    *,
+    question: Dict[str, Any],
+    other_text: str,
+    cycle: int = 0,
+) -> Dict[str, Any]:
+    """
+    User chose Другое + free text.
+    Returns either a new 1-question hitl_pack OR {resolved:{key,label,from_other:true}}.
+    """
+    from .planner_schema import normalize_hitl_pack, parse_json_object, validate_hitl_pack
+
+    text = (other_text or "").strip()
+    system = (
+        "Return ONLY JSON. Either "
+        '{"resolved":{"key":"A|B|C","label":"...","from_other":true}} '
+        "mapping the free text onto A/B/C, OR a hitl_pack with exactly 1 clarifying "
+        "question (same A/B/C/other schema). Prefer resolved when text clearly matches."
+    )
+    prompt = (
+        f"Original ask: {question.get('ask')}\n"
+        f"Options: {json.dumps(question.get('options') or [], ensure_ascii=False)}\n"
+        f"User other text: {text}\n"
+    )
+    if not available():
+        # heuristic: if text mentions option label keywords, map; else new pack
+        low = text.lower()
+        for opt in question.get("options") or []:
+            lab = str(opt.get("label") or "").lower()
+            if lab and (lab in low or lab.split()[0] in low):
+                return {
+                    "resolved": {
+                        "key": str(opt.get("key") or "B").upper(),
+                        "label": opt.get("label"),
+                        "from_other": True,
+                        "note": text[:200],
+                    }
+                }
+        return normalize_hitl_pack(
+            {
+                "kind": "hitl_pack",
+                "cycle": cycle,
+                "questions": [
+                    {
+                        "id": f"{question.get('id') or 'Q1'}b",
+                        "topic": question.get("topic") or "clarify",
+                        "ask": f"Уточните: «{text[:80]}». Ближе к чему?",
+                        "options": question.get("options")
+                        or [
+                            {"key": "A", "label": "Вариант A"},
+                            {"key": "B", "label": "Вариант B"},
+                            {"key": "C", "label": "Вариант C"},
+                        ],
+                        "other": {"key": "other", "label": "Другое", "allows_text": True},
+                        "default_if_timeout": question.get("default_if_timeout") or "B",
+                    }
+                ],
+            },
+            cycle=cycle,
+        )
+    try:
+        raw = chat(prompt, system=system, max_tokens=700, temperature=0.1)
+        data = parse_json_object(raw) or {}
+        if isinstance(data.get("resolved"), dict):
+            key = str(data["resolved"].get("key") or "").upper()
+            if key in {"A", "B", "C"}:
+                data["resolved"]["key"] = key
+                data["resolved"]["from_other"] = True
+                return data
+        ok, _ = validate_hitl_pack(data)
+        if ok:
+            return normalize_hitl_pack(data, cycle=cycle)
+    except Exception:
+        pass
+    return _fallback_clarify(question, text, cycle)
+
+
+def _fallback_clarify(question: Dict[str, Any], text: str, cycle: int) -> Dict[str, Any]:
+    from .planner_schema import normalize_hitl_pack
+
+    return normalize_hitl_pack(
+        {
+            "kind": "hitl_pack",
+            "cycle": cycle,
+            "questions": [
+                {
+                    "id": f"{question.get('id') or 'Q1'}b",
+                    "topic": "clarify",
+                    "ask": f"Уточните «{text[:80]}». Какой вариант ближе?",
+                    "options": question.get("options")
+                    or [
+                        {"key": "A", "label": "A"},
+                        {"key": "B", "label": "B"},
+                        {"key": "C", "label": "C"},
+                    ],
+                    "other": {"key": "other", "label": "Другое", "allows_text": True},
+                    "default_if_timeout": "B",
+                }
+            ],
+        },
+        cycle=cycle,
+    )
+
+
+def compress_skill_card(raw_md: str, *, name: str, max_chars: int = 350) -> Dict[str, Any]:
+    """Compress skill into typed contract card JSON (≤ max_chars)."""
+    from .planner_schema import CARD_MAX_CHARS, clamp_skill_card, parse_json_object, validate_skill_card
+
+    budget = min(max_chars, CARD_MAX_CHARS)
+    system = (
+        "Return ONLY JSON skill card: "
+        '{"id","exports":[\"fn(a:type)->t\"],"attrs":[],"forbid":[],"files":[]}. '
+        f"Hard max JSON length {budget} chars. Keep arg types. No prose."
+    )
+    if not available():
+        return _heuristic_skill_card(raw_md, name=name, max_chars=budget)
+    try:
+        raw = chat(
+            f"Skill: {name}\n===\n{raw_md[:12000]}\n===",
+            system=system,
+            max_tokens=400,
+            temperature=0.1,
+        )
+        data = parse_json_object(raw) or {}
+        data["id"] = data.get("id") or name
+        card = clamp_skill_card(data, max_chars=budget)
+        ok, _ = validate_skill_card(card, max_chars=budget)
+        if ok:
+            return card
+    except Exception:
+        pass
+    return _heuristic_skill_card(raw_md, name=name, max_chars=budget)
+
+
+def _heuristic_skill_card(raw_md: str, *, name: str, max_chars: int = 350) -> Dict[str, Any]:
+    from .planner_schema import clamp_skill_card
+
+    exports = re.findall(r"`([A-Za-z_][A-Za-z0-9_]*\([^`]{0,60}\))`", raw_md)[:6]
+    if not exports:
+        exports = re.findall(r"\b([a-z_][a-z0-9_]{3,}\([^)]{0,40}\))", raw_md, re.I)[:4]
+    forbid = []
+    for ln in raw_md.splitlines():
+        if re.search(r"forbid|never|NEVER|запрет", ln, re.I):
+            forbid.append(ln.strip()[:60])
+    attrs = re.findall(r"\b(BestTime|Checkpoint|Coins|Score|RunStartedAt)\b", raw_md)
+    files = re.findall(r"[\w./]+\.luau", raw_md)[:4]
+    card = {
+        "id": name,
+        "exports": exports or [f"{name.replace('-', '_')}()"],
+        "attrs": sorted(set(attrs))[:8],
+        "forbid": forbid[:4],
+        "files": files,
+    }
+    return clamp_skill_card(card, max_chars=max_chars)

@@ -656,6 +656,167 @@ class TestStateCompaction(unittest.TestCase):
             self.assertIn("demo purpose", entry.get("contract_summary", ""))
 
 
+class TestPlannerSchema(unittest.TestCase):
+    def test_hitl_pack_requires_abc_and_other(self):
+        from forge.planner_schema import validate_hitl_pack
+
+        bad = {"kind": "hitl_pack", "questions": [{"id": "Q1", "ask": "open?"}]}
+        ok, errs = validate_hitl_pack(bad)
+        self.assertFalse(ok)
+        good = {
+            "kind": "hitl_pack",
+            "questions": [
+                {
+                    "id": "Q1",
+                    "ask": "Когда писать BestTime?",
+                    "options": [
+                        {"key": "A", "label": "leave"},
+                        {"key": "B", "label": "finish+leave"},
+                        {"key": "C", "label": "each CP"},
+                    ],
+                    "other": {"key": "other", "label": "Другое", "allows_text": True},
+                    "default_if_timeout": "B",
+                }
+            ],
+        }
+        ok2, errs2 = validate_hitl_pack(good)
+        self.assertTrue(ok2, errs2)
+
+    def test_skill_card_max_350_chars(self):
+        from forge.planner_schema import CARD_MAX_CHARS, card_char_len, clamp_skill_card, validate_skill_card
+
+        fat = {
+            "id": "forge-player-attrs",
+            "exports": [f"set_best_time_{i}(player, val: number) -> void" for i in range(20)],
+            "attrs": ["BestTime:number"] * 10,
+            "forbid": ["character:GetAttribute"] * 10,
+            "files": ["PlayerData.server.luau"] * 5,
+        }
+        clamped = clamp_skill_card(fat, max_chars=CARD_MAX_CHARS)
+        self.assertLessEqual(card_char_len(clamped), CARD_MAX_CHARS)
+        ok, errs = validate_skill_card(clamped, max_chars=CARD_MAX_CHARS)
+        self.assertTrue(ok, errs)
+
+
+class TestContractIndexGate(unittest.TestCase):
+    def test_unknown_proposed_call_blocked(self):
+        import json
+        from forge import contract_index
+
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            cdir = root / "contracts"
+            cdir.mkdir()
+            (cdir / "game1.player_data.json").write_text(
+                json.dumps(
+                    {
+                        "plugin": "game1.player_data",
+                        "contract_snapshot": {
+                            "name": "game1.player_data",
+                            "exports": [
+                                "set_best_time(player, val: float)",
+                                "get_best_time(player) -> float",
+                            ],
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+            plan = {
+                "proposed_calls": ["get_best_time", "player:GetBestTime", "InventedRemote"],
+                "description": "use player:GetBestTime()",
+            }
+            ok, unknown, report = contract_index.gate_plan(root, plan)
+            self.assertFalse(ok)
+            self.assertTrue(any("GetBestTime" in u or "Invented" in u for u in unknown), unknown)
+            self.assertIn("blocked", (report.get("message") or "").lower())
+
+    def test_known_export_allowed(self):
+        import json
+        from forge import contract_index
+
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            (root / "contracts").mkdir()
+            (root / "contracts" / "p.json").write_text(
+                json.dumps(
+                    {
+                        "plugin": "game1.player_data",
+                        "contract_snapshot": {
+                            "exports": ["set_best_time(player, val: float)", "get_best_time(player) -> float"]
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+            ok, unknown, _ = contract_index.gate_plan(
+                root, {"proposed_calls": ["set_best_time", "get_best_time", "CoinCollected"]}
+            )
+            self.assertTrue(ok, unknown)
+            self.assertEqual(unknown, [])
+
+
+class TestBundleFor14b(unittest.TestCase):
+    def test_bundle_cards_fit_budget(self):
+        import json
+        from forge import skills_hub
+        from forge.planner_schema import CARD_MAX_CHARS, card_char_len
+
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            d = root / "skills" / "compact" / "forge-player-attrs"
+            d.mkdir(parents=True)
+            (d / "SKILL.md").write_text(
+                "# attrs\n- set_best_time(player, val: number)\n- NEVER character:GetAttribute\n",
+                encoding="utf-8",
+            )
+            card = skills_hub.ensure_skill_card("forge-player-attrs", root)
+            self.assertLessEqual(card_char_len(card), CARD_MAX_CHARS)
+            blob = skills_hub.bundle_for_14b(root, ["forge-player-attrs"])
+            self.assertIn("CONTRACT CARDS", blob)
+            # each card line after header should be compact JSON
+            lines = [ln for ln in blob.splitlines() if ln.startswith("{")]
+            self.assertTrue(lines)
+            parsed = json.loads(lines[0])
+            self.assertLessEqual(card_char_len(parsed), CARD_MAX_CHARS)
+
+
+class TestPlannerWire(unittest.TestCase):
+    def test_gate_and_plan_blocks_enqueue(self):
+        import json
+        from forge import planner
+
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            (root / "contracts").mkdir()
+            (root / "contracts" / "x.json").write_text(
+                json.dumps({"plugin": "x", "contract_snapshot": {"exports": ["real_fn()"]}}),
+                encoding="utf-8",
+            )
+            report = planner.gate_and_plan(
+                root, {"proposed_calls": ["TotallyFakeAPI"]}, retry=False
+            )
+            self.assertEqual(report["action"], "enqueue_blocked")
+            self.assertTrue(report.get("unknown"))
+
+    def test_plan_next_ask_hitl(self):
+        import json
+        from forge import planner
+
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            (root / "state.json").write_text(
+                json.dumps({"pulse": {"cycle": 7}, "done": [], "task_queue": []}),
+                encoding="utf-8",
+            )
+            (root / "knowledge_base.json").write_text(
+                json.dumps({"rules": [], "plugins": {}}), encoding="utf-8"
+            )
+            result = planner.plan_next(root, focus="test")
+            self.assertEqual(result["action"], "ask_hitl")
+            self.assertEqual(result["pack"]["kind"], "hitl_pack")
+
+
 class TestFeedbackHitl(unittest.TestCase):
     def test_yes_closed_verified_and_golden(self):
         import json

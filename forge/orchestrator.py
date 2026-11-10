@@ -1063,13 +1063,35 @@ def main(argv: Optional[List[str]] = None) -> int:
         help="A6.3 HITL verdict for --plugin (y=closed_verified+golden, n=broken_by_user+rule)",
     )
     parser.add_argument("--plugin", type=str, default=None, help="Plugin id for --feedback (e.g. game1.hud)")
-    parser.add_argument("--note", type=str, default="", help="Human comment for --feedback")
+    parser.add_argument("--note", type=str, default="", help="Human comment for --feedback / --answer other")
     parser.add_argument("--rules-list", action="store_true", help="List knowledge_base.json rules and exit")
     parser.add_argument(
         "--rules-activate",
         type=str,
         default=None,
         help="Activate draft rule id after dry-run (e.g. R001)",
+    )
+    parser.add_argument(
+        "--ask-pack",
+        action="store_true",
+        help="A7.1: print DeepSeek HITL pack (A/B/C/Другое) and save pending_hitl_pack",
+    )
+    parser.add_argument(
+        "--answer",
+        type=str,
+        default=None,
+        help='A7.1: answer pending pack e.g. Q1=B or Q1=other (use --note for Другое text)',
+    )
+    parser.add_argument(
+        "--plan-next",
+        action="store_true",
+        help="A7.1: planner plan_next (ask_hitl | verify_plugin | idle)",
+    )
+    parser.add_argument(
+        "--gate-plan",
+        type=str,
+        default=None,
+        help='A7.1: JSON plan string or @file.json — hallucination gate (blocks unknown exports)',
     )
     parser.add_argument("--ui", action="store_true", help="Open control UI (projects/skills/DeepSeek/smoke)")
     parser.add_argument("--ui-port", type=int, default=8787, help="UI port (default 8787)")
@@ -1113,13 +1135,62 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     if args.feedback is not None:
         from . import feedback as feedback_hub
+        from . import planner as planner_hub
 
         if not args.plugin:
             print("ERROR: --feedback requires --plugin <id>")
             return 1
-        report = feedback_hub.submit_verdict(root, args.plugin, args.feedback, note=args.note or "")
+        report = planner_hub.submit_plugin_verdict(root, args.plugin, args.feedback, note=args.note or "")
         print(json.dumps(report, ensure_ascii=False, indent=2, default=str))
         return 0
+
+    if args.ask_pack or args.plan_next:
+        from . import planner as planner_hub
+
+        result = planner_hub.plan_next(root)
+        if result.get("action") == "ask_hitl" and result.get("pack"):
+            print(planner_hub.format_hitl_pack_cli(result["pack"]))
+        else:
+            print(json.dumps(result, ensure_ascii=False, indent=2, default=str))
+        return 0
+
+    if args.answer is not None:
+        from . import planner as planner_hub
+
+        # Parse Q1=B or Q1=other
+        answers: Dict[str, str] = {}
+        other_notes: Dict[str, str] = {}
+        for part in str(args.answer).split(","):
+            part = part.strip()
+            if not part or "=" not in part:
+                continue
+            qid, val = part.split("=", 1)
+            qid, val = qid.strip(), val.strip()
+            answers[qid] = val
+            if val.lower() in {"other", "другое", "o"} and args.note:
+                other_notes[qid] = args.note
+        report = planner_hub.record_hitl_answers(root, answers, other_notes=other_notes)
+        print(json.dumps(report, ensure_ascii=False, indent=2, default=str))
+        if report.get("followups"):
+            from . import planner as ph
+
+            for pack in report["followups"]:
+                print(ph.format_hitl_pack_cli(pack))
+        return 0 if report.get("ok") else 1
+
+    if args.gate_plan is not None:
+        from . import planner as planner_hub
+
+        raw = args.gate_plan
+        if raw.startswith("@"):
+            raw = Path(raw[1:]).read_text(encoding="utf-8")
+        try:
+            plan_obj = json.loads(raw)
+        except json.JSONDecodeError:
+            plan_obj = {"description": raw, "proposed_calls": []}
+        report = planner_hub.gate_and_plan(root, plan_obj if isinstance(plan_obj, dict) else {"description": str(plan_obj)})
+        print(json.dumps(report, ensure_ascii=False, indent=2, default=str))
+        return 0 if report.get("action") == "enqueue" else 1
 
     if args.ui:
         from .ui_server import serve

@@ -206,6 +206,18 @@
       ],
       "status": "shipped",
       "reason": "A6.3 implemented"
+    },
+    {
+      "id": "A004",
+      "title": "DeepSeek planner redesign A7.1",
+      "one_liner": "HITL A/B/C packs, contract cards ≤350, halluc gate, plan_next→feedback",
+      "type": "infra",
+      "cost": "L",
+      "needs": [
+        "forge.deepseek_planner"
+      ],
+      "status": "shipped",
+      "reason": "A7.1 implemented"
     }
   ],
   "pulse": {
