@@ -7,6 +7,25 @@ Usage:
   python3 run.py --validate
   python3 run.py --score
 """
+import sys
+import io
+
+# Windows consoles often default to cp1251/cp1252 (charmap). Force UTF-8 so
+# status lines with arrows/approx do not raise UnicodeEncodeError.
+if sys.platform.startswith("win"):
+    try:
+        if hasattr(sys.stdout, "buffer"):
+            sys.stdout = io.TextIOWrapper(
+                sys.stdout.buffer, encoding="utf-8", errors="replace"
+            )
+        if hasattr(sys.stderr, "buffer"):
+            sys.stderr = io.TextIOWrapper(
+                sys.stderr.buffer, encoding="utf-8", errors="replace"
+            )
+    except Exception:
+        # Keep original streams if reassignment fails (errors='replace' already preferred).
+        pass
+
 from forge.orchestrator import main
 
 if __name__ == "__main__":

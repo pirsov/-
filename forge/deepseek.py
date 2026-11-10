@@ -234,7 +234,7 @@ def generate_project_tz(
     )
     if not available():
         raise llm.AuthError(
-            "DEEPSEEK_API_KEY unset — cannot generate PROJECT_TZ. "
+            "DEEPSEEK_API_KEY unset - cannot generate PROJECT_TZ. "
             "Set DEEPSEEK_API_KEY (https://platform.deepseek.com/) and retry. "
             "Refusing silent fallback to stale horror-coins TZ."
         )
@@ -255,8 +255,8 @@ def generate_project_tz(
         if count_tz_tasks(out2) >= 5:
             return out2
         raise RuntimeError(
-            f"DeepSeek TZ invalid: expected ≥5 checkbox tasks, got {count_tz_tasks(out2)}. "
-            "Fix the goal/skills and retry — refusing stale horror-coins fallback."
+            f"DeepSeek TZ invalid: expected >=5 checkbox tasks, got {count_tz_tasks(out2)}. "
+            "Fix the goal/skills and retry - refusing stale horror-coins fallback."
         )
     return out
 

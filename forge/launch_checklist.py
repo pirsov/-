@@ -49,7 +49,7 @@ def _assets_ok(root: Path) -> Dict[str, Any]:
     if not catalog.is_file():
         return {
             "ok": False,
-            "detail": f"catalog missing (models on disk: {n_files}) — run --scan-assets",
+            "detail": f"catalog missing (models on disk: {n_files}) - run --scan-assets",
             "count": 0,
             "models_on_disk": n_files,
         }
@@ -70,7 +70,7 @@ def _assets_ok(root: Path) -> Dict[str, Any]:
             "detail": (
                 ", ".join(ids)
                 if ids
-                else ("empty (OK — add .glb then --scan-assets)" if n_files == 0 else "STALE — rescan")
+                else ("empty (OK - add .glb then --scan-assets)" if n_files == 0 else "STALE - rescan")
             ),
             "count": count,
             "models_on_disk": n_files,
@@ -103,7 +103,7 @@ def _token_economy_ok() -> Dict[str, Any]:
             "ok": True,
             "detail": (
                 f"ctx={llm_backends.LOCAL_NUM_CTX} "
-                f"prompt≤{llm_backends.HARD_PROMPT_TOKENS_14B}/{llm_backends.HARD_PROMPT_TOKENS_7B} "
+                f"prompt<={llm_backends.HARD_PROMPT_TOKENS_14B}/{llm_backends.HARD_PROMPT_TOKENS_7B} "
                 f"predict={llm_backends.DEFAULT_NUM_PREDICT}/diff={llm_backends.DIFF_NUM_PREDICT}"
             ),
             "num_predict": llm_backends.DEFAULT_NUM_PREDICT,
@@ -146,7 +146,7 @@ def _hints(checks: Dict[str, Dict[str, Any]]) -> List[str]:
     if not checks["assets"].get("ok"):
         out.append("Drop .glb into assets/models/ then: python -u run.py --scan-assets")
     if checks["assets"].get("models_on_disk") and not checks["assets"].get("count"):
-        out.append("Models on disk but catalog empty — run --scan-assets")
+        out.append("Models on disk but catalog empty - run --scan-assets")
     if not checks["rules"].get("ok"):
         miss = checks["rules"].get("missing_critical") or []
         out.append(f"Activate critical rules: python -u run.py --rules-activate {' '.join(miss)}")
@@ -158,7 +158,7 @@ def print_checklist(root: Optional[Path] = None) -> Dict[str, Any]:
     checks = report["checks"]
     print()
     print("=" * 60)
-    print("Quality Forge — Launch Checklist (A16)")
+    print("Quality Forge - Launch Checklist (A16)")
     print("=" * 60)
 
     def row(label: str, key: str) -> None:
@@ -174,9 +174,9 @@ def print_checklist(root: Optional[Path] = None) -> Dict[str, Any]:
     if report.get("hints"):
         print("  Hints:")
         for h in report["hints"]:
-            print(f"    · {h}")
+            print(f"    - {h}")
     status = "READY" if report.get("ready") else ("UI OK (Ollama optional)" if report.get("ready_for_ui") else "NOT READY")
-    print(f"  → {status}")
+    print(f"  -> {status}")
     print("=" * 60)
     print()
     return report
