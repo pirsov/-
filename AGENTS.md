@@ -1,86 +1,67 @@
-# AGENT ROLES
+# AGENT ROLES — Quality Forge (WEEK MODE)
 
-You are one step in a sequential pipeline. On each call you do EXACTLY ONE pending task and return a structured answer. The orchestrator applies your answer to disk.
+You (the LLM) are the game author. Do EXACTLY ONE pending `- [ ]` task for your `@role`.
+Cursor humans maintain the forge only — see `docs/FORGE_CONTRACT.md`.
 
-## UNIVERSAL PROTOCOL (every agent)
+Prefer **APPEND** for docs. For code tasks that say **REWRITE**, return the full file.
 
-1. Read PROJECT_TZ.md. Find the FIRST line matching "- [ ] <ID> ... @<your_name>".
-2. If nothing — reply ONLY: NOTHING_TO_DO
-3. Do the task. Write real files (no stubs, no TODOs) if the task says -> path.
-4. Reply using EXACTLY this format (no extra prose):
+## WEEK RULES
+1. Greenfield: `src/` may be empty. CREATE full working files when tasks say CREATE. Prefer real playable Luau over stubs.
+2. `*.server.luau` / `*.client.luau` — NO top-level `return`.
+3. ModuleScripts `*.luau` — end with `return { ... }`, getOrCreate for remotes.
+4. NEVER invent PlayerRespawn. NEVER BreakJoints. NEVER `wait()` — use `task.wait()`.
+5. FILE path = real target only (never `relative/path.ext`).
+6. If task says NOTE only / no FILE / only LOW bugs — reply `<DONE>` + `<NOTE>` without `<FILE>`.
+7. Concrete numbers: studs, seconds, counts — not "more platforms".
+8. Broken `rbxassetid` sounds must be fixed or wrapped in pcall (no red Output).
 
-<DONE>P3.2</DONE>
-<NOTE>one or two sentences, what you did</NOTE>
-<FILE path="src/server/Gameplay/Checkpoints.server.luau">
---!strict
--- real code here
+## UNIVERSAL PROTOCOL
+Find first `- [ ] … @your_name` in PROJECT_TZ.md.
+Reply:
+
+<DONE>A1</DONE>
+<NOTE>one sentence</NOTE>
+<FILE path="src/server/Level/Generator.server.luau">
+full or append content per WRITE MODE
 </FILE>
-<FILE path="docs/ARCHITECTURE.md">
-... full content ...
-</FILE>
 
-5. If blocked, reply:
-<BLOCKED>P3.2</BLOCKED>
-<REASON>why</REASON>
+## Models
+- **Space Bunny** / **OpenRouter**: all roles → space-bunny-alpha (preferred).
+- **Ollama**: design/QA → phi4-mini; code → qwen2.5-coder:14b-4k.
 
-6. Do not touch other tasks. Do not rewrite the whole file if the task says "append" - append only.
-7. Never invent tasks. Never skip ahead.
+## Roles
+### @game_designer
+Markdown only. Concrete studs/times. APPEND sections.
 
-## @game_designer  — model: phi4-mini:4k, ctx 4096
-Rules:
-- Short. Concrete numbers ("jump height 7 studs", "level 60s").
-- Output = markdown appended to docs/GDD.md under the heading given in the task.
-- No code.
+### @systems_designer
+docs/SYSTEMS.md specs. No code.
 
-## @tech_architect — model: qwen2.5-coder:7b-2k, ctx 2048
-Rules:
-- Produce actual files (create folders implicitly via paths).
-- Rojo layout: src/server, src/client, src/shared.
-- Every module has ONE responsibility. Name files by responsibility.
-- default.project.json must be valid Rojo JSON.
+### @content_author
+LevelConfig numbers. Full `return { sections = {...} }` if REWRITE.
 
-## @gameplay_programmer — model: qwen2.5-coder:7b-2k, ctx 2048
-Rules:
-- --!strict at top of every .luau file.
-- No global state. No wait() (use task.wait). No polling loops.
-- DataStore — only inside pcall. Server-side only.
-- Files <= 200 lines. If more — split into modules.
-- Use RemoteEvents defined in src/shared/Gameplay/Remotes.luau (create it if missing).
+### @tech_architect
+Paths must match: `src/server/Gameplay/`, `src/shared/Content/`, `src/client/`.
 
-## @client_programmer — model: qwen2.5-coder:3b, ctx 4096
-Rules:
-- LocalScript only. Never touches DataStore.
-- UI logic only, no gameplay authority.
-- Use TweenService, not manual while loops.
+### @gameplay_programmer
+Server scripts. Keep Touched/Died/FireClient. Keep walkable Map floor when editing Generator.
 
-## @qa_engineer — model: phi4-mini:4k, ctx 4096
-Rules:
-- The .luau files are ALREADY in this prompt under "Existing project files". Do NOT say you need to read them. Analyze what is here and write the report.
-- Output to docs/QA_REPORT.md:
-  ## BUGS
-  - [CRIT|HIGH|MED|LOW] file:line — description — suggested fix
-  ## SUGGESTIONS
-  ## TEST CASES
-- Do NOT modify code files.
+### @client_programmer
+LocalScripts only. TweenService for flashes. Fix invalid SoundIds.
 
-## @refactorer — model: qwen2.5-coder:7b-2k, ctx 2048
-Rules:
-- Fix only bugs from QA_REPORT.md with severity HIGH or CRIT.
-- Return full new content of each touched file (same <FILE> format).
-- Do not add features.
+### @qa_engineer
+REWRITE docs/QA_REPORT.md. Must include these headings exactly:
+`## BUGS` / `## SUGGESTIONS` / `## TEST CASES` / `## SCORE`
+Under `## SCORE` put a line like `- overall: 86` (integer 0–100).
+No invented PlayerRespawn CRIT.
 
-## @builder — model: qwen2.5:1.5b-8k, ctx 4096
-Rules:
-- Do not write game code. Only docs + instructions.
-- Write docs/RELEASE.md with exact rojo build command and publish checklist.
+### @refactorer
+HIGH/CRIT only. If only LOW — NOTE no FILE.
 
-## @human
-Not an agent. The orchestrator pauses on these. Human edits PROJECT_TZ.md, changes [ ] to [x], saves, re-runs the script.
+### @integrator
+Prefer NOTE-only if Remotes already match. Never `return Folder`.
 
+### @builder
+docs/RELEASE.md only.
 
-
-## FILE TYPE RULES (mandatory)
-- Files named *.server.luau or *.client.luau become Script/LocalScript in Roblox. These are NOT modules and MUST NOT contain a top-level 'return'.
-- Files named *.luau (no .server/.client suffix) in src/shared are ModuleScripts. They MUST end with 'return <table>'.
-- If a file in src/server/... is used as a module (require), it MUST be named *.luau, not *.server.luau.
-- Never put a 'return' at the end of a *.server.luau or *.client.luau file - it will fail to load.
+### @human
+Studio smoke; answer terminal `y/n` (or mark `[x]`); re-run `--week`.

@@ -1,20 +1,145 @@
-local folder = workspace:WaitForChild("Checkpoints")
+--!strict
+-- Checkpoints + I011 finish BestTime + I012 RunStartedAt reset on respawn (Q1=B, Q2=B)
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Remotes = require(ReplicatedStorage:WaitForChild("Gameplay"):WaitForChild("Remotes"))
 
-for _, part in ipairs(folder:GetChildren()) do
-    if part:IsA("BasePart") then
-        local idx = tonumber(string.match(part.Name, "%d+"))
-        if idx then
-            part.Touched:Connect(function(hit)
-                local char = hit.Parent
-                local plr = Players:GetPlayerFromCharacter(char)
-                if plr then
-                    local current = plr:GetAttribute("Checkpoint") or 0
-                    if idx > current then
-                        plr:SetAttribute("Checkpoint", idx)
-                        Remotes.CheckpointReached:FireClient(plr, idx)
-                    end
-                end
-            end)
-        end
-    end
+local folder = workspace:FindFirstChild("Checkpoints")
+if not folder then
+	folder = Instance.new("Folder")
+	folder.Name = "Checkpoints"
+	folder.Parent = workspace
+end
+
+local function lastCheckpointIndex(): number
+	local n = 0
+	for _, child in ipairs(folder:GetChildren()) do
+		if child:IsA("BasePart") then
+			local i = tonumber(string.match(child.Name, "%d+"))
+			if i and i > n then
+				n = i
+			end
+		end
+	end
+	return n
+end
+
+-- Mirror PlayerData set_best_time (Script isolation — no Module require)
+local function set_best_time(plr: Player, val: number)
+	if typeof(val) ~= "number" or val <= 0 then
+		return
+	end
+	local current = plr:GetAttribute("BestTime")
+	if typeof(current) ~= "number" then
+		current = 0
+	end
+	if (current :: number) == 0 or val < (current :: number) then
+		plr:SetAttribute("BestTime", val)
+	end
+end
+
+local function tryWriteFinishBest(plr: Player, idx: number)
+	local last = lastCheckpointIndex()
+	if last < 1 or idx < last then
+		return
+	end
+	local started = plr:GetAttribute("RunStartedAt")
+	if typeof(started) ~= "number" then
+		return
+	end
+	local elapsed = os.clock() - (started :: number)
+	set_best_time(plr, elapsed)
+	plr:SetAttribute("Finished", true)
+end
+
+local function hookPart(part: BasePart)
+	local idx = tonumber(string.match(part.Name, "%d+"))
+	if not idx then
+		return
+	end
+	part.CanTouch = true
+	part.Touched:Connect(function(hit: BasePart)
+		local char = hit.Parent
+		if not char then
+			return
+		end
+		local plr = Players:GetPlayerFromCharacter(char)
+		if not plr then
+			return
+		end
+		local current = plr:GetAttribute("Checkpoint") or 0
+		if typeof(current) ~= "number" then
+			current = 0
+		end
+		if idx > (current :: number) then
+			-- Ensure run clock exists (first CP of a fresh run)
+			if plr:GetAttribute("RunStartedAt") == nil then
+				plr:SetAttribute("RunStartedAt", os.clock())
+			end
+			plr:SetAttribute("Checkpoint", idx)
+			plr:SetAttribute("Score", idx * 100)
+			-- I011: BestTime only on last CP / finish (not every CP — no DataStore spam)
+			tryWriteFinishBest(plr, idx)
+			Remotes.CheckpointReached:FireClient(plr, idx)
+		end
+	end)
+end
+
+for _, child in ipairs(folder:GetChildren()) do
+	if child:IsA("BasePart") then
+		hookPart(child)
+	end
+end
+
+folder.ChildAdded:Connect(function(child)
+	if child:IsA("BasePart") then
+		hookPart(child)
+	end
+end)
+
+local function teleportToCheckpoint(plr: Player, char: Model)
+	local idx = plr:GetAttribute("Checkpoint") or 0
+	if typeof(idx) ~= "number" or (idx :: number) < 1 then
+		return
+	end
+	local cp = folder:FindFirstChild("Checkpoint" .. tostring(idx))
+	if not cp or not cp:IsA("BasePart") then
+		return
+	end
+	local hrp = char:FindFirstChild("HumanoidRootPart")
+	if hrp and hrp:IsA("BasePart") then
+		hrp.CFrame = CFrame.new(cp.Position + Vector3.new(0, 5, 0))
+	end
+end
+
+local function hookCharacter(plr: Player, char: Model)
+	-- I012 / Q2=B: death→respawn starts a NEW run clock (HUD Time resets client-side too)
+	plr:SetAttribute("RunStartedAt", os.clock())
+	plr:SetAttribute("Finished", false)
+	task.defer(function()
+		teleportToCheckpoint(plr, char)
+	end)
+	local hum = char:WaitForChild("Humanoid") :: Humanoid
+	hum.Died:Connect(function()
+		task.wait(0.1)
+		plr:LoadCharacter()
+	end)
+end
+
+Players.PlayerAdded:Connect(function(plr)
+	plr.CharacterAdded:Connect(function(char)
+		hookCharacter(plr, char)
+	end)
+	if plr.Character then
+		hookCharacter(plr, plr.Character)
+	end
+end)
+
+for _, plr in ipairs(Players:GetPlayers()) do
+	plr.CharacterAdded:Connect(function(char)
+		hookCharacter(plr, char)
+	end)
+	if plr.Character then
+		hookCharacter(plr, plr.Character)
+	end
 end

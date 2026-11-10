@@ -1,0 +1,17 @@
+{
+  "plugin": "game1.horror_fog",
+  "compacted_at": "2026-11-10T07:28:51.769560+00:00",
+  "contract_snapshot": {
+    "name": "game1.horror_fog",
+    "purpose": "Lighting Fog + Atmosphere + ColorCorrection horror preset",
+    "exports": [
+      "FogEnd=90 FogStart=12",
+      "Atmosphere Density/Haze",
+      "ColorCorrection desaturate",
+      "ClockTime near midnight"
+    ],
+    "forbidden": [
+      "extra map prop spam"
+    ]
+  }
+}

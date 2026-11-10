@@ -1,0 +1,13 @@
+{
+  "plugin": "forge.planner",
+  "contract_snapshot": {
+    "name": "forge.planner",
+    "purpose": "DeepSeek planner: HITL packs, contract cards, halluc gate",
+    "exports": [
+      "ask_hitl_pack / clarify_other",
+      "contract_index.gate_plan",
+      "skills_hub.bundle_for_14b",
+      "planner.plan_next / gate_and_plan / submit_plugin_verdict"
+    ]
+  }
+}

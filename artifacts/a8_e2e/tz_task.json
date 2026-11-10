@@ -1,0 +1,17 @@
+{
+  "kind": "tz_task",
+  "task_id": "A8.D1",
+  "title": "Donation UI stub (system.donation_ui)",
+  "description": "REWRITE client donation panel: ScreenGui DonationUI; show coins via get_player_coins / player:GetAttribute Coins; LocalPlayer only; NEVER DataStoreService; NEVER character:GetAttribute",
+  "owner": "client_programmer",
+  "archetype": "client_ui",
+  "skeleton_version": "v1",
+  "target_path": "artifacts/a8_e2e/DonationUI.client.luau",
+  "proposed_calls": [
+    "get_player_coins",
+    "GetAttribute",
+    "LocalPlayer",
+    "CoinCollected"
+  ],
+  "plugin": "system.donation_ui"
+}

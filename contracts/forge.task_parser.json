@@ -1,0 +1,13 @@
+{
+  "plugin": "forge.task_parser",
+  "compacted_at": "2026-11-10T07:28:51.767800+00:00",
+  "contract_snapshot": {
+    "name": "forge.task_parser",
+    "purpose": "Parse PROJECT_TZ checkbox lines into Task objects",
+    "exports": [
+      "detect_mode(description) -> WriteMode",
+      "parse_task_line(line) -> Optional[Task]",
+      "find_pending_tasks(tz_text) -> List[Task]"
+    ]
+  }
+}

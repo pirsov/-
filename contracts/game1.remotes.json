@@ -1,0 +1,21 @@
+{
+  "plugin": "game1.remotes",
+  "compacted_at": "2026-11-10T07:28:51.768496+00:00",
+  "contract_snapshot": {
+    "name": "src/shared/Gameplay/Remotes.luau",
+    "purpose": "Whitelist remotes getOrCreate",
+    "exports": [
+      "Checkpoint",
+      "CheckpointReached",
+      "UpdateLeaderboard",
+      "CoinCollected"
+    ],
+    "archetype": "network_remote",
+    "skeleton_version": "v1",
+    "files": [
+      "src/shared/Gameplay/Remotes.luau"
+    ]
+  },
+  "archetype": "network_remote",
+  "skeleton_version": "v1"
+}

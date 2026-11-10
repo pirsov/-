@@ -1,0 +1,14 @@
+{
+  "plugin": "forge.skills_hub",
+  "compacted_at": "2026-11-10T07:28:51.768276+00:00",
+  "contract_snapshot": {
+    "name": "forge.skills_hub",
+    "purpose": "Raw→compact skill catalog, inject into prompts, promote after smoke",
+    "exports": [
+      "list_raw/list_compact",
+      "auto_select_and_compress(goal, root) -> dict",
+      "promote_compact(skill_id, missing_ok=True) -> Optional[Path]",
+      "existing_compact_ids(root, ids) -> List[str]"
+    ]
+  }
+}

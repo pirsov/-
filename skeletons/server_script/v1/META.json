@@ -1,0 +1,11 @@
+{
+  "id": "server_script",
+  "version": "v1",
+  "required": ["GetService"],
+  "required_any": [["Player", "Players", "Workspace", "RunService"]],
+  "forbid": ["DataStoreService", "FireServer", "LocalPlayer"],
+  "forbid_regex": ["(?m)^return\\s"],
+  "prompt_budget_chars": 500,
+  "default_path_glob": "src/server/**/*.server.luau",
+  "path_hints": [".server.luau", "src/server/"]
+}

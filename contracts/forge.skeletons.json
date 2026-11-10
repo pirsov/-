@@ -1,0 +1,14 @@
+{
+  "plugin": "forge.skeletons",
+  "archetype": "shared_data",
+  "skeleton_version": "v1",
+  "contract_snapshot": {
+    "name": "forge.skeletons_hub",
+    "purpose": "Versioned plugin archetypes for 14B + validator pin",
+    "exports": [
+      "list_archetypes / load_meta / load_skeleton_text",
+      "validate_against_skeleton pin-by-contract",
+      "bundle_for_14b(..., archetype=)"
+    ]
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "plugin": "forge.orchestrator_core",
+  "compacted_at": "2026-11-10T07:28:51.768156+00:00",
+  "contract_snapshot": {
+    "name": "forge.orchestrator",
+    "purpose": "Week loop: pick TZ task → prompt → model → FILE write → validate → repair",
+    "exports": [
+      "Orchestrator.next_task() / invoke_step()",
+      "run_loop(root, max_steps, validate_every, gate_strict) -> int",
+      "quality_score(root) -> (score, notes)",
+      "main(argv) -> int"
+    ]
+  }
+}

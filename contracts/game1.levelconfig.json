@@ -1,0 +1,18 @@
+{
+  "plugin": "game1.levelconfig",
+  "archetype": "shared_data",
+  "skeleton_version": "v1",
+  "path": "src/shared/Content/LevelConfig.luau",
+  "contract_snapshot": {
+    "name": "game1.levelconfig",
+    "purpose": "LevelConfig array sections",
+    "archetype": "shared_data",
+    "skeleton_version": "v1",
+    "files": [
+      "src/shared/Content/LevelConfig.luau"
+    ],
+    "exports": [
+      "return { { id, gap, coins }, ... }"
+    ]
+  }
+}

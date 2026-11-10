@@ -1,0 +1,25 @@
+{
+  "plugin": "game1.checkpoints",
+  "compacted_at": "2026-11-10T07:28:51.768920+00:00",
+  "contract_snapshot": {
+    "name": "game1.checkpoints",
+    "purpose": "Checkpoint touch progress on Player; never touches Coins remotes/parts",
+    "exports": [
+      "hookPart(part): Touched -> Player.Checkpoint/Score + CheckpointReached",
+      "teleportToCheckpoint(plr, char)",
+      "RunStartedAt set if nil on progress (BestTime deferred to PlayerData F3)"
+    ],
+    "forbidden": [
+      "Remotes.CoinsCollected",
+      "destroy Coins folder",
+      "character attrs for Checkpoint"
+    ],
+    "archetype": "server_script",
+    "skeleton_version": "v1",
+    "files": [
+      "src/server/Gameplay/Checkpoints.server.luau"
+    ]
+  },
+  "archetype": "server_script",
+  "skeleton_version": "v1"
+}

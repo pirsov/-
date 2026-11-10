@@ -1,0 +1,24 @@
+{
+  "plugin": "game1.effects",
+  "compacted_at": "2026-11-10T07:28:51.769477+00:00",
+  "contract_snapshot": {
+    "name": "game1.effects",
+    "purpose": "Client VFX on CheckpointReached / CoinCollected",
+    "exports": [
+      "pulseCheckpoint(idx): Neon flash + PointLight + ParticleEmitter Emit",
+      "flashHud CheckpointCount",
+      "CheckpointReached OnClientEvent"
+    ],
+    "forbidden": [
+      "character:GetAttribute",
+      "new unverified coin asset (I009 held)"
+    ],
+    "archetype": "client_ui",
+    "skeleton_version": "v1",
+    "files": [
+      "src/client/Effects.client.luau"
+    ]
+  },
+  "archetype": "client_ui",
+  "skeleton_version": "v1"
+}

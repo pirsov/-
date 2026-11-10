@@ -1,0 +1,12 @@
+{
+  "plugin": "forge.validator",
+  "compacted_at": "2026-11-10T07:28:51.767986+00:00",
+  "contract_snapshot": {
+    "name": "forge.validator",
+    "purpose": "Deterministic Luau integrity checks; sole source of closed truth",
+    "exports": [
+      "validate_file(path) -> (ok, errors)",
+      "validate_project_integrity(root) -> (ok, errors)"
+    ]
+  }
+}

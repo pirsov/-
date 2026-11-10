@@ -1,0 +1,11 @@
+{
+  "plugin": "game1.void",
+  "compacted_at": "2026-11-10T07:28:51.768724+00:00",
+  "contract_snapshot": {
+    "name": "src/server/Gameplay/Void.server.luau",
+    "purpose": "Y < -20 → LoadCharacter",
+    "exports": [
+      "heartbeat/void loop"
+    ]
+  }
+}

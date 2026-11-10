@@ -1,0 +1,24 @@
+{
+  "plugin": "system.donation_ui",
+  "archetype": "client_ui",
+  "skeleton_version": "v1",
+  "path": "artifacts/a8_e2e/DonationUI.client.luau",
+  "contract_snapshot": {
+    "name": "system.donation_ui",
+    "purpose": "Donation UI stub \u2014 shows coins via get_player_coins / GetAttribute Coins",
+    "archetype": "client_ui",
+    "skeleton_version": "v1",
+    "files": [
+      "artifacts/a8_e2e/DonationUI.client.luau"
+    ],
+    "exports": [
+      "paintCoins()",
+      "get_player_coins via player:GetAttribute(\"Coins\")"
+    ],
+    "forbidden": [
+      "DataStoreService",
+      "character:GetAttribute",
+      "FireServer"
+    ]
+  }
+}

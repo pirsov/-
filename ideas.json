@@ -1,0 +1,259 @@
+{
+  "ideas": [
+    {
+      "id": "I001",
+      "title": "BestTime on last CP",
+      "one_liner": "Писать BestTime при достижении последнего чекпоинта, не только на leave",
+      "type": "mechanic",
+      "cost": "S",
+      "needs": [
+        "game1.checkpoints",
+        "game1.player_data"
+      ],
+      "status": "deferred",
+      "reason": "Q1: BestTime not tied to Last CP; leave/finish only for now"
+    },
+    {
+      "id": "I002",
+      "title": "Generator deferred props",
+      "one_liner": "Отложить декоративные Parts после SpawnLocation, ускорить join",
+      "type": "mechanic",
+      "cost": "M",
+      "needs": [
+        "game1.generator"
+      ],
+      "status": "deferred",
+      "reason": "FROZEN: focus agent core, not game1 dataset polish"
+    },
+    {
+      "id": "I003",
+      "title": "HUD Best flash on new record",
+      "one_liner": "Короткий tween на Best label при обновлении рекорда",
+      "type": "ui",
+      "cost": "S",
+      "needs": [
+        "game1.hud"
+      ],
+      "status": "deferred",
+      "reason": "FROZEN: focus agent core, not game1 dataset polish"
+    },
+    {
+      "id": "I004",
+      "title": "Fix-panel auto-queue F*",
+      "one_liner": "После smoke N/Другое сразу ставить F* в голову task_queue без ручного TZ",
+      "type": "infra",
+      "cost": "L",
+      "needs": [
+        "forge.ui_control",
+        "forge.fix_hub"
+      ],
+      "status": "infra_backlog",
+      "reason": "milestone decision — L infra"
+    },
+    {
+      "id": "I005",
+      "title": "Sound asset fallback",
+      "one_liner": "Убрать битый rbxassetid://9114224690 или заменить валидным id",
+      "type": "content",
+      "cost": "S",
+      "needs": [
+        "game1.leaderboard_client"
+      ],
+      "status": "deferred",
+      "reason": "FROZEN: focus agent core, not game1 dataset polish"
+    },
+    {
+      "id": "I006",
+      "title": "Checkpoints regression guard",
+      "one_liner": "Validator unit keeps forbidding CoinsCollected forever",
+      "type": "infra",
+      "cost": "S",
+      "needs": [
+        "forge.validator",
+        "game1.checkpoints"
+      ],
+      "status": "proposed",
+      "reason": "agent-core backlog candidate"
+    },
+    {
+      "id": "I007",
+      "title": "BestTime HUD format %.1f",
+      "one_liner": "Show Best as one decimal when >0",
+      "type": "ui",
+      "cost": "S",
+      "needs": [
+        "game1.hud",
+        "game1.player_data"
+      ],
+      "status": "shipped",
+      "reason": "closed in C2.F5 HUD Best %.1f",
+      "freeze_note": "game1 frozen — no further game codegen"
+    },
+    {
+      "id": "I008",
+      "title": "RunStartedAt on first CP",
+      "one_liner": "Start timer attr when Checkpoint becomes >=1",
+      "type": "mechanic",
+      "cost": "S",
+      "needs": [
+        "game1.checkpoints"
+      ],
+      "status": "shipped",
+      "reason": "closed in Checkpoints RunStartedAt on first CP",
+      "freeze_note": "game1 frozen — no further game codegen"
+    },
+    {
+      "id": "I009",
+      "title": "Coin pickup sound (valid asset)",
+      "one_liner": "Play short Sound on CoinCollected with a known-good rbxassetid",
+      "type": "content",
+      "cost": "S",
+      "needs": [
+        "game1.coins",
+        "game1.hud"
+      ],
+      "status": "deferred",
+      "reason": "FROZEN: focus agent core, not game1 dataset polish"
+    },
+    {
+      "id": "I010",
+      "title": "Checkpoint touch VFX pulse",
+      "one_liner": "Brief neon flash/particle on CP part when CheckpointReached fires",
+      "type": "polish",
+      "cost": "S",
+      "needs": [
+        "game1.checkpoints",
+        "game1.effects"
+      ],
+      "status": "shipped",
+      "reason": "C5 cloud_fallback CP VFX pulse",
+      "freeze_note": "game1 frozen — no further game codegen"
+    },
+    {
+      "id": "I011",
+      "title": "Finish-line BestTime write",
+      "one_liner": "On last Checkpoint index, call set_best_time(elapsed) without waiting for leave",
+      "type": "mechanic",
+      "cost": "S",
+      "needs": [
+        "game1.checkpoints",
+        "game1.player_data"
+      ],
+      "status": "shipped",
+      "reason": "C4 cloud_fallback: finish BestTime on last CP + leave",
+      "freeze_note": "game1 frozen — no further game codegen"
+    },
+    {
+      "id": "I012",
+      "title": "HUD death reset Time only",
+      "one_liner": "On CharacterAdded reset run clock but keep Best/Coins/CP labels stable",
+      "type": "ui",
+      "cost": "S",
+      "needs": [
+        "game1.hud"
+      ],
+      "status": "shipped",
+      "reason": "C4 cloud_fallback: RunStartedAt+HUD Time reset on respawn",
+      "freeze_note": "game1 frozen — no further game codegen"
+    },
+    {
+      "id": "I013",
+      "title": "Horror fog density preset",
+      "one_liner": "One Atmosphere/FogEnd preset in Generator for horror mood without extra props",
+      "type": "polish",
+      "cost": "S",
+      "needs": [
+        "game1.generator"
+      ],
+      "status": "shipped",
+      "reason": "C5 cloud_fallback HorrorFog Lighting preset",
+      "freeze_note": "game1 frozen — no further game codegen"
+    },
+    {
+      "id": "A001",
+      "title": "Graceful LLM backend degradation",
+      "one_liner": "If ollama ping False, log and fall through to cloud/stub without aborting --week",
+      "type": "infra",
+      "cost": "M",
+      "needs": [
+        "forge.llm_backends",
+        "forge.orchestrator_core"
+      ],
+      "status": "shipped",
+      "reason": "A6.1/A6.2 implemented + tests OK"
+    },
+    {
+      "id": "A002",
+      "title": "state.json contract compaction every 5 cycles",
+      "one_liner": "Python compact_state() collapses full contract snapshots into short strings under contracts/",
+      "type": "infra",
+      "cost": "M",
+      "needs": [
+        "forge.orchestrator_core"
+      ],
+      "status": "shipped",
+      "reason": "A6.1/A6.2 implemented + tests OK"
+    },
+    {
+      "id": "A003",
+      "title": "HITL feedback → JSON validator rules",
+      "one_liner": "y→closed_verified+golden; n→draft/active JSON rules via FORGE_RULES_AUTO",
+      "type": "infra",
+      "cost": "M",
+      "needs": [
+        "forge.validator",
+        "forge.orchestrator_core"
+      ],
+      "status": "shipped",
+      "reason": "A6.3 implemented"
+    },
+    {
+      "id": "A004",
+      "title": "DeepSeek planner redesign A7.1",
+      "one_liner": "HITL A/B/C packs, contract cards ≤350, halluc gate, plan_next→feedback",
+      "type": "infra",
+      "cost": "L",
+      "needs": [
+        "forge.deepseek_planner"
+      ],
+      "status": "shipped",
+      "reason": "A7.1 implemented"
+    },
+    {
+      "id": "A005",
+      "title": "Plugin skeleton archetypes A7.2",
+      "one_liner": "Versioned skeletons + META + pin-by-contract",
+      "type": "infra",
+      "cost": "L",
+      "needs": [
+        "forge.validator",
+        "forge.planner"
+      ],
+      "status": "shipped",
+      "reason": "A7.2 implemented"
+    }
+  ],
+  "pulse": {
+    "at": "2026-11-10T07:20:39.221862+00:00",
+    "cycle": 5,
+    "shipped_batch": [
+      "I010",
+      "I013"
+    ],
+    "held": [
+      "I009"
+    ]
+  },
+  "freeze": {
+    "at": "2026-11-10T07:21:39.292096+00:00",
+    "scope": "game1 src/** gameplay frozen",
+    "active_track": "agent_core",
+    "held_game_ideas": [
+      "I001",
+      "I002",
+      "I003",
+      "I005",
+      "I009"
+    ]
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "plugin": "forge.ui_control",
+  "compacted_at": "2026-11-10T07:28:51.768326+00:00",
+  "contract_snapshot": {
+    "name": "forge.ui_server + progress/run/projects/fix hubs + ui/*",
+    "purpose": "Stages 1-6 control panel: project→skills→TZ→week→smoke→fix",
+    "exports": [
+      "serve(host, port)",
+      "GET /api/status|/api/progress|/api/health|/api/smoke/latest|/api/fix/issues",
+      "POST /api/activate|/api/skills/auto|/api/tz|/api/goal/improve|/api/run/start|/api/smoke/submit|/api/fix/from-smoke|/api/progress/skip"
+    ]
+  }
+}

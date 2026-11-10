@@ -1,0 +1,9 @@
+=== CONTRACT CARDS (for 14B) ===
+{"id":"forge-player-attrs","exports":["GetAttribute(\"Coins\")","Destroy()","SetAttribute(\"Coins\", n)"],"attrs":["BestTime","Checkpoint","Coins","Score"],"forbid":["- NEVER `character:GetAttribute(\"Coins\")` — Character attrs ","- NEVER invent `CoinsCollected`.","- LevelConfig: Luau `id = n` only (never JS `id:`)."],"files":[]}
+{"id":"forge-ui-modern","exports":["forge_ui_modern()"],"attrs":[],"forbid":["- Read Player attrs for HUD; never Character attrs."],"files":[]}
+=== SKELETON client_ui@v1 ===
+--!strict
+-- archetype: client_ui@v1
+local Players = game:GetService("Players")
+local player = Players.LocalPlayer
+-- TODO: ScreenGui; read player:GetAttribute only; never character:GetAttribute

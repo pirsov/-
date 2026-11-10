@@ -1,0 +1,12 @@
+{
+  "plugin": "forge.state_hub",
+  "contract_snapshot": {
+    "name": "forge.state_hub",
+    "purpose": "state.json load/save + contract compaction",
+    "exports": [
+      "compact_state(root, force=False)",
+      "record_task_status(..., status failed|in_progress)",
+      "bump_pulse_cycle / maybe_compact_after_week_gate"
+    ]
+  }
+}

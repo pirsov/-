@@ -1,0 +1,14 @@
+{
+  "id": "client_ui",
+  "version": "v1",
+  "required": ["LocalPlayer"],
+  "required_any": [["ScreenGui", "TextLabel", "PlayerGui", "GetAttribute"]],
+  "forbid": ["DataStoreService", "FireServer"],
+  "forbid_regex": [
+    "char(?:acter)?\\s*:\\s*GetAttribute",
+    "(?m)^return\\s"
+  ],
+  "prompt_budget_chars": 500,
+  "default_path_glob": "src/client/**/*.client.luau",
+  "path_hints": [".client.luau", "src/client/"]
+}

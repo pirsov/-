@@ -1,0 +1,17 @@
+{
+  "plugin": "game1.coins_cycle1_confirm",
+  "compacted_at": "2026-11-10T07:28:51.769033+00:00",
+  "contract_snapshot": {
+    "name": "game1.coins",
+    "purpose": "Coin touch → Player.Coins + CoinCollected + UpdateLeaderboard",
+    "exports": [
+      "Touched on workspace.Coins parts",
+      "FireClient CoinCollected",
+      "FireAllClients UpdateLeaderboard"
+    ],
+    "forbidden": [
+      "CoinsCollected typo remote",
+      "character attrs"
+    ]
+  }
+}

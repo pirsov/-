@@ -1,0 +1,22 @@
+{
+  "plugin": "game1.hud",
+  "idea": "I012",
+  "closed_at": "2026-11-10T07:16:38.452991+00:00",
+  "cycle": 4,
+  "path": "src/client/HUD.client.luau",
+  "validator": "PASS",
+  "repair_attempts": 0,
+  "mode": "cloud_fallback",
+  "contract_snapshot": {
+    "name": "game1.hud",
+    "purpose": "HUD Time resets on death; Best/Coins/CP stable from player attrs",
+    "exports": [
+      "CharacterAdded + RunStartedAt changed → resetRunClock",
+      "Best -- if nil/<=0",
+      "player:GetAttribute only"
+    ],
+    "answers": {
+      "Q2": "B"
+    }
+  }
+}

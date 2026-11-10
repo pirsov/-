@@ -1,0 +1,21 @@
+{
+  "sources": [
+    {
+      "id": "ash",
+      "url": "https://github.com/AshExplained/roblox-skills",
+      "role": "design-architecture"
+    },
+    {
+      "id": "sypho",
+      "url": "https://github.com/SyphoDev-yt/roblox-ai-skills",
+      "role": "code-ui-map"
+    },
+    {
+      "id": "forge-learned",
+      "url": "local",
+      "role": "validated-compact"
+    }
+  ],
+  "compact_budget_chars": 1200,
+  "inject_max_skills": 3
+}

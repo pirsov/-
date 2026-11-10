@@ -1,0 +1,24 @@
+{
+  "plugin": "game1.hud",
+  "compacted_at": "2026-11-10T07:28:51.769279+00:00",
+  "contract_snapshot": {
+    "name": "game1.hud",
+    "purpose": "Left HUD Time/CP/Coins/Best from player attrs",
+    "exports": [
+      "player:GetAttribute BestTime/Coins/Checkpoint",
+      "Best: -- if nil or <=0; else Best: %.1f",
+      "CheckpointReached + CoinCollected OnClientEvent"
+    ],
+    "forbidden": [
+      "character:GetAttribute",
+      "Best shows 0.0 as record"
+    ],
+    "archetype": "client_ui",
+    "skeleton_version": "v1",
+    "files": [
+      "src/client/HUD.client.luau"
+    ]
+  },
+  "archetype": "client_ui",
+  "skeleton_version": "v1"
+}

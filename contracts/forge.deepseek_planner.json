@@ -1,0 +1,17 @@
+{
+  "plugin": "forge.deepseek_planner",
+  "compacted_at": "2026-11-10T07:28:51.768222+00:00",
+  "contract_snapshot": {
+    "name": "forge.deepseek",
+    "purpose": "Plan/compress only: skills, TZ, goal improve, smoke Q — never writes Luau",
+    "exports": [
+      "available() -> bool",
+      "chat(prompt, system, ...) -> str",
+      "select_skills(...) -> List[str]",
+      "compress_skill(raw_md) -> str",
+      "generate_project_tz(...) -> str",
+      "improve_goal(goal) -> {goal, skills_hint}",
+      "smoke_questionnaire(...) -> {questions}"
+    ]
+  }
+}

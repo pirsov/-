@@ -1,0 +1,17 @@
+{
+  "plugin": "forge.llm_graceful_degrade",
+  "contract_snapshot": {
+    "name": "forge.llm",
+    "purpose": "Graceful LLM backend degradation",
+    "exports": [
+      "resolve_runtime_backend() -> (backend, reason)",
+      "StubModeError",
+      "generate() raises StubModeError in stub",
+      "ping() True for stub so pipeline continues"
+    ],
+    "forbidden": [
+      "hard exit 1 on ollama down",
+      "mark_tz_done in stub"
+    ]
+  }
+}

@@ -14,16 +14,16 @@
 
 # RemoteEvents Contract
 
-## Player Actions
-- **PlayerRespawn**: Player has respawned.
-  - Payload: `{ player: Player }`
+Implemented in `src/shared/Gameplay/Remotes.luau` (folder `ReplicatedStorage.Remotes`):
 
-- **PlayerCheckpoint**: Player has reached a checkpoint.
-  - Payload: `{ player: Player, checkpointId: number }`
+| RemoteEvent | Direction | Payload |
+|-------------|-----------|---------|
+| Checkpoint | Client → Server | (reserved) |
+| CheckpointReached | Server → Client | `idx: number` |
+| UpdateLeaderboard | Server → Client | `{ entries }` (Plus) |
+| CoinCollected | Server → Client | `total: number` (Plus, Phase 32) |
 
-## Game Events
-- **GameStart**: Game has started.
-  - Payload: `{ startTime: number }`
-
-- **GameEnd**: Game has ended.
-  - Payload: `{ endTime: number, winner: Player }`
+## Player attributes
+- `Checkpoint` (number) — last reached index
+- `Score` (number) — run score
+- `Coins` (number) — Plus
