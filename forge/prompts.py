@@ -376,6 +376,8 @@ def build_prompt(
                 draft = draft[: draft_cap // 2] + "\n...(draft mid truncated)...\n" + draft[-draft_cap // 2 :]
         feedback += (
             "\n=== REPAIR MODE (A15 PATCH / 7B) ===\n"
+            'MANDATORY: Your reply MUST contain <FILE path="...">...</FILE>. '
+            "If you don't include the FILE tag, your fix will be rejected.\n"
             f"START YOUR REPLY WITH <DONE>{task.task_id}</DONE>. DO NOT FORGET THE XML TAGS.\n"
             'You MUST include <FILE path="...">content</FILE>. The FILE tag is mandatory.\n'
             "Below is YOUR previous draft (almost done). Do NOT rewrite from scratch.\n"
@@ -644,6 +646,7 @@ end
     if task.target_path and "Coins.server.luau" in task.target_path.replace("\\", "/"):
         coins_template = """
 === COINS TEMPLATE (Script — NO top-level return) ===
+You MUST use Players:GetPlayerFromCharacter(char). You MUST call coin:Destroy(). You MUST use task.wait().
 --!strict
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -809,7 +812,10 @@ Never use .Left. Prefer workspace.Puzzles folder.
             'Name="Checkpoint"..id; print section ids.',
         )
         coins_template = _short_tmpl(
-            coins_template, "Destroy coin ONLY here; player attrs; FireClient CoinCollected; ChildAdded."
+            coins_template,
+            "You MUST use Players:GetPlayerFromCharacter(char). "
+            "You MUST call coin:Destroy(). You MUST use task.wait(). "
+            "Destroy coin ONLY here; player attrs; FireClient CoinCollected; ChildAdded.",
         )
         levelconfig_template = _short_tmpl(
             levelconfig_template, "return { { id = n, gap = g, coins = c }, ... } Luau `=` only."
@@ -834,7 +840,7 @@ Never use .Left. Prefer workspace.Puzzles folder.
 - Checkpoints.server.luau MUST NOT use DataStoreService. DataStore is ONLY for datastore_service archetype."""
 
     if local_ollama:
-        strict_rules = f"""STRICT (ctx<=2k):
+        strict_rules = f"""STRICT (local; gameplay/client ctx<=4k):
 - ONLY this task. <DONE>{task.task_id}</DONE> + <FILE> required when -> path.
 - NEVER use wait(). Use task.wait(). This is a critical error.
 - server/client: no top-level return; ModuleScript: return table.

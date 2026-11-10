@@ -470,6 +470,9 @@ def pick_model(owner: str, attempt: int, escalate: bool) -> dict:
         }
 
     base = dict(AGENT_MODELS.get(owner, AGENT_MODELS["refactorer"]))
+    # models.json may set num_ctx alongside ctx (A25 gameplay/client 4096)
+    if base.get("num_ctx") is not None:
+        base["ctx"] = int(base["num_ctx"])
     preferred = base["model"]
     is_7b = False
     # Attempt 2+: prefer repair model (7b) — surgical patch, less VRAM than second 14b pass
@@ -481,6 +484,7 @@ def pick_model(owner: str, attempt: int, escalate: bool) -> dict:
             preferred = str(repair["model"])
             is_7b = True
             base["ctx"] = int(repair.get("ctx") or base.get("ctx") or 2048)
+            base["num_ctx"] = int(base["ctx"])  # do not keep 14B 4096 on 7B repair
             base["predict"] = int(repair.get("predict") or 512)
             print(f"   repair model: {preferred} ctx={base['ctx']} predict={base['predict']}", flush=True)
         else:
@@ -499,7 +503,7 @@ def pick_model(owner: str, attempt: int, escalate: bool) -> dict:
     }:
         base["predict"] = min(int(base.get("predict", 1024)), week_cap)
 
-    # A15/A17: hard Ollama output + ctx ceilings (diff/repair tighter; num_ctx=2048)
+    # A15/A25: hard Ollama output + ctx ceilings (gameplay/client 14B may use 4096)
     try:
         from . import llm_backends
 
@@ -508,7 +512,9 @@ def pick_model(owner: str, attempt: int, escalate: bool) -> dict:
             int(base.get("predict") or llm_backends.DEFAULT_NUM_PREDICT),
             diff_mode=diff_mode,
         )
-        base["ctx"] = llm_backends.cap_num_ctx(int(base.get("ctx") or llm_backends.LOCAL_NUM_CTX))
+        raw_ctx = base.get("ctx") or base.get("num_ctx") or llm_backends.LOCAL_NUM_CTX
+        base["ctx"] = llm_backends.cap_num_ctx(int(raw_ctx))
+        base["num_ctx"] = int(base["ctx"])
         base["diff_mode"] = diff_mode
         base["is_7b"] = is_7b or ("7b" in str(preferred).lower())
         base["prompt_budget_tokens"] = llm_backends.effective_prompt_token_budget(
@@ -518,9 +524,11 @@ def pick_model(owner: str, attempt: int, escalate: bool) -> dict:
             diff_mode=diff_mode,
         )
     except Exception:
-        base["ctx"] = min(int(base.get("ctx") or 2048), 2048)
+        raw_ctx = int(base.get("ctx") or base.get("num_ctx") or 2048)
+        base["ctx"] = min(raw_ctx, 4096)
+        base["num_ctx"] = int(base["ctx"])
         base["is_7b"] = is_7b
-        base["prompt_budget_tokens"] = 1000 if is_7b else 2000
+        base["prompt_budget_tokens"] = 1000 if is_7b else 3000
 
     installed = installed_models()
     resolved = llm.resolve_model(preferred, installed, allow_any=FALLBACK_ANY)
@@ -967,6 +975,8 @@ class Orchestrator:
                 repair_errs = repair_errors_for_7b(err_msgs)
                 checklist = format_validator_checklist(err_msgs, first_only=True)
                 validator_feedback = (
+                    'MANDATORY: Your reply MUST contain <FILE path="...">...</FILE>. '
+                    "If you don't include the FILE tag, your fix will be rejected.\n"
                     f"START YOUR REPLY WITH <DONE>{task.task_id}</DONE>. "
                     "DO NOT FORGET THE XML TAGS.\n"
                     'You MUST include <FILE path="...">content</FILE>. '

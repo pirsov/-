@@ -63,9 +63,12 @@ class TestA22StrictRulesInPrompt(unittest.TestCase):
             self.assertIn("NEVER a Part/Instance", prompt)
             self.assertIn("MUST NOT use DataStoreService", prompt)
             self.assertIn("datastore_service archetype", prompt)
-            # Still in STRICT RULES / STRICT block for 14B
+            # Still in STRICT RULES / STRICT block for 14B (A25: local ctx<=4k header)
             self.assertTrue(
-                "STRICT RULES:" in prompt or "STRICT (ctx<=2k):" in prompt,
+                "STRICT RULES:" in prompt
+                or "STRICT (ctx<=2k):" in prompt
+                or "STRICT (local; gameplay/client ctx<=4k):" in prompt
+                or "STRICT (local" in prompt,
                 "expected STRICT RULES block in 14B prompt",
             )
 

@@ -1,9 +1,9 @@
 {
-  "_comment": "GTX 1660 SUPER 6GB + A17 hard context: num_ctx=2048 (14B+7B), prompt≤2000/1000 tok, num_predict≤1024 (diff≤512).",
+  "_comment": "A25: gameplay/client 14B num_ctx=4096 + prompt≤3000; other roles/7B stay 2048 + ≤1000. predict≤1024 (diff≤512).",
   "hardware": {
     "name": "gtx1660_6gb",
     "vram_mb": 6144,
-    "notes": "Keep one model loaded. OLLAMA_NUM_PARALLEL=1. Close Chrome/Studio if VRAM >90%. Never raise num_ctx above 2048 on this card for forge codegen."
+    "notes": "Keep one model loaded. OLLAMA_NUM_PARALLEL=1. Close Chrome/Studio if VRAM >90%. gameplay/client use num_ctx=4096 on qwen2.5-coder:14b-4k; other roles stay 2048."
   },
   "agents": {
     "game_designer":       { "model": "phi4-mini:4k",         "ctx": 2048, "predict": 1024 },
@@ -12,8 +12,8 @@
     "qa_engineer":         { "model": "phi4-mini:4k",         "ctx": 2048, "predict": 1024 },
     "builder":             { "model": "phi4-mini:4k",         "ctx": 2048, "predict": 1024 },
     "tech_architect":      { "model": "qwen2.5-coder:14b-4k", "ctx": 2048, "predict": 1024 },
-    "gameplay_programmer": { "model": "qwen2.5-coder:14b-4k", "ctx": 2048, "predict": 1024 },
-    "client_programmer":   { "model": "qwen2.5-coder:14b-4k", "ctx": 2048, "predict": 1024 },
+    "gameplay_programmer": { "model": "qwen2.5-coder:14b-4k", "ctx": 4096, "predict": 1024, "num_ctx": 4096 },
+    "client_programmer":   { "model": "qwen2.5-coder:14b-4k", "ctx": 4096, "predict": 1024, "num_ctx": 4096 },
     "refactorer":          { "model": "qwen2.5-coder:7b-2k",  "ctx": 2048, "predict": 512 },
     "integrator":          { "model": "qwen2.5-coder:14b-4k", "ctx": 2048, "predict": 1024 }
   },
@@ -41,7 +41,7 @@
     "num_ctx": 2048,
     "num_predict": 1024,
     "num_predict_diff": 512,
-    "_comment": "A17 hard fit: compress TZ/contracts; refuse oversized prompts (no truncating input prompt)"
+    "_comment": "Default num_ctx=2048; gameplay/client agents override to 4096. Prompt budget 14B≤3000 / 7B≤1000."
   },
   "spacebunny": {
     "model": "space-bunny-alpha",

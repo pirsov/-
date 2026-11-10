@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""A17.0 Hard Context Fit — prompt budgets, num_ctx 2048, no oversized Ollama prompts."""
+"""A17/A25 Hard Context Fit — prompt budgets, num_ctx caps, no oversized Ollama prompts."""
 from __future__ import annotations
 
 import tempfile
@@ -12,36 +12,49 @@ from forge.task_parser import Task, WriteMode
 
 
 class TestNumCtxCaps(unittest.TestCase):
-    def test_local_ctx_is_2048(self):
+    def test_local_default_and_max_ctx(self):
         self.assertEqual(llm_backends.LOCAL_NUM_CTX, 2048)
-        self.assertEqual(llm_backends.cap_num_ctx(4096), 2048)
-        self.assertEqual(llm_backends.cap_num_ctx(99999), 2048)
+        self.assertEqual(llm_backends.MAX_NUM_CTX, 4096)
+        self.assertEqual(llm_backends.cap_num_ctx(4096), 4096)
+        self.assertEqual(llm_backends.cap_num_ctx(99999), 4096)
+        self.assertEqual(llm_backends.cap_num_ctx(2048), 2048)
         opts = llm_backends.ollama_options(num_ctx=4096, num_predict=1024)
-        self.assertEqual(opts["num_ctx"], 2048)
+        self.assertEqual(opts["num_ctx"], 4096)
         self.assertLessEqual(opts["num_predict"], 1024)
 
-    def test_agent_models_ctx_2048(self):
+    def test_agent_models_ctx(self):
+        for role in ("gameplay_programmer", "client_programmer"):
+            cfg = AGENT_MODELS[role]
+            self.assertEqual(int(cfg.get("ctx") or 0), 4096, msg=f"{role} ctx must be 4096")
+            self.assertEqual(int(cfg.get("num_ctx") or cfg.get("ctx") or 0), 4096)
         for role, cfg in AGENT_MODELS.items():
             self.assertLessEqual(
                 int(cfg.get("ctx") or 0),
-                2048,
-                msg=f"{role} ctx must be ≤2048",
+                4096,
+                msg=f"{role} ctx must be ≤4096",
             )
 
 
 class TestHardPromptBudgets(unittest.TestCase):
     def test_strict_caps(self):
-        self.assertEqual(llm_backends.HARD_PROMPT_TOKENS_14B, 2000)
+        self.assertEqual(llm_backends.HARD_PROMPT_TOKENS_14B, 3000)
         self.assertEqual(llm_backends.HARD_PROMPT_TOKENS_7B, 1000)
 
     def test_effective_budget_leaves_room_for_predict(self):
-        # ctx=2048, predict=1024 → prompt room ≈ 992 (< STRICT 2000)
-        b14 = llm_backends.effective_prompt_token_budget(
+        # ctx=2048, predict=1024 → prompt room ≈ 992 (room-limited under STRICT 3000)
+        b14_default = llm_backends.effective_prompt_token_budget(
             is_7b=False, num_ctx=2048, num_predict=1024
         )
-        self.assertLessEqual(b14, 2000)
-        self.assertLessEqual(b14, 2048 - 1024)
-        self.assertGreaterEqual(b14, 256)
+        self.assertLessEqual(b14_default, 3000)
+        self.assertLessEqual(b14_default, 2048 - 1024)
+        self.assertGreaterEqual(b14_default, 256)
+
+        # A25: gameplay/client ctx=4096 → budget ≈ 3000
+        b14 = llm_backends.effective_prompt_token_budget(
+            is_7b=False, num_ctx=4096, num_predict=1024
+        )
+        self.assertEqual(b14, 3000)
+        self.assertLessEqual(b14, 4096 - 1024)
 
         b7 = llm_backends.effective_prompt_token_budget(
             is_7b=True, num_ctx=2048, num_predict=512, diff_mode=True
@@ -143,7 +156,7 @@ class TestCompressTzAndBuildPrompt(unittest.TestCase):
             self.assertIn("REPAIR CHECKLIST", prompt)
             self.assertIn("Humanoid.Died", prompt)
 
-    def test_build_prompt_14b_under_strict_2000(self):
+    def test_build_prompt_14b_under_strict_3000(self):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
             (root / "AGENTS.md").write_text("# Agents\n### @tech_architect\nDo architecture.\n", encoding="utf-8")
@@ -161,18 +174,19 @@ class TestCompressTzAndBuildPrompt(unittest.TestCase):
                 raw="- [ ] T9 | @tech_architect | CREATE → docs/ARCHITECTURE.md | sketch",
             )
             budget = llm_backends.effective_prompt_token_budget(
-                is_7b=False, num_ctx=2048, num_predict=1024
+                is_7b=False, num_ctx=4096, num_predict=1024
             )
             prompt = build_prompt(
                 root,
                 "tech_architect",
                 task,
                 prompt_budget_tokens=budget,
-                num_ctx=2048,
+                num_ctx=4096,
                 num_predict=1024,
             )
             self.assertLessEqual(llm_backends.estimate_tokens(prompt), budget)
-            self.assertLessEqual(llm_backends.estimate_tokens(prompt), 2000)
+            self.assertLessEqual(llm_backends.estimate_tokens(prompt), 3000)
+            self.assertEqual(budget, 3000)
 
 
 if __name__ == "__main__":
