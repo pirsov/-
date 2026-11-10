@@ -46,6 +46,26 @@ BUILTIN_EXPORTS = {
     "PlayerRemoving",
     "UserId",
     "typeof",
+    # Networking (A10.2)
+    "CoinSync",
+    "DonateRequest",
+    "SaveAck",
+    "FireClient",
+    "OnClientEvent",
+    "OnServerEvent",
+    "RemoteEvent",
+    "RemoteFunction",
+    "ReplicatedStorage",
+}
+
+# Never legal on client_ui / *.client.luau plans — even if listed as server exports
+CLIENT_FORBIDDEN_EXPORTS = {
+    "DataStoreService",
+    "GetDataStore",
+    "GetAsync",
+    "SetAsync",
+    "UpdateAsync",
+    "BindToClose",
 }
 
 
@@ -177,6 +197,23 @@ def _extract_from_text(text: str) -> List[str]:
     return out
 
 
+def _plan_is_client_side(plan: Any) -> bool:
+    """Heuristic: client_ui archetype / .client.luau path / side=client."""
+    if not isinstance(plan, dict):
+        return False
+    arch = str(plan.get("archetype") or "").lower()
+    if arch == "client_ui":
+        return True
+    side = str(plan.get("side") or plan.get("role") or "").lower()
+    if side in {"client", "local", "ui"}:
+        return True
+    for key in ("target_path", "path", "file"):
+        p = str(plan.get(key) or "").replace("\\", "/")
+        if p.endswith(".client.luau") or "/src/client/" in p:
+            return True
+    return False
+
+
 def gate_plan(
     root: Path,
     plan: Any,
@@ -186,13 +223,44 @@ def gate_plan(
     """
     Return (ok, unknown_exports, report).
     ok=False → do not enqueue TZ / do not call 14B.
+    Also blocks contract forbids and client-side DataStore APIs (A10.2).
     """
     idx = index or build(root)
     allowed = set(idx.get("exports") or [])
+    client_side = _plan_is_client_side(plan)
+    # Scope forbids to this plan's plugin (global forbids would block LocalPlayer on UI plans)
+    forbids: Set[str] = set()
+    if client_side:
+        forbids |= set(CLIENT_FORBIDDEN_EXPORTS)
+    plugin = ""
+    if isinstance(plan, dict):
+        plugin = str(plan.get("plugin") or "")
+    if plugin:
+        for name, meta in (idx.get("plugins") or {}).items():
+            if name == plugin or name.startswith(plugin + ".") or plugin.startswith(name + "."):
+                # re-read forbid list from that contract file
+                rel = (meta or {}).get("path")
+                if not rel:
+                    continue
+                payload = _safe_load(root / rel)
+                if not payload:
+                    continue
+                snap = payload.get("contract_snapshot")
+                if not isinstance(snap, dict):
+                    snap = payload
+                for f in snap.get("forbidden") or snap.get("forbid") or []:
+                    if isinstance(f, str) and f.strip():
+                        # Normalize Remotes.X tokens
+                        forbids.add(f.strip())
+                        forbids.add(_normalize_export_token(f.strip()))
     # also allow plugin short names as non-calls
     proposed = extract_proposed_calls(plan)
     unknown: List[str] = []
+    forbidden_hits: List[str] = []
     for call in proposed:
+        if call in forbids or f"Remotes.{call}" in forbids:
+            forbidden_hits.append(call)
+            continue
         if call in allowed:
             continue
         # allow if any allowed export endswith / contains call as function name
@@ -216,18 +284,38 @@ def gate_plan(
             "Connect",
             "REWRITE",
             "APPEND",
+            "UDim2",
+            "GetService",
+            "Players",
+            "LocalPlayer",
+            "PlayerGui",
+            "WaitForChild",
+            "GetAttribute",
+            "SetAttribute",
+            "GetAttributeChangedSignal",
+            "ScreenGui",
+            "TextLabel",
+            "TextButton",
         }:
             continue
         unknown.append(call)
+    blocked = unknown + forbidden_hits
     report = {
-        "ok": len(unknown) == 0,
+        "ok": len(blocked) == 0,
         "proposed": proposed,
         "unknown": unknown,
+        "forbidden_hits": forbidden_hits,
+        "client_side": client_side,
         "allowed_count": len(allowed),
     }
-    if unknown:
+    if forbidden_hits:
+        report["message"] = (
+            f"[planner] blocked forbidden exports on "
+            f"{'client' if client_side else 'plan'}: {', '.join(forbidden_hits)}"
+        )
+    elif unknown:
         report["message"] = f"[planner] blocked hallucinated exports: {', '.join(unknown)}"
-    return len(unknown) == 0, unknown, report
+    return len(blocked) == 0, blocked, report
 
 
 def repair_prompt(unknown: List[str], allowed_sample: List[str]) -> str:

@@ -1,0 +1,20 @@
+{
+  "cycle": "A10.2",
+  "plugin": "system.coin_sync",
+  "archetype": "network_remote@v1.1 + server_script + client_ui",
+  "gate_remotes": "enqueue",
+  "gate_server": "enqueue",
+  "gate_client": "enqueue",
+  "gate_client_datastore_blocked": true,
+  "bundle_chars": 1415,
+  "bundle_has_coinsync": true,
+  "validator_remotes_ok": true,
+  "validator_server_ok": true,
+  "validator_client_ok": true,
+  "negative_client_datastore_blocked": true,
+  "artifacts": [
+    "artifacts/a10_2_e2e/Remotes.luau",
+    "artifacts/a10_2_e2e/CoinSync.server.luau",
+    "artifacts/a10_2_e2e/CoinHUD.client.luau"
+  ]
+}

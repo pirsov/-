@@ -1,0 +1,29 @@
+{
+  "kind": "tz_task",
+  "task_id": "A10.2",
+  "title": "Coin sync over Remotes (system.coin_sync)",
+  "description": "Remotes whitelist + CoinSync RemoteEvent; server FireClient coins; client OnClientEvent updates ScreenGui; NEVER DataStoreService on client",
+  "plugin": "system.coin_sync",
+  "parts": [
+    {
+      "archetype": "network_remote",
+      "skeleton_version": "v1.1",
+      "target_path": "artifacts/a10_2_e2e/Remotes.luau",
+      "proposed_calls": ["getOrCreate", "RemoteEvent", "CoinSync", "CoinCollected", "DonateRequest", "SaveAck"]
+    },
+    {
+      "archetype": "server_script",
+      "skeleton_version": "v1",
+      "side": "server",
+      "target_path": "artifacts/a10_2_e2e/CoinSync.server.luau",
+      "proposed_calls": ["FireClient", "CoinSync", "GetAttribute", "Players"]
+    },
+    {
+      "archetype": "client_ui",
+      "skeleton_version": "v1",
+      "side": "client",
+      "target_path": "artifacts/a10_2_e2e/CoinHUD.client.luau",
+      "proposed_calls": ["OnClientEvent", "CoinSync", "LocalPlayer", "ScreenGui", "GetAttribute"]
+    }
+  ]
+}

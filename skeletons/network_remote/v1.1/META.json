@@ -1,0 +1,14 @@
+{
+  "id": "network_remote",
+  "version": "v1.1",
+  "required": ["getOrCreate", "RemoteEvent", "return", "CoinSync"],
+  "required_any": [["CoinCollected", "DonateRequest", "SaveAck"]],
+  "forbid": ["DataStoreService", "LocalPlayer", "FireServer", "GetAsync", "SetAsync", "ScreenGui"],
+  "forbid_regex": [
+    "Remotes\\.CoinsCollected\\b",
+    "(?m)^return\\s+folder\\s*$"
+  ],
+  "prompt_budget_chars": 700,
+  "default_path_glob": "src/shared/Gameplay/Remotes.luau",
+  "path_hints": ["Remotes.luau", "Gameplay/Remotes", "CoinSync"]
+}

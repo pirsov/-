@@ -1,0 +1,14 @@
+{
+  "plugin": "system.coin_sync.client",
+  "archetype": "client_ui",
+  "skeleton_version": "v1",
+  "contract_snapshot": {
+    "name": "system.coin_sync.client",
+    "purpose": "CoinHUD listens CoinSync.OnClientEvent — never DataStore",
+    "exports": ["OnClientEvent", "CoinSync", "LocalPlayer", "ScreenGui", "GetAttribute"],
+    "forbidden": ["DataStoreService", "GetDataStore", "GetAsync", "SetAsync", "FireServer"],
+    "archetype": "client_ui",
+    "skeleton_version": "v1",
+    "files": ["artifacts/a10_2_e2e/CoinHUD.client.luau"]
+  }
+}

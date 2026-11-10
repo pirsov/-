@@ -104,8 +104,9 @@ def load_skeleton_text(
         return ""
     text = p.read_text(encoding="utf-8")
     meta = load_meta(archetype, ver, root) or {}
+    # META prompt_budget_chars wins when set (A10.2 CoinSync must fit in bundle)
     budget = int(meta.get("prompt_budget_chars") or max_chars)
-    return text[: min(budget, max_chars)]
+    return text[:budget]
 
 
 def infer_archetype_from_path(path: Path) -> Optional[str]:
@@ -132,13 +133,20 @@ def infer_archetype_from_path(path: Path) -> Optional[str]:
 def find_contract_pin(root: Path, path: Path) -> Tuple[Optional[str], Optional[str]]:
     """
     Look up archetype + skeleton_version from contracts matching this file/plugin.
+    Prefers exact relative path matches over fuzzy filename hits (A10.2).
     Returns (archetype, version) or (None, None).
     """
     contracts = root / "contracts"
     if not contracts.is_dir():
         return None, None
     name = path.name
+    try:
+        rel = path.resolve().relative_to(root.resolve()).as_posix()
+    except ValueError:
+        rel = path.as_posix().replace("\\", "/")
+
     best: Tuple[Optional[str], Optional[str]] = (None, None)
+    best_score = -1
     for p in contracts.glob("*.json"):
         if p.parent.name == "golden":
             continue
@@ -159,29 +167,35 @@ def find_contract_pin(root: Path, path: Path) -> Tuple[Optional[str], Optional[s
         path_field = payload.get("path") or (snap.get("path") if isinstance(snap, dict) else None)
         if path_field:
             files.append(str(path_field))
-        # match by filename or plugin stem
-        hit = any(str(f).endswith(name) or name in str(f) for f in files)
-        if not hit and name.replace(".server.luau", "").replace(".client.luau", "").replace(".luau", "") in p.stem:
-            hit = True
-        # game1.hud → HUD.client.luau
+
+        score = 0
+        for f in files:
+            fp = str(f).replace("\\", "/")
+            if rel == fp or rel.endswith("/" + fp) or rel.endswith(fp):
+                score = max(score, 100 + len(fp))
+            elif fp.endswith(name) or name in fp:
+                score = max(score, 20)
+
         stem = p.stem.lower()
+        if score == 0 and name.replace(".server.luau", "").replace(".client.luau", "").replace(".luau", "") in p.stem:
+            score = 5
         if name.lower().startswith("hud") and "hud" in stem:
-            hit = True
-        if name == "Remotes.luau" and "remote" in stem:
-            hit = True
+            score = max(score, 8)
+        # Prefer live game Remotes only when path is under src/
+        if name == "Remotes.luau" and "remote" in stem and "/src/" in rel:
+            score = max(score, 15)
         if name == "LevelConfig.luau" and ("levelconfig" in stem or "shared" in stem):
-            hit = True
-        # Precise save/data pins (server only) — avoid PlayerSave↔player_data crossover
+            score = max(score, 8)
         if name.endswith(".server.luau"):
             base = name[: -len(".server.luau")].lower()
             if base == "playersave" and ("player_save" in stem or "playersave" in stem):
-                hit = True
+                score = max(score, 25)
             if base == "playerdata" and ("player_data" in stem or "playerdata" in stem):
-                hit = True
-        if hit:
+                score = max(score, 25)
+
+        if score > best_score:
+            best_score = score
             best = (str(arch), str(ver) if ver else None)
-            if ver:
-                return best
     return best
 
 

@@ -1,0 +1,28 @@
+{
+  "plugin": "system.coin_sync",
+  "purpose": "Index plugin — see system.coin_sync.* part contracts",
+  "contract_snapshot": {
+    "name": "system.coin_sync",
+    "purpose": "CoinSync networking glue: Remotes + server push + client HUD",
+    "exports": [
+      "CoinSync",
+      "CoinCollected",
+      "DonateRequest",
+      "SaveAck",
+      "FireClient",
+      "OnClientEvent",
+      "getOrCreate"
+    ],
+    "forbidden": [
+      "DataStoreService",
+      "GetAsync",
+      "SetAsync",
+      "Remotes.CoinsCollected"
+    ],
+    "files": [
+      "artifacts/a10_2_e2e/Remotes.luau",
+      "artifacts/a10_2_e2e/CoinSync.server.luau",
+      "artifacts/a10_2_e2e/CoinHUD.client.luau"
+    ]
+  }
+}
