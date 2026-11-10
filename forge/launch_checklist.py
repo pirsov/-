@@ -101,7 +101,11 @@ def _token_economy_ok() -> Dict[str, Any]:
 
         return {
             "ok": True,
-            "detail": f"predict={llm_backends.DEFAULT_NUM_PREDICT}/diff={llm_backends.DIFF_NUM_PREDICT}",
+            "detail": (
+                f"ctx={llm_backends.LOCAL_NUM_CTX} "
+                f"prompt≤{llm_backends.HARD_PROMPT_TOKENS_14B}/{llm_backends.HARD_PROMPT_TOKENS_7B} "
+                f"predict={llm_backends.DEFAULT_NUM_PREDICT}/diff={llm_backends.DIFF_NUM_PREDICT}"
+            ),
             "num_predict": llm_backends.DEFAULT_NUM_PREDICT,
             "num_predict_diff": llm_backends.DIFF_NUM_PREDICT,
         }

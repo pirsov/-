@@ -29,7 +29,7 @@ AGENT_MODELS: Dict[str, dict] = {
 }
 
 # Ensure every known role has an entry even if JSON is trimmed
-_FALLBACK_ROLE = {"model": "qwen2.5-coder:14b-4k", "ctx": 4096, "predict": 4096}
+_FALLBACK_ROLE = {"model": "qwen2.5-coder:14b-4k", "ctx": 2048, "predict": 1024}
 for _role in (
     "game_designer",
     "tech_architect",
@@ -125,7 +125,7 @@ def relevant_paths(root: Path, task: Task, owner: str = "") -> List[Path]:
 
 
 def file_budget_chars() -> int:
-    """Cloud 1M-ctx: large. Ollama on 6GB VRAM: keep prompt small so 4k ctx has room to write."""
+    """Cloud 1M-ctx: large. Ollama A17 hard-fit: tiny file window inside 2k ctx."""
     try:
         from . import llm
 
@@ -135,10 +135,52 @@ def file_budget_chars() -> int:
         if be == "openrouter":
             return int(OPENROUTER_CFG.get("file_budget") or 180_000)
         ollama_cfg = dict(_CFG.get("ollama") or {})
-        return int(ollama_cfg.get("file_budget") or 12_000)
+        # A17: default 1800 chars — contracts/TZ/task must still fit ≤2000 tok / leave predict room
+        return int(ollama_cfg.get("file_budget") or 1_800)
     except Exception:
         pass
-    return 12_000
+    return 1_800
+
+
+def compress_tz_for_prompt(tz: str, *, max_chars: int = 900) -> str:
+    """
+    A17: shrink PROJECT_TZ before Ollama — keep headers + open [ ] (+ sparse done markers).
+    Done/failed lines collapse to a one-line count so open work stays visible.
+    """
+    lines = (tz or "").splitlines()
+    keep: List[str] = []
+    done_n = 0
+    fail_n = 0
+    header_n = 0
+    for line in lines:
+        s = line.strip()
+        # Task markers always classified first (even in first lines)
+        if "- [ ]" in line:
+            keep.append(line)
+            continue
+        if "- [-]" in line:
+            fail_n += 1
+            m = re.search(r"\b([A-Z]\d+(?:\.\d+)?)\b", line)
+            if m and len(keep) < 40:
+                keep.append(f"- [-] {m.group(1)}")
+            continue
+        if "- [x]" in line:
+            done_n += 1
+            continue
+        # Headers / preamble only (cap so done lists elsewhere don't sneak in)
+        if s.startswith("#") or (header_n < 6 and not s.startswith("-")):
+            keep.append(line)
+            header_n += 1
+            continue
+    if done_n or fail_n:
+        keep.append(f"(TZ compact: done={done_n} failed_repair={fail_n})")
+    text = "\n".join(keep)
+    if len(text) > max_chars:
+        head = "\n".join(keep[:6])
+        rest = "\n".join(keep[6:])
+        room = max(0, max_chars - len(head) - 40)
+        text = head + "\n...\n" + rest[-room:]
+    return text[:max_chars]
 
 
 def render_files(paths: Sequence[Path], root: Path, budget_chars: Optional[int] = None) -> str:
@@ -230,23 +272,74 @@ def build_prompt(
     validator_feedback: Optional[str] = None,
     prior_snapshot: Optional[str] = None,
     repair_draft: Optional[str] = None,
+    is_7b: bool = False,
+    prompt_budget_tokens: Optional[int] = None,
+    num_ctx: Optional[int] = None,
+    num_predict: Optional[int] = None,
 ) -> str:
-    agents = extract_agent_section((root / "AGENTS.md").read_text(encoding="utf-8"), owner)
+    # A17: detect local Ollama so we hard-fit; cloud keeps larger prompts
+    local_ollama = True
+    try:
+        from . import llm
+
+        local_ollama = llm.backend_name() == "ollama"
+    except Exception:
+        local_ollama = True
+
+    from . import llm_backends
+
+    budget = prompt_budget_tokens
+    if budget is None and local_ollama:
+        budget = llm_backends.effective_prompt_token_budget(
+            is_7b=is_7b,
+            num_ctx=num_ctx,
+            num_predict=num_predict,
+            diff_mode=is_7b or attempt >= 2,
+        )
+    elif budget is None:
+        budget = None  # cloud: no hard fit
+
+    agents_raw = extract_agent_section((root / "AGENTS.md").read_text(encoding="utf-8"), owner)
+    # A17: agents.md is huge — keep a stub for local ctx
+    if local_ollama:
+        agents = agents_raw[:500]
+    else:
+        agents = agents_raw
+
     tz = (root / "PROJECT_TZ.md").read_text(encoding="utf-8")
-    tz_lines = tz.splitlines()
-    compact: List[str] = []
-    for i, line in enumerate(tz_lines):
-        if i < 12 or line.startswith("#") or line.startswith("##") or "- [ ]" in line:
-            compact.append(line)
-        elif "- [x]" in line or "- [-]" in line:
-            compact.append(line)
-    tz_compact = "\n".join(compact)
-    files = render_files(relevant_paths(root, task, owner), root)
+    if local_ollama:
+        tz_compact = compress_tz_for_prompt(tz, max_chars=700 if is_7b else 900)
+    else:
+        tz_lines = tz.splitlines()
+        compact: List[str] = []
+        for i, line in enumerate(tz_lines):
+            if i < 12 or line.startswith("#") or line.startswith("##") or "- [ ]" in line:
+                compact.append(line)
+            elif "- [x]" in line or "- [-]" in line:
+                compact.append(line)
+        tz_compact = "\n".join(compact)
+
+    file_cap = 900 if is_7b else file_budget_chars()
+    if local_ollama and not is_7b:
+        file_cap = min(file_cap, 1_800)
+    if local_ollama and is_7b:
+        file_cap = min(file_cap, 700)
+    files = render_files(relevant_paths(root, task, owner), root, budget_chars=file_cap)
 
     feedback = ""
     if validator_feedback:
-        feedback = f"\n=== VALIDATOR FEEDBACK (fix ONLY these issues) ===\n{validator_feedback}\n"
+        # Prefer short checklist; trim long freeform validator walls
+        vf = validator_feedback.strip()
+        if local_ollama and len(vf) > 600:
+            vf = vf[:600] + "\n...(validator trimmed)..."
+        feedback = f"\n=== VALIDATOR FEEDBACK (fix ONLY these issues) ===\n{vf}\n"
     if repair_draft:
+        draft = repair_draft
+        if local_ollama:
+            # Keep surgical repair draft tiny so checklist + task still fit
+            draft_cap = 1200 if is_7b else 1800
+            if len(draft) > draft_cap:
+                draft = draft[: draft_cap // 2] + "\n...(draft mid truncated)...\n" + draft[-draft_cap // 2 :]
         feedback += (
             "\n=== REPAIR MODE (A15 PATCH / 7B) ===\n"
             "Below is YOUR previous draft (almost done). Do NOT rewrite from scratch.\n"
@@ -255,25 +348,32 @@ def build_prompt(
             'FindFirstChild("Checkpoint"..idx) for teleport; '
             "Checkpoint_ → Checkpoint..id).\n"
             "Prefer SEARCH/REPLACE blocks against this draft; full file only if required.\n"
-            f"{repair_draft}\n"
+            f"{draft}\n"
         )
     elif prior_snapshot and task.mode == WriteMode.APPEND:
+        snap = prior_snapshot
+        if local_ollama and len(snap) > 800:
+            snap = snap[-800:]
         feedback += (
             f"\n=== CURRENT FILE CONTENT (append AFTER this, do not repeat) ===\n"
-            f"{prior_snapshot}\n"
+            f"{snap}\n"
         )
     elif prior_snapshot and task.mode in {WriteMode.REWRITE, WriteMode.CREATE}:
+        snap = prior_snapshot
+        if local_ollama:
+            snap_cap = 900 if is_7b else 1400
+            if len(snap) > snap_cap:
+                snap = snap[: snap_cap // 2] + "\n...(baseline truncated)...\n" + snap[-snap_cap // 2 :]
         feedback += (
             "\n=== BASELINE FILE (PATCH from THIS — A15) ===\n"
             "Prefer SEARCH/REPLACE against this baseline. Do not invent a new architecture.\n"
             "Preserve: Map folder, Name=\"Path\" floor, SpawnPlaza, SpawnLocation, "
             'checkpoint Name = "Checkpoint" .. tostring(id) (NO underscore), coins, print section ids.\n'
             "Only apply the task delta (e.g. add Obstacle parts).\n"
-            f"{prior_snapshot}\n"
+            f"{snap}\n"
         )
 
-    # Compact Roblox skills (DeepSeek-shortened / forge-learned) — keep under ~3.6k chars
-    # A15: semantic prune cards by task/TZ focus terms
+    # Compact Roblox skills — A17: trim contracts hard before Ollama
     skills_block = ""
     try:
         from . import skills_hub
@@ -290,31 +390,42 @@ def build_prompt(
                 meta = _json.loads(meta_p.read_text(encoding="utf-8"))
                 skill_ids = list(meta.get("skills_compact") or skill_ids)[:3]
         focus = te.extract_focus_terms(task.raw or "", task.description or "", tz_compact[:800])
+        max_skills = 1 if (local_ollama and is_7b) else (2 if local_ollama else 3)
         skills_block = skills_hub.bundle_for_14b(
             root,
-            skill_ids[:3],
-            max_skills=3,
-            rules_budget=400,
+            skill_ids[:max_skills],
+            max_skills=max_skills,
+            card_budget=220 if local_ollama else 350,
+            rules_budget=180 if local_ollama else 400,
             focus_terms=focus,
             economy=True,
             prune=True,
             skeleton_budget=0,
         )
-        if len(skills_block) > 3600:
-            skills_block = skills_block[:3600]
+        skill_cap = 500 if is_7b else (900 if local_ollama else 3600)
+        if len(skills_block) > skill_cap:
+            skills_block = skills_block[:skill_cap]
         if skills_block:
             skills_block = "\n" + skills_block
     except Exception:
         skills_block = ""
 
-    # A11.0: 3D asset catalog for spawn/collectible tasks
+    # A11.0: 3D asset catalog — skip or tiny on local hard-fit
     assets_block = ""
-    try:
-        from . import asset_hub
+    if not local_ollama:
+        try:
+            from . import asset_hub
 
-        assets_block = "\n=== " + asset_hub.catalog_for_prompt(root, max_chars=400) + " ===\n"
-    except Exception:
-        assets_block = ""
+            assets_block = "\n=== " + asset_hub.catalog_for_prompt(root, max_chars=400) + " ===\n"
+        except Exception:
+            assets_block = ""
+    else:
+        try:
+            from . import asset_hub
+
+            assets_block = "\n=== " + asset_hub.catalog_for_prompt(root, max_chars=120) + " ===\n"
+        except Exception:
+            assets_block = ""
 
     retry_note = ""
     if attempt > 1:
@@ -639,25 +750,50 @@ Create PressurePlate + Gate Parts if missing. Touched => open gate. TouchEnded =
 Never use .Left. Prefer workspace.Puzzles folder.
 """
 
-    return f"""You are the agent @{owner} inside Quality Forge.
-You WRITE the game (Luau / design docs). A human only playtests later.
-Follow AGENTS.md. Do the task for real — do not reply NOTE-only when a FILE is required.
-{retry_note}
-=== AGENTS.md ===
-{agents}
+    # A17: on local Ollama, prefer one-line template hints over full Luau paste
+    if local_ollama:
+        def _short_tmpl(block: str, hint: str, cap: int = 280) -> str:
+            if not block:
+                return ""
+            # Keep the === TITLE === line + short hint instead of full sample
+            first = block.strip().splitlines()[0] if block.strip() else ""
+            return f"\n{first}\n{hint}\n"
 
-=== PROJECT_TZ.md (compact) ===
-{tz_compact}
+        remotes_template = _short_tmpl(
+            remotes_template, "getOrCreate RemoteEvents; return Remotes table ModuleScript."
+        )
+        checkpoints_template = _short_tmpl(
+            checkpoints_template,
+            'Touched+SetAttribute; Died→LoadCharacter; FindFirstChild("Checkpoint"..idx).',
+        )
+        effects_template = _short_tmpl(effects_template, "LocalScript; OnClientEvent sounds; no top-level return.")
+        generator_template = _short_tmpl(
+            generator_template,
+            'Map/Checkpoints/Coins folders; SpawnLocation; Name="Checkpoint"..id; print section ids.',
+        )
+        coins_template = _short_tmpl(
+            coins_template, "Destroy coin; player attrs; FireClient; ChildAdded hook."
+        )
+        levelconfig_template = _short_tmpl(
+            levelconfig_template, "return { { id = n, gap = g, coins = c }, ... } Luau `=` only."
+        )
+        hud_template = _short_tmpl(
+            hud_template, "ScreenGui; read PLAYER attrs (not Character); CharacterAdded."
+        )
+        leaderboard_template = _short_tmpl(
+            leaderboard_template, "create UI; UpdateLeaderboard only — no LeaderboardFrame."
+        )
+        qa_template = _short_tmpl(qa_template, "BUGS/SUGGESTIONS/TEST CASES/SCORE sections.") if qa_template else ""
 
-=== Existing project files (relevant) ===
-{files}
-{skills_block}{assets_block}{feedback}{qa_template}{remotes_template}{checkpoints_template}{effects_template}{generator_template}{coins_template}{levelconfig_template}{hud_template}{leaderboard_template}{void_template}{puzzles_template}
-=== YOUR TASK ===
-{task.raw.strip()}
-
-{mode_instructions(task, file_exists=bool(prior_snapshot), prefer_diff=True)}
-
-STRICT RULES:
+    if local_ollama:
+        strict_rules = f"""STRICT (ctx≤2k):
+- ONLY this task. <DONE>{task.task_id}</DONE> + <FILE> required when → path.
+- task.wait() not wait(); server/client: no top-level return; ModuleScript: return table.
+- Checkpoint.."id" (no _); Remotes ModuleScript; LevelConfig Luau `=`; coins Destroy+FireClient.
+- Compact code; SEARCH/REPLACE preferred on existing files."""
+        token_econ = "TOKEN ECONOMY: minimal comments; only code for THIS task."
+    else:
+        strict_rules = f"""STRICT RULES:
 - Do ONLY this one task. Do not touch other tasks.
 - Do NOT block due to task ordering. Prerequisites are already done.
 - If task says '-> path/file.md#section', '#' is a section name, NOT part of the filename.
@@ -678,13 +814,34 @@ STRICT RULES:
 - HUD: create ScreenGui; player.CharacterAdded — never bare characterAdded.
 - Leaderboard: create UI; UpdateLeaderboard only — no LeaderboardFrame WaitForChild.
 - Void: Heartbeat Y<-20 LoadCharacter. Puzzles: TouchEnded not .Left.
-- TOKEN ECONOMY: Do not write excessive comments. Use concise local variable names. Output only the necessary code.
-
-TOKEN ECONOMY (local 14B ctx≤4k):
+- TOKEN ECONOMY: Do not write excessive comments. Use concise local variable names. Output only the necessary code."""
+        token_econ = """TOKEN ECONOMY (local 14B ctx≤4k):
 - Do not write excessive comments. Critical one-liners only.
 - Use concise local variable names; keep public/contract names stable.
 - Output only the necessary code for THIS task.
-- Prefer Luau-compact forms; no decorative blank lines.
+- Prefer Luau-compact forms; no decorative blank lines."""
+
+    prompt = f"""You are the agent @{owner} inside Quality Forge.
+You WRITE the game (Luau / design docs). A human only playtests later.
+Follow AGENTS.md. Do the task for real — do not reply NOTE-only when a FILE is required.
+{retry_note}
+=== AGENTS.md ===
+{agents}
+
+=== PROJECT_TZ.md (compact) ===
+{tz_compact}
+
+=== Existing project files (relevant) ===
+{files}
+{skills_block}{assets_block}{feedback}{qa_template}{remotes_template}{checkpoints_template}{effects_template}{generator_template}{coins_template}{levelconfig_template}{hud_template}{leaderboard_template}{void_template}{puzzles_template}
+=== YOUR TASK ===
+{task.raw.strip()}
+
+{mode_instructions(task, file_exists=bool(prior_snapshot), prefer_diff=True)}
+
+{strict_rules}
+
+{token_econ}
 
 Format:
 <DONE>{task.task_id}</DONE>
@@ -698,3 +855,11 @@ new lines
 </FILE>
 (or full file content when CREATE / large rewrite)
 """
+    # A17 hard fit — NEVER send oversized prompts to Ollama
+    if budget is not None:
+        prompt, meta = llm_backends.fit_prompt(prompt, int(budget))
+        if not meta.get("ok") or llm_backends.estimate_tokens(prompt) > int(budget):
+            prompt, meta = llm_backends.fit_prompt(prompt, int(budget))
+        llm_backends.assert_prompt_fits(prompt, int(budget))
+    return prompt
+
