@@ -16,11 +16,8 @@ Catalog → `assets/catalog/assets.json`. Planner sees: `Available 3D assets: Ap
 
 ## From Studio place (`.rbxl`)
 
-`working_game.rbxl` was scanned: only a Model named **Banana** was found (mesh `rbxassetid://178186804`).  
-It is registered via `assets/catalog/place_meshes.json` after `--scan-assets`.
+`working_game.rbxl` contains Folder **`Fruits_Inventory`** with all fruit Models (Orange, Mango, DragonFruit, …) plus Accessory **Banana**.
 
-To add Apple / other fruits:
+They are registered in `assets/catalog/place_meshes.json` and merged on `--scan-assets` (no `.glb` required for Gate).
 
-1. In Studio open the place → rename each fruit Model (`Apple`, `Orange`, …)
-2. Export / save as `.glb` into this folder **or** re-upload the place and tell the agent to re-scan
-3. `python -u run.py --scan-assets`
+Optional: export a Model from Studio as `.glb` into this folder if you want a file-based mesh for non-Roblox tooling.

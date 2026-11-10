@@ -101,7 +101,7 @@ def scan_models(root: Optional[Path] = None) -> Dict[str, Any]:
                     "bytes": p.stat().st_size,
                 }
             )
-    # Merge Studio place refs (Banana from working_game.rbxl, etc.)
+    # Merge Studio place refs (Fruits_Inventory models from working_game.rbxl, etc.)
     for extra in _load_place_meshes(root):
         key = str(extra["id"]).lower()
         if key in seen:
