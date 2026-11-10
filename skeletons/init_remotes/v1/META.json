@@ -1,0 +1,11 @@
+{
+  "id": "init_remotes",
+  "version": "v1",
+  "required": ["GetService", "ReplicatedStorage"],
+  "required_any": [["RemoteEvent", "Remotes", "getOrCreate"]],
+  "forbid": ["DataStoreService", "LocalPlayer", "FireServer", "ScreenGui"],
+  "forbid_regex": ["(?m)^return\\s"],
+  "prompt_budget_chars": 450,
+  "default_path_glob": "src/server/**/InitRemotes*.server.luau",
+  "path_hints": ["InitRemotes", "InitRemotes.server.luau"]
+}

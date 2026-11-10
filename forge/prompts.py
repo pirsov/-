@@ -377,6 +377,7 @@ def build_prompt(
         feedback += (
             "\n=== REPAIR MODE (A15 PATCH / 7B) ===\n"
             f"START YOUR REPLY WITH <DONE>{task.task_id}</DONE>. DO NOT FORGET THE XML TAGS.\n"
+            'You MUST include <FILE path="...">content</FILE>. The FILE tag is mandatory.\n'
             "Below is YOUR previous draft (almost done). Do NOT rewrite from scratch.\n"
             "Work the REPAIR CHECKLIST bullet-by-bullet "
             "(e.g. add Humanoid.Died + LoadCharacter; "
@@ -835,8 +836,9 @@ Never use .Left. Prefer workspace.Puzzles folder.
     if local_ollama:
         strict_rules = f"""STRICT (ctx<=2k):
 - ONLY this task. <DONE>{task.task_id}</DONE> + <FILE> required when -> path.
-- task.wait() not wait(); server/client: no top-level return; ModuleScript: return table.
-- Checkpoint.."id" (no _); Remotes ALWAYS ReplicatedStorage:WaitForChild("Gameplay"):WaitForChild("Remotes") never bare Remotes; LevelConfig Luau `=`; coins Destroy+FireClient.
+- NEVER use wait(). Use task.wait(). This is a critical error.
+- server/client: no top-level return; ModuleScript: return table.
+- Checkpoint.."id" (no _); ALWAYS require Remotes via ReplicatedStorage:WaitForChild("Gameplay"):WaitForChild("Remotes") never bare Remotes; LevelConfig Luau `=`; coins Destroy+FireClient.
 - Compact code; SEARCH/REPLACE preferred on existing files.
 {hard_caps}"""
         token_econ = "TOKEN ECONOMY: minimal comments; only code for THIS task."
@@ -846,7 +848,7 @@ Never use .Left. Prefer workspace.Puzzles folder.
 - Do NOT block due to task ordering. Prerequisites are already done.
 - If task says '-> path/file.md#section', '#' is a section name, NOT part of the filename.
 - No stubs, no empty TODOs. Ship playable / readable content.
-- NEVER use wait() - always task.wait().
+- NEVER use wait(). Use task.wait(). This is a critical error.
 - *.server.luau / *.client.luau MUST NOT end with return.
 - *.luau ModuleScripts MUST end with return <table>.
 - You MUST include at least one <FILE path="...">...</FILE> when the task has a -> path.
@@ -856,7 +858,7 @@ Never use .Left. Prefer workspace.Puzzles folder.
 - FILE path must be the real target (e.g. {task.target_path or "src/..."}), NEVER relative/path.ext.
 - Generator: CREATE Map/Path/Spawn (Instance.new); never WaitForChild Map first.
 - Generator checkpoint names: "Checkpoint" .. tostring(id) - NEVER "Checkpoint_".
-- Remotes: ALWAYS require via ReplicatedStorage:WaitForChild("Gameplay"):WaitForChild("Remotes") — NEVER bare ReplicatedStorage.Remotes; never return a Folder.
+- ALWAYS require Remotes via ReplicatedStorage:WaitForChild("Gameplay"):WaitForChild("Remotes") — NEVER bare ReplicatedStorage.Remotes; never return a Folder.
 - LevelConfig: Luau `id = n` only - NEVER JavaScript `id: n`. return array for ipairs.
 - Coins: coin:Destroy(); FireClient(player); FindFirstChild Coins + ChildAdded.
 - HUD: create ScreenGui; player.CharacterAdded - never bare characterAdded.

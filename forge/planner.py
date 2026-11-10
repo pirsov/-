@@ -23,6 +23,20 @@ def resolve_client_skeleton_for_path(
     return skeletons_hub.resolve_archetype_for_path(p, root)
 
 
+def resolve_server_skeleton_for_path(
+    root: Path, path: Path | str
+) -> Tuple[Optional[str], Optional[str]]:
+    """
+    A24.0: planner-facing skeleton routing for server tasks.
+    InitRemotes* → init_remotes (no Player/Workspace mandate);
+    PlayerSave/DataStore → datastore_service; else server_script.
+    """
+    from . import skeletons_hub
+
+    p = Path(path)
+    return skeletons_hub.resolve_archetype_for_path(p, root)
+
+
 def _active_game_prefixes(root: Path) -> List[str]:
     """Prefixes for verify_plugin scoping (active project + game*)."""
     prefixes: List[str] = []

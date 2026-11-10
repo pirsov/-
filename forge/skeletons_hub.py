@@ -160,14 +160,16 @@ def client_archetype_from_name(name: str) -> str:
 
 def hard_archetype_from_path(path: Path) -> Optional[str]:
     """
-    A18.1/A23.0: HARD-map Roblox Script filenames to Script skeletons.
-    *.server.luau → server_script (or datastore_service by name token).
+    A18.1/A23.0/A24.0: HARD-map Roblox Script filenames to Script skeletons.
+    *.server.luau → server_script (or datastore_service / init_remotes by name).
     *.client.luau → client_script (effects/camera/sound) or client_ui (HUD/menu/UI).
     Never shared_data / ModuleScript for these extensions.
     """
     name = path.name
     lower = name.lower()
     if name.endswith(".server.luau"):
+        if "initremotes" in lower.replace("_", "").replace("-", ""):
+            return "init_remotes"
         if any(token in lower for token in ("playersave", "datastore")):
             return "datastore_service"
         return "server_script"
@@ -188,6 +190,8 @@ def infer_archetype_from_path(path: Path) -> Optional[str]:
         return client_archetype_from_name(name)
     # Persist/save scripts before generic server_script (which forbids DataStore).
     lower = name.lower()
+    if "initremotes" in lower.replace("_", "").replace("-", ""):
+        return "init_remotes"
     if any(token in lower for token in ("playersave", "datastore")):
         return "datastore_service"
     if "/src/server/" in s:
@@ -274,7 +278,7 @@ def find_contract_pin(root: Path, path: Path) -> Tuple[Optional[str], Optional[s
 
 
 # Script-compatible archetypes (never ModuleScript shared_data for *.server/*.client)
-_SERVER_OK = frozenset({"server_script", "datastore_service"})
+_SERVER_OK = frozenset({"server_script", "datastore_service", "init_remotes"})
 _CLIENT_OK = frozenset({"client_ui", "client_script"})
 
 
@@ -286,8 +290,9 @@ def resolve_archetype_for_path(
     version: Optional[str] = None,
 ) -> Tuple[Optional[str], Optional[str]]:
     """
-    Resolve skeleton archetype with A18.1/A23.0 extension HARD-map.
+    Resolve skeleton archetype with A18.1/A23.0/A24.0 extension HARD-map.
     *.server.luau NEVER validates as shared_data.
+    InitRemotes* → init_remotes (no Player/Workspace mandate).
     *.client.luau → client_script (effects/camera/sound) or client_ui (HUD/menu/UI).
     Explicit datastore_service pins (DonationShop / PlayerSave) still win.
     """
@@ -296,10 +301,14 @@ def resolve_archetype_for_path(
     name = path.name
 
     if name.endswith(".server.luau"):
-        # Compatible explicit override (tests) or datastore pin / name token
+        # Compatible explicit override (tests) or datastore / InitRemotes pin
         if archetype in _SERVER_OK:
             return str(archetype), version or (
                 pinned_v if pinned_a == archetype else None
+            )
+        if pinned_a == "init_remotes" or hard == "init_remotes":
+            return "init_remotes", version or (
+                pinned_v if pinned_a == "init_remotes" else None
             )
         if pinned_a == "datastore_service" or hard == "datastore_service":
             return "datastore_service", version or (
@@ -356,6 +365,11 @@ def is_skeleton_routing_failure(path: Path, errors: List[str]) -> bool:
         if hard == "server_script" and labeled not in _SERVER_OK:
             return True
         if hard == "datastore_service" and labeled not in _SERVER_OK:
+            return True
+        if hard == "init_remotes" and labeled not in _SERVER_OK:
+            return True
+        # Wrong server sub-archetype (e.g. server_script Player mandate on InitRemotes)
+        if hard in _SERVER_OK and labeled in _SERVER_OK and labeled != hard:
             return True
         if hard in _CLIENT_OK and labeled not in _CLIENT_OK:
             return True
@@ -416,8 +430,8 @@ def validate_against_skeleton(
     version: Optional[str] = None,
 ) -> List[str]:
     """
-    Pin-by-contract + A18.1/A23.0 extension HARD-map.
-    *.server.luau → server_script (never shared_data).
+    Pin-by-contract + A18.1/A23.0/A24.0 extension HARD-map.
+    *.server.luau → server_script / init_remotes / datastore_service (never shared_data).
     *.client.luau → client_script (effects/camera/sound) or client_ui (HUD/menu/UI).
     """
     arch, ver = resolve_archetype_for_path(
