@@ -53,6 +53,8 @@ python -u run.py --ui
 | `POST` | `/api/stop_24h` | `{}` → стоп цикла + SIGTERM дочернего `--week` при наличии |
 | `GET` | `/api/status_snapshot` | плагины closed/verified, очередь, `hitl_pack`, `run`, флаг `waiting_human` |
 | `GET` | `/api/status` | прежний статус UI + поле `snapshot` (то же обогащение) |
+| `GET` | `/api/files` | дерево `src/` + `projects/<active>/src` → `{ files: ["src/...luau", ...] }` |
+| `GET` | `/api/file?path=` | текст файла (только под разрешёнными src-корнями; `..` → 400) |
 
 ### Уже существовавшие (этапы 01–06)
 

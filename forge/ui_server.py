@@ -142,6 +142,21 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as e:
                 self._json(400, {"error": f"{type(e).__name__}: {e}"})
             return
+        if path == "/api/files":
+            # A17.0 — workspace src + active project src (safe paths)
+            self._json(200, api_hub.list_files(ROOT))
+            return
+        if path == "/api/file":
+            rel = (qs.get("path") or [""])[0]
+            try:
+                self._json(200, api_hub.read_file(rel, ROOT))
+            except ValueError as e:
+                self._json(400, {"ok": False, "error": str(e)})
+            except FileNotFoundError as e:
+                self._json(404, {"ok": False, "error": f"not found: {e}"})
+            except Exception as e:
+                self._json(400, {"ok": False, "error": f"{type(e).__name__}: {e}"})
+            return
         if path == "/api/smoke/questions":
             pid = (qs.get("project") or ["game1"])[0]
             self._json(200, deepseek.smoke_questionnaire(project_id=pid))
