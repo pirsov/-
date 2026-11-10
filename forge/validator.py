@@ -139,6 +139,25 @@ def validate_file(path: Path, *, root: Optional[Path] = None) -> Tuple[bool, Lis
         if abs(opens - closes) > 2:
             errors.append(f"unbalanced parentheses ({opens} vs {closes})")
 
+        # Structural / syntax-level: APPEND can paste the whole file twice and
+        # redeclare the same `local function` (e.g. HUD updateCoins). NOT soft/TEMP.
+        code_no_comments = re.sub(r"--\[\[.*?\]\]", "", content, flags=re.S)
+        code_no_comments = re.sub(r"--[^\n]*", "", code_no_comments)
+        local_fns = re.findall(
+            r"(?m)^\s*local\s+function\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(",
+            code_no_comments,
+        )
+        fn_counts: dict[str, int] = {}
+        for fn in local_fns:
+            fn_counts[fn] = fn_counts.get(fn, 0) + 1
+        dups = sorted(fn for fn, n in fn_counts.items() if n > 1)
+        if dups:
+            errors.append(
+                "duplicate local function "
+                + ", ".join(f"{fn} (x{fn_counts[fn]})" for fn in dups)
+                + " — APPEND likely re-pasted the whole file"
+            )
+
     if name.endswith(".luau"):
         code_only = re.sub(r"--[^\n]*", "", content)
         # Identifier `folder` / `folder.`, not the English word in comments

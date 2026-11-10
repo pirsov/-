@@ -231,6 +231,9 @@ def fit_prompt(
                     or "YOUR TASK" in ln
                     or "REPAIR MODE" in ln
                     or "VALIDATOR" in ln
+                    or "MANDATORY" in ln
+                    or "<FILE" in ln
+                    or "FILE tag" in ln
                     or re.match(r"^\s*\d+\.", ln)
                     or ln.startswith("===")
                     or ln.startswith("- [")
