@@ -2,7 +2,7 @@
 Quality Forge orchestrator.
 
 Mechanic: long-horizon multi-pass game creation with:
-  - APPEND that actually appends (never silent overwrite)
+  - Full-file REWRITE only (A27: APPEND disabled — avoids duplicate local functions)
   - DONE requires validated FILE when task targets a path
   - snapshots + rollback on validator failure
   - validator feedback injected into retries
@@ -170,11 +170,13 @@ def parse_agent_output(text: str, expected_id: str) -> Tuple[Optional[str], str,
     for m in re.finditer(r'<FILE\s+path="([^"]+)">\r?\n?([\s\S]*?)</FILE>', text, re.I):
         raw_path = m.group(1).strip()
         content = m.group(2).strip("\r\n")
+        # A27: section/# in FILE path still strips to the real path, but mode is REWRITE
+        # (APPEND disabled — full file content expected).
         mode = WriteMode.REWRITE
         path = raw_path
         if "#" in raw_path:
             path = raw_path.split("#", 1)[0]
-            mode = WriteMode.APPEND
+            mode = WriteMode.REWRITE
         files.append(FileOp(path=path, content=content, mode=mode))
     return done_id, note, files, None
 
@@ -205,10 +207,12 @@ def apply_file_ops(root: Path, ops: List[FileOp], task: Task) -> List[str]:
             path = task.target_path.replace("\\", "/")
 
         mode = task.mode if task.mode != WriteMode.UNKNOWN else op.mode
-        if task.section or task.mode == WriteMode.APPEND:
-            mode = WriteMode.APPEND
         if task.mode in {WriteMode.REWRITE, WriteMode.CREATE}:
             mode = task.mode
+        # A27: APPEND fully disabled — never byte-append (caused duplicate local functions).
+        # Section/#anchors also full-file rewrite. Legacy APPEND enum → REWRITE.
+        if mode == WriteMode.APPEND or task.mode == WriteMode.APPEND or task.section:
+            mode = WriteMode.REWRITE
 
         full = root / path
         try:
@@ -219,35 +223,24 @@ def apply_file_ops(root: Path, ops: List[FileOp], task: Task) -> List[str]:
         snapshot_file(root, path)
 
         try:
-            if mode == WriteMode.APPEND and full.is_file():
-                existing = full.read_text(encoding="utf-8")
-                if op.content.strip() and op.content.strip() in existing:
-                    print(f"   skip duplicate append {path}")
-                else:
-                    sep = "" if existing.endswith("\n") or not existing else "\n"
-                    full.write_text(
-                        existing + sep + op.content + ("\n" if not op.content.endswith("\n") else ""),
-                        encoding="utf-8",
-                    )
-                    print(f"   appended {path}", flush=True)
-            else:
-                if full.is_dir():
-                    # Never rmtree placeholder-like or non-empty project roots
-                    if is_placeholder_path(path) or path in {".", "..", "..."}:
-                        print(f"   refuse to rmtree: {path}")
-                        continue
-                    try:
-                        shutil.rmtree(full)
-                    except OSError as e:
-                        print(f"   rmtree failed {path}: {e} - skip write")
-                        continue
-                # A15: SEARCH/REPLACE patches when baseline exists
-                from . import patch_apply
+            # A27: always full-file write / patch (APPEND byte-append removed).
+            if full.is_dir():
+                # Never rmtree placeholder-like or non-empty project roots
+                if is_placeholder_path(path) or path in {".", "..", "..."}:
+                    print(f"   refuse to rmtree: {path}")
+                    continue
+                try:
+                    shutil.rmtree(full)
+                except OSError as e:
+                    print(f"   rmtree failed {path}: {e} - skip write")
+                    continue
+            # A15: SEARCH/REPLACE patches when baseline exists
+            from . import patch_apply
 
-                existing = full.read_text(encoding="utf-8") if full.is_file() else None
-                body, how = patch_apply.materialize_file_content(existing, op.content)
-                full.write_text(body if body.endswith("\n") else body + "\n", encoding="utf-8")
-                print(f"   wrote {path}" + (" (patch)" if how == "patch" else ""), flush=True)
+            existing = full.read_text(encoding="utf-8") if full.is_file() else None
+            body, how = patch_apply.materialize_file_content(existing, op.content)
+            full.write_text(body if body.endswith("\n") else body + "\n", encoding="utf-8")
+            print(f"   wrote {path}" + (" (patch)" if how == "patch" else ""), flush=True)
             if path not in written:
                 written.append(path)
         except OSError as e:
@@ -317,20 +310,20 @@ def insert_micro_tasks(root: Path, after_id: str, micro: List[str]) -> None:
 
 
 def decompose_task(task: Task) -> List[str]:
-    """Heuristic split of a failed task into smaller APPEND/CREATE steps."""
+    """Heuristic split of a failed task into smaller REWRITE/CREATE steps (A27: no APPEND)."""
     path = task.target_path or "src/unknown.luau"
     tid = task.task_id
     owner = task.owner
     if path.endswith(".luau"):
         return [
             f"- [ ] {tid}.a | Create {path} with exactly: --!strict | @{owner} | → {path}",
-            f"- [ ] {tid}.b | APPEND services/imports only for: {task.description[:80]} | @{owner} | → {path}",
-            f"- [ ] {tid}.c | APPEND core logic only for: {task.description[:80]} | @{owner} | → {path}",
-            f"- [ ] {tid}.d | APPEND wiring/connections only; no top-level return if .server/.client | @{owner} | → {path}",
+            f"- [ ] {tid}.b | REWRITE services/imports only for: {task.description[:80]} | @{owner} | → {path}",
+            f"- [ ] {tid}.c | REWRITE core logic only for: {task.description[:80]} | @{owner} | → {path}",
+            f"- [ ] {tid}.d | REWRITE wiring/connections only; no top-level return if .server/.client | @{owner} | → {path}",
         ]
     return [
         f"- [ ] {tid}.a | Write first half of: {task.description[:100]} | @{owner} | → {path}",
-        f"- [ ] {tid}.b | APPEND second half of: {task.description[:100]} | @{owner} | → {path}",
+        f"- [ ] {tid}.b | REWRITE second half of: {task.description[:100]} | @{owner} | → {path}",
     ]
 
 
@@ -975,9 +968,10 @@ class Orchestrator:
                 repair_errs = repair_errors_for_7b(err_msgs)
                 checklist = format_validator_checklist(err_msgs, first_only=True)
                 # Absolute top of repair feedback — must survive hard-fit trim.
+                from .prompts import MANDATORY_FILE_LINE
+
                 validator_feedback = (
-                    'MANDATORY: Your reply MUST contain <FILE path="...">content</FILE>. '
-                    "If you don't include the FILE tag, your fix will be rejected.\n"
+                    f"{MANDATORY_FILE_LINE}\n"
                     "MANDATORY FILE TAG — do not omit; replies without <FILE> are rejected.\n"
                     f"START YOUR REPLY WITH <DONE>{task.task_id}</DONE>. "
                     "DO NOT FORGET THE XML TAGS.\n"
@@ -1024,10 +1018,11 @@ class Orchestrator:
                     # soft warn unless critical missing defs
                     critical = [e for e in ierrs if "likely APPEND overwrite" in e or "missing" in e]
                     if critical and task.mode == WriteMode.APPEND:
+                        # A27: APPEND disabled — ask for full-file REWRITE instead.
                         validator_feedback = (
-                            "APPEND corrupted file integrity:\n- "
+                            "File integrity failed (legacy APPEND path):\n- "
                             + "\n- ".join(critical)
-                            + "\nReturn ONLY new lines to append; do not rewrite the whole file."
+                            + "\nReturn the COMPLETE file via <FILE> (REWRITE; APPEND disabled)."
                         )
                         for rel in written:
                             restore_snapshot(self.root, rel)

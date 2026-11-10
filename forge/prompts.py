@@ -206,17 +206,12 @@ def render_files(paths: Sequence[Path], root: Path, budget_chars: Optional[int] 
 
 
 def mode_instructions(task: Task, *, file_exists: bool = False, prefer_diff: bool = True) -> str:
-    if task.mode == WriteMode.APPEND:
+    # A27: APPEND mode fully disabled — coerce to REWRITE so the model returns
+    # the COMPLETE file (APPEND caused duplicate `local function` pastes).
+    mode = WriteMode.REWRITE if task.mode == WriteMode.APPEND else task.mode
+    if mode == WriteMode.REWRITE and file_exists and prefer_diff:
         return (
-            "WRITE MODE = APPEND.\n"
-            "- Return ONLY the new lines to append.\n"
-            "- Do NOT repeat existing file content.\n"
-            "- Do NOT rewrite the whole file.\n"
-            f"- Target file: {task.target_path}\n"
-        )
-    if task.mode == WriteMode.REWRITE and file_exists and prefer_diff:
-        return (
-            "WRITE MODE = PATCH (file already exists — A15 diff economy).\n"
+            "WRITE MODE = REWRITE (APPEND disabled — A27; return COMPLETE file or PATCH).\n"
             "- Prefer SEARCH/REPLACE blocks inside <FILE> instead of rewriting the whole file.\n"
             "- Format exactly:\n"
             "<<<<<<< SEARCH\n"
@@ -225,26 +220,30 @@ def mode_instructions(task: Task, *, file_exists: bool = False, prefer_diff: boo
             "new lines\n"
             ">>>>>>> REPLACE\n"
             "- Multiple blocks allowed. SEARCH must match the baseline exactly.\n"
-            "- Full-file rewrite ONLY if >40% of the file must change.\n"
+            "- Or return the COMPLETE new file content (full-file rewrite is OK).\n"
+            "- NEVER append-only / never paste the file twice.\n"
             f"- Target file: {task.target_path}\n"
         )
-    if task.mode == WriteMode.REWRITE:
+    if mode == WriteMode.REWRITE:
         return (
             "WRITE MODE = REWRITE.\n"
             "- Return the COMPLETE new file content.\n"
+            "- APPEND is disabled — never return append-only fragments.\n"
             f"- Target file: {task.target_path}\n"
         )
-    if task.mode == WriteMode.CREATE:
+    if mode == WriteMode.CREATE:
         return (
             "WRITE MODE = CREATE.\n"
             "- Return the COMPLETE file content for a new/overwrite file.\n"
             f"- Target file: {task.target_path}\n"
         )
+    # A27: section/#anchors also full-file rewrite (no SECTION APPEND).
     if task.section:
         return (
-            "WRITE MODE = SECTION APPEND.\n"
-            f"- Append a markdown section to {task.target_path} (section #{task.section}).\n"
-            "- Return only the new section body.\n"
+            "WRITE MODE = REWRITE (section target; APPEND disabled — A27).\n"
+            f"- Return the COMPLETE file content for {task.target_path}"
+            f" (section #{task.section} may be updated in place).\n"
+            "- Do NOT return append-only fragments.\n"
         )
     return "WRITE MODE = NORMAL. Return complete file content for each <FILE>."
 
@@ -252,6 +251,18 @@ def mode_instructions(task: Task, *, file_exists: bool = False, prefer_diff: boo
 # A22.0: 7B panics on 3+ validator errors — feed one step at a time.
 FIRST_ERROR_ONLY_INSTRUCTION = (
     "Fix ONLY the first error in the list. Ignore the rest for now."
+)
+
+# A23/A27 STRICT: Remotes must always be WaitForChild chain (never bare Remotes).
+REMOTES_WAIT_RULE = (
+    'ALWAYS require Remotes via ReplicatedStorage:WaitForChild("Gameplay")'
+    ':WaitForChild("Remotes")'
+)
+
+# A25/A27: 7B repair must lead with this exact MANDATORY FILE line.
+MANDATORY_FILE_LINE = (
+    'MANDATORY: Your reply MUST contain <FILE path="...">content</FILE>. '
+    "If you don't include the FILE tag, your fix will be rejected."
 )
 
 
@@ -396,8 +407,7 @@ def build_prompt(
         # MANDATORY FILE must stay at absolute top of REPAIR MODE (pin vs hard-fit trim).
         feedback += (
             "\n=== REPAIR MODE (A15 PATCH / 7B) ===\n"
-            'MANDATORY: Your reply MUST contain <FILE path="...">content</FILE>. '
-            "If you don't include the FILE tag, your fix will be rejected.\n"
+            f"{MANDATORY_FILE_LINE}\n"
             "MANDATORY FILE TAG — do not omit; replies without <FILE> are rejected.\n"
             f"START YOUR REPLY WITH <DONE>{task.task_id}</DONE>. DO NOT FORGET THE XML TAGS.\n"
             'You MUST include <FILE path="...">content</FILE>. The FILE tag is mandatory.\n'
@@ -409,23 +419,20 @@ def build_prompt(
             "Prefer SEARCH/REPLACE blocks against this draft; full file only if required.\n"
             f"{draft}\n"
         )
-    elif prior_snapshot and task.mode == WriteMode.APPEND:
-        snap = prior_snapshot
-        if local_ollama and len(snap) > 800:
-            snap = snap[-800:]
-        feedback += (
-            f"\n=== CURRENT FILE CONTENT (append AFTER this, do not repeat) ===\n"
-            f"{snap}\n"
-        )
-    elif prior_snapshot and task.mode in {WriteMode.REWRITE, WriteMode.CREATE}:
+    elif prior_snapshot and task.mode in {
+        WriteMode.REWRITE,
+        WriteMode.CREATE,
+        WriteMode.APPEND,  # A27: APPEND coerced — same baseline as REWRITE
+    }:
         snap = prior_snapshot
         if local_ollama:
             snap_cap = 900 if is_7b else 1400
             if len(snap) > snap_cap:
                 snap = snap[: snap_cap // 2] + "\n...(baseline truncated)...\n" + snap[-snap_cap // 2 :]
         feedback += (
-            "\n=== BASELINE FILE (PATCH from THIS — A15) ===\n"
+            "\n=== BASELINE FILE (PATCH from THIS — A15; APPEND disabled A27) ===\n"
             "Prefer SEARCH/REPLACE against this baseline. Do not invent a new architecture.\n"
+            "Return COMPLETE file or patches — never append-only fragments.\n"
             "Preserve: Map folder, Name=\"Path\" floor, SpawnPlaza, SpawnLocation, "
             'checkpoint Name = "Checkpoint" .. tostring(id) (NO underscore), coins, print section ids.\n'
             "Only apply the task delta (e.g. add Obstacle parts).\n"
@@ -873,8 +880,8 @@ Never use .Left. Prefer workspace.Puzzles folder.
 - NEVER use wait(). Use task.wait(). This is a critical error.
 - {localplayer_server_rule}
 - server/client: no top-level return; ModuleScript: return table.
-- Checkpoint.."id" (no _); ALWAYS require Remotes via ReplicatedStorage:WaitForChild("Gameplay"):WaitForChild("Remotes") never bare Remotes; LevelConfig Luau `=`; coins Destroy+FireClient.
-- Compact code; SEARCH/REPLACE preferred on existing files.
+- Checkpoint.."id" (no _); {REMOTES_WAIT_RULE} never bare Remotes; LevelConfig Luau `=`; coins Destroy+FireClient.
+- Compact code; SEARCH/REPLACE preferred on existing files. APPEND disabled — full-file REWRITE only.
 {hard_caps}"""
         token_econ = "TOKEN ECONOMY: minimal comments; only code for THIS task."
     else:
@@ -894,12 +901,13 @@ Never use .Left. Prefer workspace.Puzzles folder.
 - FILE path must be the real target (e.g. {task.target_path or "src/..."}), NEVER relative/path.ext.
 - Generator: CREATE Map/Path/Spawn (Instance.new); never WaitForChild Map first.
 - Generator checkpoint names: "Checkpoint" .. tostring(id) - NEVER "Checkpoint_".
-- ALWAYS require Remotes via ReplicatedStorage:WaitForChild("Gameplay"):WaitForChild("Remotes") — NEVER bare ReplicatedStorage.Remotes; never return a Folder.
+- {REMOTES_WAIT_RULE} — NEVER bare ReplicatedStorage.Remotes; never return a Folder.
 - LevelConfig: Luau `id = n` only - NEVER JavaScript `id: n`. return array for ipairs.
 - Coins: coin:Destroy(); FireClient(player); FindFirstChild Coins + ChildAdded; FireAllClients UpdateLeaderboard.
 - HUD: create ScreenGui; player.CharacterAdded - never bare characterAdded.
 - Leaderboard: create UI; UpdateLeaderboard only - no LeaderboardFrame WaitForChild.
 - Void: Heartbeat Y<-20 LoadCharacter. Puzzles: TouchEnded not .Left.
+- APPEND is disabled (A27): always return COMPLETE file content / SEARCH-REPLACE — never append-only.
 {hard_caps}
 - TOKEN ECONOMY: Do not write excessive comments. Use concise local variable names. Output only the necessary code."""
         token_econ = """TOKEN ECONOMY (local 14B ctx<=4k):
