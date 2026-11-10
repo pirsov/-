@@ -36,11 +36,21 @@ KNOWN_MESH_BY_ID = {
 }
 
 
+ZSTD_INSTALL_HINT = "python -m pip install zstandard"
+
+
+def _zstd_missing_error() -> RuntimeError:
+    return RuntimeError(
+        "zstandard package required to read compressed .rbxl chunks. "
+        f"Fix: {ZSTD_INSTALL_HINT}  (or: pip install -r requirements.txt)"
+    )
+
+
 def _decompress(payload: bytes, uncompressed_len: int) -> bytes:
     if not payload.startswith(ZSTD_MAGIC):
         return payload
     if zstd is None:
-        raise RuntimeError("zstandard package required to read compressed .rbxl chunks")
+        raise _zstd_missing_error()
     dctx = zstd.ZstdDecompressor()
     try:
         return dctx.decompress(
@@ -49,6 +59,35 @@ def _decompress(payload: bytes, uncompressed_len: int) -> bytes:
     except zstd.ZstdError:
         with dctx.stream_reader(io.BytesIO(payload)) as reader:
             return reader.read()
+
+
+def existing_place_meshes_fruit_count(root: Optional[Path] = None) -> int:
+    """Return mesh count from on-disk place_meshes.json, or 0 if missing/empty."""
+    root = root or ROOT_DEFAULT
+    path = root / PLACE_MESHES
+    if not path.is_file():
+        return 0
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return 0
+    meshes = data.get("meshes") or []
+    return len(meshes) if isinstance(meshes, list) else 0
+
+
+def require_zstandard(root: Optional[Path] = None) -> None:
+    """Raise with install + catalog hint when zstandard is missing."""
+    if zstd is not None:
+        return
+    n = existing_place_meshes_fruit_count(root)
+    msg = str(_zstd_missing_error())
+    if n > 0:
+        msg += (
+            f"\n[hint] assets/catalog/place_meshes.json already has {n} fruit entries — "
+            "Gate / --scan-assets can use that catalog without re-scan. "
+            f"Install zstandard to refresh: {ZSTD_INSTALL_HINT}"
+        )
+    raise RuntimeError(msg)
 
 
 def _read_chunks(data: bytes) -> List[Tuple[bytes, bytes]]:
@@ -439,6 +478,7 @@ def write_place_meshes(
 ) -> Dict[str, Any]:
     """Scan rbxl → write place_meshes.json; return the document."""
     root = root or ROOT_DEFAULT
+    require_zstandard(root)
     rbxl_path = rbxl or (root / DEFAULT_RBXL)
     out_path = out or (root / PLACE_MESHES)
     scan = extract_fruits_inventory(rbxl_path)

@@ -1216,7 +1216,22 @@ def main(argv: Optional[List[str]] = None) -> int:
         from . import asset_hub
         from . import rbxl_inventory
 
-        report = rbxl_inventory.write_place_meshes(root)
+        try:
+            report = rbxl_inventory.write_place_meshes(root)
+        except RuntimeError as exc:
+            text = str(exc)
+            if "zstandard" in text.lower():
+                # Soft-fail: existing catalog is usable; re-scan still needs zstandard.
+                print(text, file=sys.stderr)
+                n = rbxl_inventory.existing_place_meshes_fruit_count(root)
+                if n > 0:
+                    print(
+                        f"[soft-fail] kept existing place_meshes.json ({n} fruits). "
+                        "Run: python -u run.py --scan-assets",
+                        file=sys.stderr,
+                    )
+                return 1
+            raise
         inv_md = root / "artifacts" / "reference_place" / "INVENTORY.md"
         inv_md.parent.mkdir(parents=True, exist_ok=True)
         inv_md.write_text(

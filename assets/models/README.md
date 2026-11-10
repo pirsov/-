@@ -21,8 +21,10 @@ Catalog → `assets/catalog/assets.json`. Planner sees: `Available 3D assets: Ap
 `Apple` is registered as an alias of `VoxelApple`.
 
 ```bash
+python -m pip install zstandard        # once (also: pip install -r requirements.txt)
 python -u run.py --scan-place-fruits   # refresh place_meshes.json + INVENTORY.md + catalog
 python -u run.py --scan-assets         # models dir + place_meshes → assets.json
 ```
 
 No `.glb` required for Gate ids from the place. Drop artist `.glb` here only for file-based meshes.
+If `place_meshes.json` is already committed, `--scan-assets` works without reinstalling `zstandard`; re-scan of the `.rbxl` still needs it.

@@ -9,5 +9,6 @@
 2. Смотри `ServerScriptService` / `ReplicatedStorage` / `StarterPlayer` — как устроены save/net/UI
 3. В Quality Forge UI формулируй задачи в том же стиле (DataStore + Remotes + client HUD)
 4. Для 3D: экспортируй/положи `.glb` в `assets/models/` → `python -u run.py --scan-assets`
+5. Инвентарь фруктов из place: `python -m pip install zstandard` затем `python -u run.py --scan-place-fruits` (каталог уже в `assets/catalog/place_meshes.json`)
 
 Forge **не** читает `.rbxl` как исходники — код генерируется в `src/**/*.luau` (Rojo). Place = референс поведения.
