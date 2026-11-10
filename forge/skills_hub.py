@@ -204,6 +204,12 @@ def bundle_for_14b(
     if rules.strip():
         parts.append("===RULES===" if use_econ else "=== ACTIVE HITL RULES ===")
         parts.append(rules.strip())
+    # A18.1: Roblox API hallucination guard (BrickColor ≠ Material)
+    parts.append(
+        "=== API GUARD ===\n"
+        "Do not use BrickColor for materials. "
+        "Use Enum.Material.Neon or valid BrickColor names like 'Gold', 'Bright red'."
+    )
     return "\n".join(parts)
 
 

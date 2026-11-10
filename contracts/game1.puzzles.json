@@ -6,6 +6,13 @@
     "purpose": "Blue plate opens red gate",
     "exports": [
       "PressurePlate touch"
+    ],
+    "archetype": "server_script",
+    "skeleton_version": "v1",
+    "files": [
+      "src/server/Gameplay/Puzzles.server.luau"
     ]
-  }
+  },
+  "archetype": "server_script",
+  "skeleton_version": "v1"
 }
