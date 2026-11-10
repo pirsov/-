@@ -92,13 +92,27 @@ def chat(
             "message": f"Проверьте плагин {plan.get('plugin')}: /api/answer с channel=verify",
         }
 
-    # Prefer HITL pack when planner asks, else offer a pack for design chat
-    pack = plan.get("pack")
-    if action != "ask_hitl" or not isinstance(pack, dict):
+    # Prefer HITL pack when planner asks. Do NOT force a new pack when plan says
+    # idle/ready_for_week — that re-triggered endless A/B/C after /api/answer.
+    pack = plan.get("pack") if isinstance(plan.get("pack"), dict) else None
+    if action == "ask_hitl" and not pack:
         pack = deepseek.ask_hitl_pack(
             cycle=int((state.get("pulse") or {}).get("cycle") or 0), focus=goal[:80]
         )
-        ok, errs = validate_hitl_pack(pack)
+        ok, _errs = validate_hitl_pack(pack)
+        if ok:
+            state = state_hub.load_state(root)
+            state["pending_hitl_pack"] = pack
+            state_hub.save_state(root, state)
+        else:
+            pack = None
+            action = "idle"
+    elif action not in {"ask_hitl", "verify_plugin", "idle", "enqueue", "enqueue_blocked"}:
+        # Unknown planner action on a fresh chat → offer one design pack
+        pack = deepseek.ask_hitl_pack(
+            cycle=int((state.get("pulse") or {}).get("cycle") or 0), focus=goal[:80]
+        )
+        ok, _errs = validate_hitl_pack(pack)
         if ok:
             state = state_hub.load_state(root)
             state["pending_hitl_pack"] = pack
@@ -153,6 +167,7 @@ def chat(
         "tz_tasks": tz_tasks,
         "tz_preview": tz_preview,
         "plan_action": action,
+        "message": "HITL закрыт — можно Старт 24h / генерацию --week",
         "snapshot": status_snapshot(root),
     }
 
@@ -217,15 +232,26 @@ def answer(
         }
 
     run_hub.clear_waiting_human()
-    # Next planner step after answers
+    # Must use after_hitl so plan_next returns idle (not a brand-new ask_hitl pack).
     nxt = planner.plan_next(root, focus="after_hitl")
+    # If 24h loop is alive, it resumes on clear_waiting_human → looping and will
+    # call start_week. Do not re-enter waiting_human here.
+    snap = status_snapshot(root)
+    # Drop stale pack from snapshot so UI does not re-render Q1 after "Ответ принят"
+    if isinstance(snap, dict):
+        snap = dict(snap)
+        if nxt.get("action") != "ask_hitl":
+            snap["hitl_pack"] = None
+            snap["pending_hitl"] = False
+            snap["waiting_human"] = False
     return {
         "ok": True,
         "channel": "hitl",
         "status": "answered",
         "report": report,
         "next": nxt,
-        "snapshot": status_snapshot(root),
+        "message": "Ответ принят — агент продолжает (week/24h)",
+        "snapshot": snap,
     }
 
 

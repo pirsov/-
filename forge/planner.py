@@ -9,39 +9,108 @@ from . import contract_index, deepseek, feedback, state_hub
 from .planner_schema import apply_timeout_defaults, validate_hitl_pack
 
 
+def _active_game_prefixes(root: Path) -> List[str]:
+    """Prefixes for verify_plugin scoping (active project + game*)."""
+    prefixes: List[str] = []
+    for candidate in (
+        root / ".forge" / "active_project.json",
+        root / "projects" / "active.json",
+    ):
+        if not candidate.is_file():
+            continue
+        try:
+            data = json.loads(candidate.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        pid = ""
+        if isinstance(data, dict):
+            pid = str(data.get("id") or data.get("project") or data.get("active") or "").strip()
+        elif isinstance(data, str):
+            pid = data.strip()
+        if pid:
+            prefixes.append(f"{pid}.")
+            break
+    # Always allow explicit gameN.* verify; never block on forge.* leftovers
+    if not prefixes:
+        prefixes.append("game1.")
+    return prefixes
+
+
+def _has_answered_hitl(state: Dict[str, Any]) -> bool:
+    oq = state.get("open_questions") or []
+    return any(isinstance(q, dict) and q.get("status") == "answered" for q in oq)
+
+
+def _ready_queue(state: Dict[str, Any]) -> List[Dict[str, Any]]:
+    out: List[Dict[str, Any]] = []
+    for t in state.get("task_queue") or []:
+        if not isinstance(t, dict):
+            continue
+        if t.get("status") in {"ready", "in_progress", "failed", None}:
+            out.append(t)
+    return out
+
+
 def plan_next(root: Path, *, focus: str = "") -> Dict[str, Any]:
     """
     Decide next action for the agent core loop.
     Returns {action: ask_hitl|verify_plugin|enqueue_blocked|idle, ...}
+
+    Idle means: HITL already answered (or after_hitl) → 24h may run --week.
+    Never regenerates a new HITL pack while one is pending, and never re-asks
+    after open_questions are answered (that caused the infinite A/B/C loop).
     """
     state = state_hub.load_state(root)
     cycle = int((state.get("pulse") or {}).get("cycle") or 0)
     kb = feedback.load_knowledge(root)
+    focus_l = (focus or "").strip().lower()
+    after_hitl = focus_l.startswith("after_hitl") or focus_l in {
+        "resume",
+        "generate",
+        "week",
+    }
+    answered = _has_answered_hitl(state)
+    ready = _ready_queue(state)
+    # Generation-ready: do not re-HITL and do not park forever on stale verify leftovers
+    generation_ready = after_hitl or (answered and not state.get("pending_hitl_pack"))
 
-    # Prefer verifying plugins that are done but not closed_verified
-    for entry in state.get("done") or []:
-        if not isinstance(entry, dict):
-            continue
-        plugin = str(entry.get("plugin") or "")
-        if not plugin.startswith("game1."):
-            continue
-        st = entry.get("status")
-        kb_st = (kb.get("plugins") or {}).get(plugin, {}).get("status")
-        if st in {"done", "closed"} and kb_st not in {"closed_verified", "broken_by_user"}:
-            return {
-                "action": "verify_plugin",
-                "plugin": plugin,
-                "hint": "Run: python run.py --feedback y|n --plugin "
-                f"{plugin} --note \"...\"",
-                "cycle": cycle,
-            }
+    pending = state.get("pending_hitl_pack")
+    if isinstance(pending, dict) and pending.get("questions") and not after_hitl:
+        return {"action": "ask_hitl", "pack": pending, "cycle": cycle, "resumed": True}
 
-    # Otherwise ask design HITL pack
+    if not generation_ready:
+        prefixes = _active_game_prefixes(root)
+        for entry in state.get("done") or []:
+            if not isinstance(entry, dict):
+                continue
+            plugin = str(entry.get("plugin") or "")
+            if not any(plugin.startswith(p) for p in prefixes):
+                continue
+            st = entry.get("status")
+            kb_st = (kb.get("plugins") or {}).get(plugin, {}).get("status")
+            if st in {"done", "closed"} and kb_st not in {"closed_verified", "broken_by_user"}:
+                return {
+                    "action": "verify_plugin",
+                    "plugin": plugin,
+                    "hint": "Run: python run.py --feedback y|n --plugin "
+                    f"{plugin} --note \"...\"",
+                    "cycle": cycle,
+                }
+
+    if generation_ready or ready:
+        return {
+            "action": "idle",
+            "cycle": cycle,
+            "reason": "ready_for_week" if (generation_ready or ready) else "idle",
+            "answered_hitl": answered,
+            "ready_tasks": len(ready),
+        }
+
+    # Fresh design HITL only when nothing answered yet and no ready work
     pack = deepseek.ask_hitl_pack(cycle=cycle, focus=focus)
     ok, errs = validate_hitl_pack(pack)
     if not ok:
         return {"action": "idle", "error": errs, "cycle": cycle}
-    # persist pending pack
     state["pending_hitl_pack"] = pack
     state_hub.save_state(root, state)
     return {"action": "ask_hitl", "pack": pack, "cycle": cycle}
