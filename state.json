@@ -327,6 +327,52 @@
         ]
       },
       "via": "cloud_fallback generator+repairer roles (Cursor); Ollama offline"
+    },
+    {
+      "plugin": "game1.checkpoints_i011",
+      "status": "done",
+      "closed_cycle": 4,
+      "idea": "I011",
+      "tests": [
+        "validator PASS"
+      ],
+      "contract_snapshot": {
+        "name": "game1.checkpoints",
+        "purpose": "CP progress + finish BestTime + respawn RunStartedAt reset",
+        "exports": [
+          "tryWriteFinishBest on last Checkpoint index only",
+          "set_best_time only if val>0 and better",
+          "CharacterAdded: RunStartedAt=os.clock(); Finished=false",
+          "NEVER CoinsCollected; attrs on Player"
+        ],
+        "answers": {
+          "Q1": "B finish+leave",
+          "Q2": "B reset RunStartedAt on respawn"
+        }
+      },
+      "via": "cloud_fallback"
+    },
+    {
+      "plugin": "game1.hud_i012",
+      "status": "done",
+      "closed_cycle": 4,
+      "idea": "I012",
+      "tests": [
+        "validator PASS"
+      ],
+      "contract_snapshot": {
+        "name": "game1.hud",
+        "purpose": "HUD Time resets on death; Best/Coins/CP stable from player attrs",
+        "exports": [
+          "CharacterAdded + RunStartedAt changed → resetRunClock",
+          "Best -- if nil/<=0",
+          "player:GetAttribute only"
+        ],
+        "answers": {
+          "Q2": "B"
+        }
+      },
+      "via": "cloud_fallback"
     }
   ],
   "partial": [],
@@ -408,43 +454,47 @@
         "C2.F4",
         "C2.F5"
       ],
-      "status": "in_progress",
-      "note": "open_questions pack issued; Studio H11 pending human report"
+      "status": "closed",
+      "note": "Studio smoke PASS + Q1/Q2 answered"
+    },
+    {
+      "id": "C4.I011",
+      "title": "Finish-line BestTime write",
+      "status": "closed",
+      "type": "mechanic",
+      "idea": "I011"
+    },
+    {
+      "id": "C4.I012",
+      "title": "HUD/RunStartedAt reset on death",
+      "status": "closed",
+      "type": "ui",
+      "idea": "I012"
     }
   ],
   "open_questions": [
     {
       "id": "Q1",
       "topic": "BestTime write moment",
-      "ask": "Когда писать BestTime в рантайме (кроме leave)?",
-      "options": [
-        "A) только PlayerRemoving (как сейчас)",
-        "B) на последнем Checkpoint + leave",
-        "C) на каждом Checkpoint если elapsed лучше текущего Best"
-      ],
-      "default_if_timeout": "A",
-      "related_idea": "I011"
+      "status": "answered",
+      "answer": "B — last Checkpoint/Finish + leave; not every CP",
+      "at": "2026-11-10T07:16:38.452991+00:00"
     },
     {
       "id": "Q2",
       "topic": "Death vs run clock",
-      "ask": "Что делать с таймером HUD и RunStartedAt после смерти?",
-      "options": [
-        "A) сбрасывать только HUD Time; RunStartedAt и Best не трогать",
-        "B) сбрасывать RunStartedAt на каждом респавне (новый забег)",
-        "C) паузить RunStartedAt на время ragdoll/respawn"
-      ],
-      "default_if_timeout": "A",
-      "related_idea": "I012"
+      "status": "answered",
+      "answer": "B — reset RunStartedAt on every respawn (new run)",
+      "at": "2026-11-10T07:16:38.452991+00:00"
     }
   ],
   "pulse": {
-    "cycle": 3,
+    "cycle": 4,
     "next_e2e_at_cycle": 4,
     "next_compact_at_cycle": 5,
     "next_metrics_at_cycle": 8,
     "e2e_at": "2026-11-10T07:13:42.087643+00:00",
-    "status": "awaiting_human_answers"
+    "status": "cycle4_closed"
   },
   "cycle1_report": {
     "at": "2026-11-10T07:02:36.854490+00:00",
@@ -488,26 +538,51 @@
     "next": "answer Q1-Q2 pack → cycle 4 from ideas + answers"
   },
   "stats_snapshot": {
-    "plugins_closed_done": 17,
+    "plugins_closed_done": 19,
     "partial": 0,
     "task_queue": {
-      "closed": 5,
-      "in_progress": 1
+      "closed": 8
     },
     "ideas_by_status": {
       "deferred": 1,
-      "proposed": 9,
+      "proposed": 7,
       "infra_backlog": 1,
-      "shipped": 2
+      "shipped": 4
     },
-    "proposed_by_type": {
-      "mechanic": 2,
-      "ui": 2,
-      "content": 2,
-      "infra": 1,
-      "polish": 2
+    "pulse_cycle": 4
+  },
+  "e2e": {
+    "H11": "PASS",
+    "report": "Studio smoke OK: spawn, HUD, checkpoints; no bugs",
+    "at": "2026-11-10T07:16:38.452991+00:00"
+  },
+  "cycle4_report": {
+    "at": "2026-11-10T07:16:38.452991+00:00",
+    "mode": "cloud_fallback",
+    "I011": {
+      "status": "PASS",
+      "repairs": 0
     },
-    "open_questions": 2,
-    "pulse_cycle": 3
+    "I012": {
+      "status": "PASS",
+      "repairs": 0
+    },
+    "quotas": {
+      "ui": 1,
+      "mechanic": 1,
+      "ok": true
+    },
+    "ideas_by_status": {
+      "deferred": 1,
+      "proposed": 7,
+      "infra_backlog": 1,
+      "shipped": 4
+    },
+    "held_proposed": [
+      "I009",
+      "I010",
+      "I013"
+    ],
+    "next": "Cycle 5 pulse or pick held ideas when ready"
   }
 }

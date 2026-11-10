@@ -1,0 +1,24 @@
+{
+  "plugin": "game1.checkpoints",
+  "idea": "I011",
+  "closed_at": "2026-11-10T07:16:38.452991+00:00",
+  "cycle": 4,
+  "path": "src/server/Gameplay/Checkpoints.server.luau",
+  "validator": "PASS",
+  "repair_attempts": 0,
+  "mode": "cloud_fallback",
+  "contract_snapshot": {
+    "name": "game1.checkpoints",
+    "purpose": "CP progress + finish BestTime + respawn RunStartedAt reset",
+    "exports": [
+      "tryWriteFinishBest on last Checkpoint index only",
+      "set_best_time only if val>0 and better",
+      "CharacterAdded: RunStartedAt=os.clock(); Finished=false",
+      "NEVER CoinsCollected; attrs on Player"
+    ],
+    "answers": {
+      "Q1": "B finish+leave",
+      "Q2": "B reset RunStartedAt on respawn"
+    }
+  }
+}

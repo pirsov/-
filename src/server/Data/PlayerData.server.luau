@@ -53,6 +53,7 @@ local function onPlayerRemoving(player: Player)
 	if not RunService:IsStudio() then
 		return
 	end
+	-- Q1=B: also write BestTime on leave (finish already written on last CP via Checkpoints I011)
 	local started = player:GetAttribute("RunStartedAt")
 	if typeof(started) == "number" then
 		local elapsed = os.clock() - (started :: number)

@@ -111,7 +111,7 @@
         "game1.hud"
       ],
       "status": "proposed",
-      "reason": "cycle3 E2E pulse"
+      "reason": "held for later cycles (human accepted I011/I012 only)"
     },
     {
       "id": "I010",
@@ -124,7 +124,7 @@
         "game1.effects"
       ],
       "status": "proposed",
-      "reason": "cycle3 E2E pulse"
+      "reason": "held for later cycles (human accepted I011/I012 only)"
     },
     {
       "id": "I011",
@@ -136,8 +136,8 @@
         "game1.checkpoints",
         "game1.player_data"
       ],
-      "status": "proposed",
-      "reason": "cycle3 E2E pulse — optional mid-run record"
+      "status": "shipped",
+      "reason": "C4 cloud_fallback: finish BestTime on last CP + leave"
     },
     {
       "id": "I012",
@@ -148,8 +148,8 @@
       "needs": [
         "game1.hud"
       ],
-      "status": "proposed",
-      "reason": "cycle3 E2E pulse"
+      "status": "shipped",
+      "reason": "C4 cloud_fallback: RunStartedAt+HUD Time reset on respawn"
     },
     {
       "id": "I013",
@@ -161,26 +161,20 @@
         "game1.generator"
       ],
       "status": "proposed",
-      "reason": "cycle3 E2E pulse"
+      "reason": "held for later cycles (human accepted I011/I012 only)"
     }
   ],
   "pulse": {
-    "at": "2026-11-10T07:13:42.087643+00:00",
-    "cycle": 3,
-    "batch": "C3.E2E",
-    "added": [
+    "at": "2026-11-10T07:16:38.452991+00:00",
+    "cycle": 4,
+    "shipped_batch": [
+      "I011",
+      "I012"
+    ],
+    "held": [
       "I009",
       "I010",
-      "I011",
-      "I012",
       "I013"
-    ],
-    "quotas": {
-      "ui": 1,
-      "mechanic": 1,
-      "content": 1,
-      "polish": 2,
-      "ok": true
-    }
+    ]
   }
 }
