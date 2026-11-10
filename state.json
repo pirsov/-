@@ -398,6 +398,13 @@
       "status": "closed",
       "type": "infra",
       "closed_at": "2026-11-10T10:00:00+00:00"
+    },
+    {
+      "id": "A12.0",
+      "title": "legacy_auditor pitfalls to draft KB rules",
+      "status": "closed",
+      "type": "infra",
+      "closed_at": "2026-11-10T10:15:00+00:00"
     }
   ],
   "open_questions": [
@@ -422,8 +429,8 @@
     "next_compact_at_cycle": 5,
     "next_metrics_at_cycle": 8,
     "e2e_at": "2026-11-10T07:13:42.087643+00:00",
-    "status": "a11_0_assets_pass",
-    "focus": "3D asset catalog + 24h ready",
+    "status": "a12_0_legacy_auditor_pass",
+    "focus": "legacy pitfalls → draft validator rules",
     "last_compact_cycle": 6,
     "last_compact_at": "2026-11-10T07:28:51.769663+00:00"
   },
@@ -647,5 +654,16 @@
     "gate": "proposed_assets must exist in catalog",
     "tests": "82 OK",
     "guide": "START_24H.md §0.1"
+  },
+  "a12_0": {
+    "cycle": "A12.0",
+    "auditor": "forge/legacy_auditor.py",
+    "cli": "python -u run.py --audit-legacy PATH",
+    "outputs": [
+      "docs/LEGACY_ARCHITECTURE.md",
+      "docs/LEGACY_PITFALLS.md",
+      ".forge/legacy_audit/draft_rules.json"
+    ],
+    "tests": "84 OK"
   }
 }
