@@ -1203,9 +1203,11 @@ async function doStop24h() {
 }
 
 async function doStart24h() {
+  // A20.1: do not pass week_max_steps=5 — that became `--max 5` and killed the week
+  // after 5 tasks. Omit max so server uses high default (500); max_cycles stays cycle budget.
   const j = await api("/api/start_24h", {
     method: "POST",
-    body: JSON.stringify({ sleep: 5, max_cycles: 48, week_max_steps: 5 }),
+    body: JSON.stringify({ sleep: 5, max_cycles: 48 }),
   });
   chatAppend("sys", "24h loop started");
   renderAgentSnap({

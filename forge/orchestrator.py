@@ -1389,7 +1389,12 @@ def main(argv: Optional[List[str]] = None) -> int:
         action="store_true",
         help="Stop --week on integrity gate fail (default: soft-fail and continue so later tasks can repair)",
     )
-    parser.add_argument("--max", type=int, default=None, help="Max steps (default 1, or 500 with --loop)")
+    parser.add_argument(
+        "--max",
+        type=int,
+        default=None,
+        help="Max steps (default 1; 500 with --week or --loop)",
+    )
     parser.add_argument(
         "--sleep",
         type=float,
@@ -1808,7 +1813,8 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     week = bool(args.week)
     if week:
-        max_steps = args.max if args.max is not None else 200
+        # A20.1: high default when --max omitted (UI/24h must not inherit a tiny budget).
+        max_steps = args.max if args.max is not None else 500
         # None -> 30s pacing; explicit --sleep 0 must stay 0 (do not coerce to 30)
         sleep_s = 30.0 if args.sleep is None else float(args.sleep)
         validate_every = int(WEEK_MODE.get("validate_every_n_steps") or 5)

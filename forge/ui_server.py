@@ -355,11 +355,17 @@ class Handler(BaseHTTPRequestHandler):
                 )
                 return
             if path == "/api/run/start":
+                # A20.1: omit max → start_week does not pass --max; orchestrator week
+                # default is 500 (never invent max=5 here).
+                raw_max = body.get("max")
+                max_steps = None
+                if raw_max is not None and str(raw_max).strip() != "":
+                    max_steps = int(raw_max)
                 result = run_hub.start_week(
                     ROOT,
                     sleep=float(body.get("sleep") if body.get("sleep") is not None else 0),
                     hitl=str(body.get("hitl") or "y"),
-                    max_steps=body.get("max"),
+                    max_steps=max_steps,
                 )
                 self._json(200 if result.get("ok") else 409, result)
                 return
@@ -388,12 +394,15 @@ class Handler(BaseHTTPRequestHandler):
                 self._json(200 if result.get("ok") else 400, result)
                 return
             if path == "/api/start_24h":
-                result = api_hub.start_24h(
-                    ROOT,
-                    sleep=float(body.get("sleep") if body.get("sleep") is not None else 30),
-                    max_cycles=int(body.get("max_cycles") or 48),
-                    week_max_steps=int(body.get("week_max_steps") or 5),
-                )
+                # A20.1: week_max_steps default 500 (not 5). Missing key → omit arg so
+                # run_hub DEFAULT_WEEK_MAX_STEPS applies. Explicit null also → default.
+                sleep_v = float(body.get("sleep") if body.get("sleep") is not None else 30)
+                max_cycles = int(body.get("max_cycles") or 48)
+                raw_wms = body.get("week_max_steps", None)
+                kwargs: Dict[str, Any] = {"sleep": sleep_v, "max_cycles": max_cycles}
+                if raw_wms is not None and str(raw_wms).strip() != "":
+                    kwargs["week_max_steps"] = int(raw_wms)
+                result = api_hub.start_24h(ROOT, **kwargs)
                 self._json(200 if result.get("ok") else 409, result)
                 return
             if path == "/api/stop_24h":
