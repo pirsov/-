@@ -1,27 +1,33 @@
 {
-  "_comment": "GTX 1660 SUPER 6GB profile: 14b-4k fits ~4GB VRAM; do NOT raise num_ctx above 4096 or OOM. Repair uses 7b to free KV headroom.",
+  "_comment": "GTX 1660 SUPER 6GB + A15 context opt: num_predict≤1024 (diff≤512). Do NOT raise num_ctx above 4096.",
   "hardware": {
     "name": "gtx1660_6gb",
     "vram_mb": 6144,
     "notes": "Keep one model loaded. OLLAMA_NUM_PARALLEL=1. Close Chrome/Studio if VRAM >90%."
   },
   "agents": {
-    "game_designer":       { "model": "phi4-mini:4k",         "ctx": 4096, "predict": 1536 },
-    "systems_designer":    { "model": "phi4-mini:4k",         "ctx": 4096, "predict": 2048 },
-    "content_author":      { "model": "phi4-mini:4k",         "ctx": 4096, "predict": 1536 },
-    "qa_engineer":         { "model": "phi4-mini:4k",         "ctx": 4096, "predict": 2048 },
-    "builder":             { "model": "phi4-mini:4k",         "ctx": 4096, "predict": 1536 },
-    "tech_architect":      { "model": "qwen2.5-coder:14b-4k", "ctx": 4096, "predict": 4096 },
-    "gameplay_programmer": { "model": "qwen2.5-coder:14b-4k", "ctx": 4096, "predict": 4096 },
-    "client_programmer":   { "model": "qwen2.5-coder:14b-4k", "ctx": 4096, "predict": 4096 },
-    "refactorer":          { "model": "qwen2.5-coder:7b-2k",  "ctx": 2048, "predict": 3072 },
-    "integrator":          { "model": "qwen2.5-coder:14b-4k", "ctx": 4096, "predict": 4096 }
+    "game_designer":       { "model": "phi4-mini:4k",         "ctx": 4096, "predict": 1024 },
+    "systems_designer":    { "model": "phi4-mini:4k",         "ctx": 4096, "predict": 1024 },
+    "content_author":      { "model": "phi4-mini:4k",         "ctx": 4096, "predict": 1024 },
+    "qa_engineer":         { "model": "phi4-mini:4k",         "ctx": 4096, "predict": 1024 },
+    "builder":             { "model": "phi4-mini:4k",         "ctx": 4096, "predict": 1024 },
+    "tech_architect":      { "model": "qwen2.5-coder:14b-4k", "ctx": 4096, "predict": 1024 },
+    "gameplay_programmer": { "model": "qwen2.5-coder:14b-4k", "ctx": 4096, "predict": 1024 },
+    "client_programmer":   { "model": "qwen2.5-coder:14b-4k", "ctx": 4096, "predict": 1024 },
+    "refactorer":          { "model": "qwen2.5-coder:7b-2k",  "ctx": 2048, "predict": 512 },
+    "integrator":          { "model": "qwen2.5-coder:14b-4k", "ctx": 4096, "predict": 1024 }
   },
   "repair": {
     "model": "qwen2.5-coder:7b-2k",
     "ctx": 2048,
-    "predict": 3072,
-    "_comment": "Attempt 2–3 REPAIR MODE: smaller model patches one-file drafts (wrong API / naming)."
+    "predict": 512,
+    "_comment": "A15: attempt 2–3 REPAIR / PATCH — tight num_predict for SEARCH/REPLACE"
+  },
+  "compact": {
+    "model": "qwen2.5-coder:7b-2k",
+    "ctx": 2048,
+    "predict": 256,
+    "_comment": "A15: state_hub summaries use local 7B, not DeepSeek/14B"
   },
   "escalation": [
     "qwen2.5-coder:14b-4k",
@@ -31,7 +37,9 @@
   "ollama": {
     "file_budget": 12000,
     "temperature": 0.05,
-    "keep_alive": "10m"
+    "keep_alive": "10m",
+    "num_predict": 1024,
+    "num_predict_diff": 512
   },
   "spacebunny": {
     "model": "space-bunny-alpha",
@@ -59,6 +67,6 @@
     "disable_micro_split": true,
     "seed_first": false,
     "validate_every_n_steps": 5,
-    "max_predict_code": 4096
+    "max_predict_code": 1024
   }
 }

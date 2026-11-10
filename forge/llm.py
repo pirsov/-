@@ -226,8 +226,9 @@ def generate(
     *,
     num_ctx: int = 4096,
     temperature: float = 0.1,
-    num_predict: int = 2048,
+    num_predict: int = 1024,
     timeout: int = 1800,
+    diff_mode: bool = False,
 ) -> str:
     be, reason = resolve_runtime_backend()
     if be == "stub":
@@ -235,6 +236,13 @@ def generate(
             f"[STUB] Dry run: пропускаю генерацию кода ({reason}). "
             "Plugin must NOT be marked closed."
         )
+    # A15: hard output ceiling (diff/repair tighter)
+    try:
+        from . import llm_backends
+
+        num_predict = llm_backends.cap_num_predict(num_predict, diff_mode=diff_mode)
+    except Exception:
+        num_predict = min(int(num_predict), 512 if diff_mode else 1024)
     if be == "spacebunny":
         key = _spacebunny_key()
         if not key:
@@ -279,6 +287,7 @@ def generate(
         temperature=temperature,
         num_predict=num_predict,
         timeout=timeout,
+        diff_mode=diff_mode,
     )
 
 

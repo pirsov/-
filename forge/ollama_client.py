@@ -100,13 +100,28 @@ def generate(
     *,
     num_ctx: int = 4096,
     temperature: float = 0.1,
-    num_predict: int = 2048,
+    num_predict: int = 1024,
     timeout: int = 1800,
     url: str = DEFAULT_GENERATE,
+    diff_mode: bool = False,
 ) -> str:
     # Never request more ctx than the card can hold for 14b (6GB ≈ 4k practical).
-    num_ctx = min(int(num_ctx), 4096)
-    num_predict = min(int(num_predict), 4096)
+    # A15: num_predict capped via llm_backends (default 1024 / diff 512).
+    try:
+        from . import llm_backends
+
+        opts = llm_backends.ollama_options(
+            num_ctx=num_ctx,
+            temperature=temperature,
+            num_predict=num_predict,
+            diff_mode=diff_mode,
+        )
+        num_ctx = int(opts["num_ctx"])
+        temperature = float(opts["temperature"])
+        num_predict = int(opts["num_predict"])
+    except Exception:
+        num_ctx = min(int(num_ctx), 4096)
+        num_predict = min(int(num_predict), 1024)
     body: Dict[str, Any] = {
         "model": model,
         "prompt": prompt,

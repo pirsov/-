@@ -47,13 +47,14 @@ def save_state(root: Path, data: Dict[str, Any]) -> None:
 
 
 def _one_liner(snapshot: Any) -> str:
-    from . import token_economy as te
+    """A15: prefer local 7B summary; fall back to deterministic englishize."""
+    from . import llm_backends
 
     if isinstance(snapshot, dict):
         purpose = snapshot.get("purpose") or snapshot.get("name") or ""
-        return te.englishize_text(str(purpose), max_chars=120)
+        return llm_backends.summarize_local(str(purpose), max_chars=120)
     if isinstance(snapshot, str):
-        return te.englishize_text(snapshot, max_chars=120)
+        return llm_backends.summarize_local(snapshot, max_chars=120)
     return ""
 
 
@@ -128,7 +129,7 @@ def compact_state(
     if not due:
         return report
 
-    from . import token_economy as te
+    from . import llm_backends
 
     compacted = 0
     for entry in data.get("done") or []:
@@ -137,8 +138,8 @@ def compact_state(
         if compact_done_entry(root, entry, keep_recent_cycles=keep_recent_cycles, current_cycle=cycle):
             compacted += 1
         elif isinstance(entry.get("contract_summary"), str):
-            # A13: every compact cycle — EN summaries even when snapshot already extracted
-            en = te.englishize_text(entry["contract_summary"], max_chars=120)
+            # A13/A15: EN summaries via local 7B (fallback englishize)
+            en = llm_backends.summarize_local(entry["contract_summary"], max_chars=120)
             if en != entry["contract_summary"]:
                 entry["contract_summary"] = en
                 compacted += 1

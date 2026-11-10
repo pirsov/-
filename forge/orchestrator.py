@@ -238,11 +238,13 @@ def apply_file_ops(root: Path, ops: List[FileOp], task: Task) -> List[str]:
                     except OSError as e:
                         print(f"   rmtree failed {path}: {e} — skip write")
                         continue
-                full.write_text(
-                    op.content if op.content.endswith("\n") else op.content + "\n",
-                    encoding="utf-8",
-                )
-                print(f"   wrote {path}")
+                # A15: SEARCH/REPLACE patches when baseline exists
+                from . import patch_apply
+
+                existing = full.read_text(encoding="utf-8") if full.is_file() else None
+                body, how = patch_apply.materialize_file_content(existing, op.content)
+                full.write_text(body if body.endswith("\n") else body + "\n", encoding="utf-8")
+                print(f"   wrote {path}" + (" (patch)" if how == "patch" else ""))
             if path not in written:
                 written.append(path)
         except OSError as e:
@@ -478,6 +480,19 @@ def pick_model(owner: str, attempt: int, escalate: bool) -> dict:
     }:
         base["predict"] = min(int(base.get("predict", 2048)), week_cap)
 
+    # A15: hard Ollama output ceiling (diff/repair tighter)
+    try:
+        from . import llm_backends
+
+        diff_mode = escalate and attempt >= 2
+        base["predict"] = llm_backends.cap_num_predict(
+            int(base.get("predict") or llm_backends.DEFAULT_NUM_PREDICT),
+            diff_mode=diff_mode,
+        )
+        base["diff_mode"] = diff_mode
+    except Exception:
+        pass
+
     installed = installed_models()
     resolved = llm.resolve_model(preferred, installed, allow_any=FALLBACK_ANY)
     if resolved:
@@ -621,6 +636,7 @@ class Orchestrator:
             num_ctx=cfg["ctx"],
             temperature=temp,
             num_predict=cfg["predict"],
+            diff_mode=bool(cfg.get("diff_mode") or attempt >= 2),
         )
 
     def _handle_hitl(self, task: Task) -> StepResult:
@@ -1191,21 +1207,48 @@ def main(argv: Optional[List[str]] = None) -> int:
         return 0
 
     if args.bundle_savings:
+        from . import llm_backends
         from . import skills_hub
 
         skill_ids = [c["id"] for c in skills_hub.list_compact(root)[:3]]
+        tz_snip = ""
+        tz_p = root / "PROJECT_TZ.md"
+        if tz_p.is_file():
+            tz_snip = tz_p.read_text(encoding="utf-8")[:1200]
         report = skills_hub.bundle_savings_report(
             root,
             skill_ids or None,
             archetype="client_ui",
             skeleton_version="v1",
             skeleton_budget=500,
+            focus_text=tz_snip or "get_player_coins SetAttribute Coins DataStore pcall",
         )
-        out = root / "artifacts" / "a13_token_economy" / "bundle_savings.json"
+        # A15 cycle token estimate (prompt in + predict out)
+        lean_chars = int(report.get("chars_after") or 0)
+        predict = llm_backends.DEFAULT_NUM_PREDICT
+        predict_diff = llm_backends.DIFF_NUM_PREDICT
+        report["a15_cycle_estimate"] = {
+            "bundle_chars": lean_chars,
+            "approx_input_tokens": lean_chars // 4,
+            "num_predict_code": predict,
+            "num_predict_diff": predict_diff,
+            "approx_output_tokens_code": predict,
+            "approx_output_tokens_diff": predict_diff,
+            "approx_cycle_tokens_code": lean_chars // 4 + predict,
+            "approx_cycle_tokens_diff": lean_chars // 4 + predict_diff,
+            "note": "Rough Latin≈4chars/token; patches cut output ~50-80% vs full file",
+        }
+        out = root / "artifacts" / "a15_context_opt" / "bundle_savings.json"
         out.parent.mkdir(parents=True, exist_ok=True)
         out.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         print(json.dumps(report, ensure_ascii=False, indent=2))
         print(f"bundle-savings: {report.get('percent_saved')}% smaller → {out}")
+        cyc = report["a15_cycle_estimate"]
+        print(
+            f"a15 cycle≈ {cyc['approx_cycle_tokens_code']} tok (code) / "
+            f"{cyc['approx_cycle_tokens_diff']} tok (diff) "
+            f"[predict {predict}/{predict_diff}]"
+        )
         return 0
 
     if args.audit_legacy is not None:
