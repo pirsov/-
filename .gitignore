@@ -1,5 +1,10 @@
 .forge/snapshots/
 .forge/state/heartbeat.json
+.forge/active_project.json
+.forge/ui_progress.json
+projects/*/smoke/
+projects/*/PROJECT_TZ.fix.md
+skills/compact/*/PROMOTED.json
 __pycache__/
 *.pyc
 .pytest_cache/
