@@ -22,8 +22,8 @@
       "needs": [
         "game1.generator"
       ],
-      "status": "proposed",
-      "reason": "Q2: 60s async poll OK"
+      "status": "deferred",
+      "reason": "FROZEN: focus agent core, not game1 dataset polish"
     },
     {
       "id": "I003",
@@ -34,8 +34,8 @@
       "needs": [
         "game1.hud"
       ],
-      "status": "proposed",
-      "reason": "polish after Best works"
+      "status": "deferred",
+      "reason": "FROZEN: focus agent core, not game1 dataset polish"
     },
     {
       "id": "I004",
@@ -59,8 +59,8 @@
       "needs": [
         "game1.leaderboard_client"
       ],
-      "status": "proposed",
-      "reason": "Studio Output Asset type mismatch"
+      "status": "deferred",
+      "reason": "FROZEN: focus agent core, not game1 dataset polish"
     },
     {
       "id": "I006",
@@ -73,7 +73,7 @@
         "game1.checkpoints"
       ],
       "status": "proposed",
-      "reason": "cycle1 close"
+      "reason": "agent-core backlog candidate"
     },
     {
       "id": "I007",
@@ -86,7 +86,8 @@
         "game1.player_data"
       ],
       "status": "shipped",
-      "reason": "closed in C2.F5 HUD Best %.1f"
+      "reason": "closed in C2.F5 HUD Best %.1f",
+      "freeze_note": "game1 frozen — no further game codegen"
     },
     {
       "id": "I008",
@@ -98,7 +99,8 @@
         "game1.checkpoints"
       ],
       "status": "shipped",
-      "reason": "closed in Checkpoints RunStartedAt on first CP"
+      "reason": "closed in Checkpoints RunStartedAt on first CP",
+      "freeze_note": "game1 frozen — no further game codegen"
     },
     {
       "id": "I009",
@@ -110,8 +112,8 @@
         "game1.coins",
         "game1.hud"
       ],
-      "status": "proposed",
-      "reason": "held — need valid rbxassetid before shipping"
+      "status": "deferred",
+      "reason": "FROZEN: focus agent core, not game1 dataset polish"
     },
     {
       "id": "I010",
@@ -124,7 +126,8 @@
         "game1.effects"
       ],
       "status": "shipped",
-      "reason": "C5 cloud_fallback CP VFX pulse"
+      "reason": "C5 cloud_fallback CP VFX pulse",
+      "freeze_note": "game1 frozen — no further game codegen"
     },
     {
       "id": "I011",
@@ -137,7 +140,8 @@
         "game1.player_data"
       ],
       "status": "shipped",
-      "reason": "C4 cloud_fallback: finish BestTime on last CP + leave"
+      "reason": "C4 cloud_fallback: finish BestTime on last CP + leave",
+      "freeze_note": "game1 frozen — no further game codegen"
     },
     {
       "id": "I012",
@@ -149,7 +153,8 @@
         "game1.hud"
       ],
       "status": "shipped",
-      "reason": "C4 cloud_fallback: RunStartedAt+HUD Time reset on respawn"
+      "reason": "C4 cloud_fallback: RunStartedAt+HUD Time reset on respawn",
+      "freeze_note": "game1 frozen — no further game codegen"
     },
     {
       "id": "I013",
@@ -161,7 +166,33 @@
         "game1.generator"
       ],
       "status": "shipped",
-      "reason": "C5 cloud_fallback HorrorFog Lighting preset"
+      "reason": "C5 cloud_fallback HorrorFog Lighting preset",
+      "freeze_note": "game1 frozen — no further game codegen"
+    },
+    {
+      "id": "A001",
+      "title": "Graceful LLM backend degradation",
+      "one_liner": "If ollama ping False, log and fall through to cloud/stub without aborting --week",
+      "type": "infra",
+      "cost": "M",
+      "needs": [
+        "forge.llm_backends",
+        "forge.orchestrator_core"
+      ],
+      "status": "ready",
+      "reason": "cloud agent hit Ollama-down hard fail"
+    },
+    {
+      "id": "A002",
+      "title": "state.json contract compaction every 5 cycles",
+      "one_liner": "Python compact_state() collapses full contract snapshots into short strings under contracts/",
+      "type": "infra",
+      "cost": "M",
+      "needs": [
+        "forge.orchestrator_core"
+      ],
+      "status": "ready",
+      "reason": "context budget for pulse/planner"
     }
   ],
   "pulse": {
@@ -172,6 +203,18 @@
       "I013"
     ],
     "held": [
+      "I009"
+    ]
+  },
+  "freeze": {
+    "at": "2026-11-10T07:21:39.292096+00:00",
+    "scope": "game1 src/** gameplay frozen",
+    "active_track": "agent_core",
+    "held_game_ideas": [
+      "I001",
+      "I002",
+      "I003",
+      "I005",
       "I009"
     ]
   }

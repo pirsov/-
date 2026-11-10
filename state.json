@@ -424,112 +424,28 @@
   "partial": [],
   "task_queue": [
     {
-      "id": "C1.F1",
-      "title": "Rewrite Checkpoints — kill CoinsCollected",
+      "id": "A6.1",
+      "title": "Graceful LLM degradation when Ollama down",
       "needs": [
-        "forge.validator",
-        "game1.remotes"
+        "forge.llm_backends",
+        "forge.orchestrator_core"
       ],
       "cost": "M",
-      "type": "mechanic",
-      "deps": [],
-      "status": "closed"
+      "type": "infra",
+      "status": "ready",
+      "idea": "A001"
     },
     {
-      "id": "C1.F2",
-      "title": "Rewrite Coins (confirm whitelist remotes)",
+      "id": "A6.2",
+      "title": "compact_state every 5 cycles",
       "needs": [
-        "game1.remotes"
-      ],
-      "cost": "S",
-      "type": "mechanic",
-      "deps": [],
-      "status": "closed"
-    },
-    {
-      "id": "C1.F3",
-      "title": "PlayerData BestTime + RunStartedAt",
-      "needs": [
-        "game1.checkpoints"
+        "forge.orchestrator_core"
       ],
       "cost": "M",
-      "type": "mechanic",
-      "deps": [
-        "C1.F1"
-      ],
-      "status": "closed",
-      "contract_note": "BestTime float; set only if new < current; async leave write"
-    },
-    {
-      "id": "C2.F4",
-      "title": "Generator lighter SpawnLocation map",
-      "needs": [
-        "game1.remotes"
-      ],
-      "cost": "M",
-      "type": "mechanic",
-      "deps": [],
-      "status": "closed"
-    },
-    {
-      "id": "C2.F5",
-      "title": "HUD Best via player attrs",
-      "needs": [
-        "game1.player_data"
-      ],
-      "cost": "S",
-      "type": "ui",
-      "deps": [
-        "C1.F3"
-      ],
-      "status": "closed"
-    },
-    {
-      "id": "C3.E2E",
-      "title": "Studio smoke re-run + promote; pulse E2E",
-      "needs": [
-        "game1.checkpoints",
-        "game1.hud",
-        "game1.generator"
-      ],
-      "cost": "M",
-      "type": "polish",
-      "deps": [
-        "C1.F1",
-        "C1.F3",
-        "C2.F4",
-        "C2.F5"
-      ],
-      "status": "closed",
-      "note": "Studio smoke PASS + Q1/Q2 answered"
-    },
-    {
-      "id": "C4.I011",
-      "title": "Finish-line BestTime write",
-      "status": "closed",
-      "type": "mechanic",
-      "idea": "I011"
-    },
-    {
-      "id": "C4.I012",
-      "title": "HUD/RunStartedAt reset on death",
-      "status": "closed",
-      "type": "ui",
-      "idea": "I012"
-    },
-    {
-      "id": "C5.I010",
-      "title": "Checkpoint VFX pulse",
-      "status": "closed",
-      "type": "polish",
-      "idea": "I010"
-    },
-    {
-      "id": "C5.I013",
-      "title": "Horror fog preset",
-      "status": "closed",
-      "type": "polish",
-      "idea": "I013"
+      "type": "infra",
+      "status": "ready",
+      "idea": "A002",
+      "deps": []
     }
   ],
   "open_questions": [
@@ -549,12 +465,13 @@
     }
   ],
   "pulse": {
-    "cycle": 5,
+    "cycle": 6,
     "next_e2e_at_cycle": 4,
     "next_compact_at_cycle": 5,
     "next_metrics_at_cycle": 8,
     "e2e_at": "2026-11-10T07:13:42.087643+00:00",
-    "status": "cycle5_closed"
+    "status": "agent_core_planning",
+    "focus": "graceful_degradation + state_compaction"
   },
   "cycle1_report": {
     "at": "2026-11-10T07:02:36.854490+00:00",
@@ -563,7 +480,7 @@
     "next": "C1.F3 PlayerData BestTime on user Windows via: python -u run.py --week --sleep 0 --max 3",
     "user_action_required": "On Desktop with Ollama: pull TZ+activate if Checkpoints still has CoinsCollected, then week for F3+"
   },
-  "mode": "cloud_fallback",
+  "mode": "agent_core",
   "cycle_report": {
     "at": "2026-11-10T07:07:03.415698+00:00",
     "mode": "cloud_fallback",
@@ -601,15 +518,17 @@
     "plugins_closed_done": 21,
     "partial": 0,
     "task_queue": {
-      "closed": 10
+      "ready": 2
     },
     "ideas_by_status": {
-      "deferred": 1,
-      "proposed": 5,
+      "deferred": 5,
       "infra_backlog": 1,
-      "shipped": 6
+      "proposed": 1,
+      "shipped": 6,
+      "ready": 2
     },
-    "pulse_cycle": 5
+    "pulse_cycle": 6,
+    "mode": "agent_core"
   },
   "e2e": {
     "H11": "PASS",
@@ -677,5 +596,16 @@
       "shipped": 6
     },
     "next": "Cycle 6 pulse or I009 when asset id ready"
+  },
+  "game1_freeze": {
+    "at": "2026-11-10T07:21:39.292096+00:00",
+    "status": "frozen",
+    "rule": "Do not edit src/** or game1 gameplay for polish; game1 is dataset/polygon only",
+    "note": "Prior cloud_fallback game edits remain as fixtures; next work is forge/*"
+  },
+  "agent_core_plan": {
+    "at": "2026-11-10T07:21:39.292096+00:00",
+    "status": "awaiting_approval",
+    "deliverable": "plan only this turn — no forge code until human confirms"
   }
 }

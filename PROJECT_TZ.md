@@ -1,14 +1,14 @@
-# LAST_UPDATE: Cycle 5 closed I010+I013 (cloud_fallback). Desktop Studio test skipped (non-blocking). I009 held.
-# Next: cycle 6 pulse OR ship I009 when valid coin SoundId known.
+# LAST_UPDATE: GAME FROZEN. Focus = Quality Forge agent core (not game1 polish).
+# mode=agent_core. Awaiting plan approval for A6.1 graceful degradation + A6.2 state compaction.
 
-## DONE
-- [x] F1-F5 / I011 / I012 | core + BestTime + death reset | @integrator
-- [x] H11 | E2E smoke PASS (prior) | @human
-- [x] I010 | Checkpoint touch VFX pulse | @client_programmer | -> src/client/Effects.client.luau
-- [x] I013 | Horror fog Lighting preset | @gameplay_programmer | -> src/server/Atmosphere/HorrorFog.server.luau
+## FROZEN (do not implement)
+- game1 src/** gameplay / VFX / fog / HUD ideas deferred in ideas.json
+- I009–I013 game polish held
 
-## HELD
-- [ ] I009 | Coin pickup sound — need valid rbxassetid | @client_programmer
+## AGENT CORE (infra)
+- [ ] A6.1 | Graceful degradation: ollama ping False → log + fallback backend/stub, do not abort week | @integrator | -> forge/llm.py forge/orchestrator.py
+- [ ] A6.2 | compact_state(state.json) every 5 cycles; shrink contract snapshots | @integrator | -> forge/state_hub.py (new) forge/orchestrator.py
+- [ ] A6.3 | tests for degrade + compact | @integrator | -> tests/test_orchestrator.py
 
-## NEXT
-- [ ] H12 | Desktop git pull + Rojo visual check when PC available | @human
+## HUMAN
+- [ ] H13 | Approve agent-core plan then implement | @human
