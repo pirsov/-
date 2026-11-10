@@ -1,0 +1,17 @@
+{
+  "cycle": "A9.0",
+  "title": "UI Integration — stdlib ThreadingHTTPServer",
+  "ok": true,
+  "components": {
+    "forge/api_hub.py": "chat / answer / start_24h / stop_24h / status_snapshot",
+    "forge/ui_server.py": "routes wired; /api/status enriched",
+    "forge/run_hub.py": "waiting_human park + loop_24h thread (no CPU spin)",
+    "ui/": "agent-dock: chat input, HITL A/B/C/Other, Start/Stop 24h + progress"
+  },
+  "tests": {
+    "file": "tests/test_api_hub.py",
+    "mocked": ["planner.plan_next", "planner.record_hitl_answers", "feedback.submit_verdict", "deepseek.improve_goal"],
+    "suite_total": 56
+  },
+  "how_to_run": "python -u run.py --ui  →  http://127.0.0.1:8787"
+}

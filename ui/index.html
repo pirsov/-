@@ -43,6 +43,33 @@
     <button id="btn-next" type="button" class="btn primary">…</button>
   </aside>
 
+  <section class="agent-dock" id="agent-dock" aria-label="Агент">
+    <header class="agent-dock-head">
+      <h2>Чат с агентом</h2>
+      <span id="agent-status" class="run-pill idle"><i class="dot"></i><span class="run-label">idle</span></span>
+    </header>
+    <div id="chat-log" class="chat-log" aria-live="polite"></div>
+    <div id="hitl-box" class="hitl-box" hidden>
+      <p id="hitl-ask" class="hitl-ask"></p>
+      <div id="hitl-options" class="hitl-options row"></div>
+      <label class="field hitl-other" id="hitl-other-wrap" hidden>Другое
+        <input id="hitl-other" type="text" placeholder="уточни…" />
+      </label>
+    </div>
+    <form id="chat-form" class="chat-form">
+      <input id="chat-input" type="text" placeholder="Сделай систему доната с кнопками" autocomplete="off" />
+      <button type="submit" class="btn primary" id="btn-chat">Отправить</button>
+    </form>
+    <div class="row agent-actions">
+      <button type="button" class="btn" id="btn-start-24h">Старт 24h</button>
+      <button type="button" class="btn ghost" id="btn-stop-24h" hidden>Стоп 24h</button>
+      <div class="loop-progress" aria-hidden="true">
+        <div id="loop-bar" class="loop-bar" style="--pct:0%"></div>
+      </div>
+      <span id="loop-stats" class="muted">плагины — · очередь —</span>
+    </div>
+  </section>
+
   <main class="flow" id="flow">
     <section class="panel" data-stage="1" id="panel-1">
       <header class="panel-head">
