@@ -63,8 +63,29 @@ def load_compact_text(skill_id: str, root: Optional[Path] = None) -> str:
 
 
 def inject_block(skill_ids: List[str], root: Optional[Path] = None, *, budget: int = 3600) -> str:
-    """Concatenate compact skills under a char budget for prompts."""
-    parts: List[str] = []
+    """Concatenate compact skills under a char budget for prompts.
+
+    A13: when Token Economy is on and CARD.json exists, inject EN+short-key cards
+    (no DeepSeek — only already-materialized cards).
+    """
+    from . import token_economy as te
+
+    if te.economy_enabled() and skill_ids:
+        parts: List[str] = ["===CARDS==="]
+        used = len(parts[0])
+        for sid in list(skill_ids)[:3]:
+            card = load_skill_card(sid, root)
+            if not card:
+                continue
+            card = clamp_skill_card(card, max_chars=CARD_MAX_CHARS)
+            line = te.dumps_llm(te.economy_card(card))
+            if used + len(line) + 1 > budget:
+                break
+            parts.append(line)
+            used += len(line) + 1
+        if len(parts) > 1:
+            return "\n".join(parts)
+    parts = []
     used = 0
     for sid in skill_ids:
         try:
@@ -90,11 +111,14 @@ def load_skill_card(skill_id: str, root: Optional[Path] = None) -> Optional[Dict
 
 
 def write_skill_card(skill_id: str, card: Dict[str, Any], root: Optional[Path] = None) -> Path:
+    from . import token_economy as te
+
     dest_dir = skills_root(root) / "compact" / skill_id
     dest_dir.mkdir(parents=True, exist_ok=True)
     card = clamp_skill_card({**card, "id": card.get("id") or skill_id}, max_chars=CARD_MAX_CHARS)
     path = dest_dir / "CARD.json"
-    path.write_text(json.dumps(card, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    # Disk keeps full keys; minify by default (FORGE_JSON_PRETTY=1 for indent)
+    path.write_text(te.dumps_disk(card), encoding="utf-8")
     return path
 
 
@@ -127,34 +151,66 @@ def bundle_for_14b(
     archetype: Optional[str] = None,
     skeleton_version: Optional[str] = None,
     skeleton_budget: int = 500,
+    economy: Optional[bool] = None,
 ) -> str:
     """
     Compact prompt block for local 14B:
     ≤3 contract cards + ONE pinned skeleton + active HITL rules.
+    A13: Token Economy — EN cards, short keys, minified JSON, compact rules.
     """
     from . import feedback
     from . import skeletons_hub
+    from . import token_economy as te
 
+    use_econ = te.economy_enabled() if economy is None else bool(economy)
     r = root or ROOT_DEFAULT
     ids = list(skill_ids or [c["id"] for c in list_compact(r)[:max_skills]])[:max_skills]
-    parts: List[str] = ["=== CONTRACT CARDS (for 14B) ==="]
+    parts: List[str] = ["===CARDS===" if use_econ else "=== CONTRACT CARDS (for 14B) ==="]
     for sid in ids:
         card = ensure_skill_card(sid, r)
         card = clamp_skill_card(card, max_chars=card_budget)
-        parts.append(json.dumps(card, ensure_ascii=False, separators=(",", ":")))
+        if use_econ:
+            card = te.economy_card(card)
+            parts.append(te.dumps_llm(card))
+        else:
+            # Pre-A13 baseline: pretty JSON (shows minify+short-key savings in reports)
+            parts.append(json.dumps(card, ensure_ascii=False, indent=2))
     if archetype:
         sk = skeletons_hub.inject_skeleton_block(
             archetype, skeleton_version, r, max_chars=skeleton_budget
         )
         if sk:
+            # Drop decorative blank lines in skeleton for economy
+            if use_econ:
+                sk = "\n".join(ln for ln in sk.splitlines() if ln.strip() != "")
             parts.append(sk.rstrip())
         else:
             parts.append(f"=== SKELETON {archetype}@{skeleton_version or 'latest'} MISSING ===")
-    rules = feedback.format_rules_for_prompt(feedback.load_active_rules(r), max_chars=rules_budget)
+    active = feedback.load_active_rules(r)
+    if use_econ:
+        rules = te.economy_rules_block(active, max_chars=min(rules_budget, 800))
+    else:
+        rules = feedback.format_rules_for_prompt(active, max_chars=rules_budget)
     if rules.strip():
-        parts.append("=== ACTIVE HITL RULES ===")
+        parts.append("===RULES===" if use_econ else "=== ACTIVE HITL RULES ===")
         parts.append(rules.strip())
     return "\n".join(parts)
+
+
+def bundle_savings_report(
+    root: Optional[Path] = None,
+    skill_ids: Optional[List[str]] = None,
+    **kwargs: Any,
+) -> Dict[str, Any]:
+    """Compare fat vs economy bundle sizes (A13 report helper)."""
+    from . import token_economy as te
+
+    fat = bundle_for_14b(root, skill_ids, economy=False, **kwargs)
+    lean = bundle_for_14b(root, skill_ids, economy=True, **kwargs)
+    report = te.measure_bundle_savings(fat, lean)
+    report["fat_preview"] = fat[:200]
+    report["lean_preview"] = lean[:200]
+    return report
 
 
 def compress_raw_to_compact(

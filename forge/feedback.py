@@ -56,8 +56,10 @@ def load_knowledge(root: Path) -> Dict[str, Any]:
 
 
 def save_knowledge(root: Path, data: Dict[str, Any]) -> None:
+    from . import token_economy as te
+
     data["updated_at"] = now_iso()
-    kb_path(root).write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    kb_path(root).write_text(te.dumps_disk(data), encoding="utf-8")
 
 
 def next_rule_id(kb: Dict[str, Any]) -> str:
@@ -117,6 +119,8 @@ def find_contract_snapshot(root: Path, plugin: str) -> Optional[Dict[str, Any]]:
 
 
 def copy_golden(root: Path, plugin: str, snapshot: Optional[Dict[str, Any]] = None) -> str:
+    from . import contract_index
+
     golden_dir(root).mkdir(parents=True, exist_ok=True)
     snap = snapshot or find_contract_snapshot(root, plugin) or {"name": plugin}
     rel = f"{GOLDEN_DIR}/{_safe_plugin_name(plugin)}.json"
@@ -125,7 +129,7 @@ def copy_golden(root: Path, plugin: str, snapshot: Optional[Dict[str, Any]] = No
         "golden_at": now_iso(),
         "contract_snapshot": snap,
     }
-    (root / rel).write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    contract_index.write_contract_payload(root / rel, payload)
     return rel
 
 

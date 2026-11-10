@@ -1115,6 +1115,11 @@ def main(argv: Optional[List[str]] = None) -> int:
         action="store_true",
         help="With --audit-legacy: write draft_rules.json but do not merge into knowledge_base.json",
     )
+    parser.add_argument(
+        "--bundle-savings",
+        action="store_true",
+        help="A13.0: measure fat vs economy bundle_for_14b size (%% saved)",
+    )
     parser.add_argument("--ui", action="store_true", help="Open control UI (projects/skills/DeepSeek/smoke)")
     parser.add_argument("--ui-port", type=int, default=8787, help="UI port (default 8787)")
     parser.add_argument("--project", type=str, default=None, help="Activate projects/<id> into live src+TZ")
@@ -1183,6 +1188,24 @@ def main(argv: Optional[List[str]] = None) -> int:
         print(f"wrote {path} count={cat.get('count')}")
         for a in cat.get("assets") or []:
             print(f"  {a.get('id')}  {a.get('rel')}  {a.get('bytes')}b")
+        return 0
+
+    if args.bundle_savings:
+        from . import skills_hub
+
+        skill_ids = [c["id"] for c in skills_hub.list_compact(root)[:3]]
+        report = skills_hub.bundle_savings_report(
+            root,
+            skill_ids or None,
+            archetype="client_ui",
+            skeleton_version="v1",
+            skeleton_budget=500,
+        )
+        out = root / "artifacts" / "a13_token_economy" / "bundle_savings.json"
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        print(json.dumps(report, ensure_ascii=False, indent=2))
+        print(f"bundle-savings: {report.get('percent_saved')}% smaller → {out}")
         return 0
 
     if args.audit_legacy is not None:

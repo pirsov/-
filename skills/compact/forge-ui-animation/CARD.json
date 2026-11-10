@@ -1,0 +1,9 @@
+{
+  "id": "forge-ui-animation",
+  "exports": [
+    "forge_ui_animation()"
+  ],
+  "attrs": [],
+  "forbid": [],
+  "files": []
+}

@@ -1,0 +1,11 @@
+{
+  "id": "forge-ui-modern",
+  "exports": [
+    "forge_ui_modern()"
+  ],
+  "attrs": [],
+  "forbid": [
+    "- Read Player attrs for HUD; never Character attrs."
+  ],
+  "files": []
+}
