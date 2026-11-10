@@ -157,6 +157,19 @@ def skip(
     return snapshot(root)
 
 
+def _active_project_id(root: Path) -> str:
+    active = root / ".forge" / "active_project.json"
+    if active.exists():
+        try:
+            data = json.loads(active.read_text(encoding="utf-8"))
+            pid = str(data.get("id") or "").strip()
+            if pid:
+                return pid
+        except (json.JSONDecodeError, OSError):
+            pass
+    return "game1"
+
+
 def _derive_flags(root: Path, data: Dict[str, Any]) -> Any:
     flags = {
         k: bool(data.get(k, False))
@@ -170,6 +183,7 @@ def _derive_flags(root: Path, data: Dict[str, Any]) -> Any:
             "fix_done",
         )
     }
+    project_id = _active_project_id(root)
     active = root / ".forge" / "active_project.json"
     if active.exists():
         flags["activated"] = True
@@ -179,13 +193,12 @@ def _derive_flags(root: Path, data: Dict[str, Any]) -> Any:
     tz = root / "PROJECT_TZ.md"
     tz_tasks = 0
     if tz.exists():
-        tz_tasks = deepseek.count_tz_tasks(tz.read_text(encoding="utf-8", errors="replace"))
+        tz_text = tz.read_text(encoding="utf-8", errors="replace")
+        tz_tasks = deepseek.count_tz_tasks(tz_text)
         if tz_tasks >= 5:
             flags["tz_done"] = True
         # Fix TZ from smoke uses F* tasks
-        if "AGENT F" in tz.read_text(encoding="utf-8", errors="replace") or "FIX from smoke" in tz.read_text(
-            encoding="utf-8", errors="replace"
-        ):
+        if "AGENT F" in tz_text or "FIX from smoke" in tz_text:
             flags["fix_tz_done"] = True
     st = run_hub.status()
     if st.get("status") == "done" and (
@@ -193,16 +206,17 @@ def _derive_flags(root: Path, data: Dict[str, Any]) -> Any:
     ):
         flags["run_done"] = True
     luau = list((root / "src").rglob("*.luau")) if (root / "src").exists() else []
-    snap = list((root / "projects" / "game1" / "src").rglob("*.luau"))
+    snap = list((root / "projects" / project_id / "src").rglob("*.luau"))
     luau_n = max(len(luau), len(snap))
     report = root / "docs" / "AGENT_RUN_REPORT.md"
-    if luau_n >= 8 and (report.exists() or flags.get("tz_done")):
+    # Fresh empty TZ after --reset-state must not inherit run_done from leftover Luau
+    if luau_n >= 8 and flags.get("tz_done") and (report.exists() or tz_tasks >= 5):
         flags["run_done"] = True
-    smoke = root / "projects" / "game1" / "smoke" / "latest.json"
+    smoke = root / "projects" / project_id / "smoke" / "latest.json"
     if smoke.exists():
         flags["smoke_done"] = True
 
-    issues = fix_hub.extract_issues(fix_hub.latest_smoke(root))
+    issues = fix_hub.extract_issues(fix_hub.latest_smoke(root, project_id=project_id))
     # No issues → fix stage auto-done
     if flags.get("smoke_done") and not issues:
         flags["fix_tz_done"] = True

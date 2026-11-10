@@ -1073,6 +1073,14 @@ def main(argv: Optional[List[str]] = None) -> int:
         help="Compact state.json contract snapshots into contracts/ and exit",
     )
     parser.add_argument(
+        "--reset-state",
+        action="store_true",
+        help=(
+            "Clear task queue, reset pulse/UI cycles (unstick Smoke 48/48), "
+            "write empty TZ; scope with --project <id> (e.g. game2)"
+        ),
+    )
+    parser.add_argument(
         "--feedback",
         choices=["y", "n", "yes", "no"],
         default=None,
@@ -1175,6 +1183,15 @@ def main(argv: Optional[List[str]] = None) -> int:
     if args.compact_state:
         report = state_hub.compact_state(root, force=True)
         print(f"compact_state: {json.dumps(report, ensure_ascii=False)}")
+        return 0
+
+    if args.reset_state:
+        report = state_hub.reset_state(root, project_id=args.project)
+        print(f"reset_state: {json.dumps(report, ensure_ascii=False)}")
+        if args.project:
+            print(f"  project={args.project} → empty TZ + activated; other projects untouched")
+        else:
+            print("  workspace runtime cleared (pass --project <id> to scaffold a new game)")
         return 0
 
     if args.rules_list:

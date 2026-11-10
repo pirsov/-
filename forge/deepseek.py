@@ -233,14 +233,18 @@ def generate_project_tz(
         "Return the PROJECT_TZ.md now."
     )
     if not available():
-        return horror_coins_tz_fallback(project_id=project_id, goal=goal)
+        raise llm.AuthError(
+            "DEEPSEEK_API_KEY unset — cannot generate PROJECT_TZ. "
+            "Set DEEPSEEK_API_KEY (https://platform.deepseek.com/) and retry. "
+            "Refusing silent fallback to stale horror-coins TZ."
+        )
     out = chat(prompt, system=system, max_tokens=2200, temperature=0.15)
     out = out.strip()
     if out.startswith("```"):
         out = re.sub(r"^```(?:markdown|md)?\n?", "", out)
         out = re.sub(r"\n?```$", "", out)
     if count_tz_tasks(out) < 5:
-        # one strict retry
+        # one strict retry — still no silent horror-coins fallback
         out2 = chat(
             prompt + "\n\nPREVIOUS OUTPUT INVALID (not enough '- [ ] T' lines). Rewrite as tasks only.",
             system=system,
@@ -250,12 +254,15 @@ def generate_project_tz(
         out2 = out2.strip()
         if count_tz_tasks(out2) >= 5:
             return out2
-        return horror_coins_tz_fallback(project_id=project_id, goal=goal)
+        raise RuntimeError(
+            f"DeepSeek TZ invalid: expected ≥5 checkbox tasks, got {count_tz_tasks(out2)}. "
+            "Fix the goal/skills and retry — refusing stale horror-coins fallback."
+        )
     return out
 
 
 def horror_coins_tz_fallback(*, project_id: str, goal: str) -> str:
-    """Compact task list that always parses; keeps Ollama ctx small."""
+    """Legacy fixture TZ for unit tests only — not used when API key is missing."""
     return f"""# LAST_UPDATE: {project_id} horror coins obstacle
 # Goal: {goal[:240]}
 

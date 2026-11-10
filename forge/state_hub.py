@@ -219,3 +219,198 @@ def maybe_compact_after_week_gate(root: Path, completed_steps: int, every_n: int
         return None
     bump_pulse_cycle(root, delta=1, auto_compact=True)
     return compact_state(root, force=True)
+
+
+EMPTY_TZ_TEMPLATE = """# LAST_UPDATE: {project_id} fresh start
+# Goal: (set via UI chat / DeepSeek -- generate PROJECT_TZ)
+
+## AGENT
+
+## HUMAN
+"""
+
+
+def fresh_runtime_state(existing: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    """Empty runtime overlay: cleared queue/pulse/HITL, keep forge inventory when present."""
+    keep: Dict[str, Any] = {}
+    if isinstance(existing, dict):
+        for key in ("milestone", "inventory_at", "repo", "roles_map", "knowledge_ref"):
+            if key in existing:
+                keep[key] = existing[key]
+        # Preserve forge/system plugin inventory; drop game-scoped done rows when filtered later.
+        done = existing.get("done")
+        if isinstance(done, list):
+            keep["done"] = list(done)
+    keep.update(
+        {
+            "pulse": {"cycle": 0, "status": "idle"},
+            "task_queue": [],
+            "partial": [],
+            "open_questions": [],
+        }
+    )
+    keep.pop("pending_hitl_pack", None)
+    keep.pop("last_chat", None)
+    keep.pop("compact_report", None)
+    return keep
+
+
+def _filter_done_for_project(done: List[Any], project_id: str) -> List[Any]:
+    """Drop done[] rows belonging to project_id; keep forge/system/other projects."""
+    prefix = f"{project_id}."
+    out: List[Any] = []
+    for entry in done:
+        if not isinstance(entry, dict):
+            out.append(entry)
+            continue
+        plugin = str(entry.get("plugin") or "")
+        if plugin.startswith(prefix) or plugin == project_id:
+            continue
+        out.append(entry)
+    return out
+
+
+def ensure_project_scaffold(root: Path, project_id: str) -> Path:
+    """Create projects/<id> with empty TZ/meta if missing. Does not touch other projects."""
+    from . import projects_hub
+
+    base = projects_hub.projects_root(root)
+    base.mkdir(parents=True, exist_ok=True)
+    proj = base / project_id
+    proj.mkdir(parents=True, exist_ok=True)
+    (proj / "src").mkdir(exist_ok=True)
+    (proj / "smoke").mkdir(exist_ok=True)
+    tz_path = proj / "PROJECT_TZ.md"
+    if not tz_path.is_file():
+        tz_path.write_text(EMPTY_TZ_TEMPLATE.format(project_id=project_id), encoding="utf-8")
+    meta_p = proj / "meta.json"
+    if meta_p.is_file():
+        try:
+            meta = json.loads(meta_p.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            meta = {"id": project_id}
+    else:
+        meta = {
+            "id": project_id,
+            "name": project_id,
+            "title": project_id,
+            "created": now_iso(),
+            "backend_code": "ollama",
+            "backend_prompt": "deepseek",
+            "status": "fresh",
+            "skills_compact": ["forge-player-attrs", "forge-luau-touch"],
+        }
+    meta["id"] = project_id
+    meta["status"] = "fresh"
+    meta["smoke"] = {"pending": True}
+    meta["reset_at"] = now_iso()
+    meta_p.write_text(json.dumps(meta, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    return proj
+
+
+def write_empty_project_tz(root: Path, project_id: str) -> Path:
+    """Overwrite project + live TZ with empty new-game template."""
+    text = EMPTY_TZ_TEMPLATE.format(project_id=project_id)
+    proj = root / "projects" / project_id
+    proj.mkdir(parents=True, exist_ok=True)
+    proj_tz = proj / "PROJECT_TZ.md"
+    proj_tz.write_text(text, encoding="utf-8")
+    (root / "PROJECT_TZ.md").write_text(text, encoding="utf-8")
+    # Clear generated/chat previews so UI does not show stale TZ
+    for name in ("PROJECT_TZ.generated.md", "PROJECT_TZ.chat.md", "PROJECT_TZ.fix.md"):
+        p = proj / name
+        if p.is_file():
+            p.unlink()
+    return proj_tz
+
+
+def reset_ui_progress(root: Path) -> None:
+    from . import progress_hub
+
+    progress_hub.save(
+        root,
+        {
+            "activated": False,
+            "skills_done": False,
+            "tz_done": False,
+            "run_done": False,
+            "smoke_done": False,
+            "fix_tz_done": False,
+            "fix_done": False,
+            "skipped": [],
+        },
+    )
+
+
+def reset_run_hub_counters() -> Dict[str, Any]:
+    """Stop 24h loop if any and clear cycle 48/48 smoke stall counters."""
+    from . import run_hub
+
+    try:
+        run_hub.stop_24h(join_timeout=1.0)
+    except Exception:
+        pass
+    run_hub._stop_event.clear()
+    with run_hub._lock:
+        run_hub._state.update(
+            {
+                "status": "idle",
+                "started_at": None,
+                "ended_at": None,
+                "exit_code": None,
+                "pid": None,
+                "log_path": None,
+                "report": {},
+                "mode": None,
+                "waiting_reason": None,
+                "waiting_detail": None,
+                "loop_cycle": 0,
+                "loop_max": 0,
+                "stop_requested": False,
+            }
+        )
+    return dict(run_hub._state)
+
+
+def reset_state(root: Path, *, project_id: Optional[str] = None) -> Dict[str, Any]:
+    """
+    Clear task queue, reset pulse/cycles, and prepare a fresh empty runtime
+    suitable for a new game. When project_id is set, only that project's TZ/meta
+    are rewritten; other projects under projects/ are left untouched.
+    """
+    existing = load_state(root)
+    data = fresh_runtime_state(existing)
+    if project_id:
+        data["done"] = _filter_done_for_project(list(data.get("done") or []), project_id)
+        ensure_project_scaffold(root, project_id)
+        write_empty_project_tz(root, project_id)
+        from . import projects_hub
+
+        projects_hub.activate_project(root, project_id)
+        # Soft-clear smoke latest so progress_hub does not auto-mark smoke_done
+        smoke_latest = root / "projects" / project_id / "smoke" / "latest.json"
+        if smoke_latest.is_file():
+            smoke_latest.unlink()
+    else:
+        # Workspace-only reset: empty live TZ so week does not resume old checkboxes
+        (root / "PROJECT_TZ.md").write_text(
+            EMPTY_TZ_TEMPLATE.format(project_id="(none)"),
+            encoding="utf-8",
+        )
+
+    save_state(root, data)
+    reset_ui_progress(root)
+    run_st = reset_run_hub_counters()
+
+    report = {
+        "ok": True,
+        "project": project_id,
+        "pulse_cycle": int((data.get("pulse") or {}).get("cycle") or 0),
+        "queue_len": len(data.get("task_queue") or []),
+        "done_kept": len(data.get("done") or []),
+        "loop_cycle": run_st.get("loop_cycle"),
+        "loop_max": run_st.get("loop_max"),
+        "run_status": run_st.get("status"),
+        "tz": "empty",
+    }
+    return report
