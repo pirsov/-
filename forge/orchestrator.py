@@ -974,9 +974,11 @@ class Orchestrator:
                 # A22.0: 7B panics on 3+ errors — feed ONLY the first fail this attempt.
                 repair_errs = repair_errors_for_7b(err_msgs)
                 checklist = format_validator_checklist(err_msgs, first_only=True)
+                # Absolute top of repair feedback — must survive hard-fit trim.
                 validator_feedback = (
-                    'MANDATORY: Your reply MUST contain <FILE path="...">...</FILE>. '
+                    'MANDATORY: Your reply MUST contain <FILE path="...">content</FILE>. '
                     "If you don't include the FILE tag, your fix will be rejected.\n"
+                    "MANDATORY FILE TAG — do not omit; replies without <FILE> are rejected.\n"
                     f"START YOUR REPLY WITH <DONE>{task.task_id}</DONE>. "
                     "DO NOT FORGET THE XML TAGS.\n"
                     'You MUST include <FILE path="...">content</FILE>. '
@@ -986,6 +988,8 @@ class Orchestrator:
                     + "\nKeep the rest of the file identical."
                     "\nFILE path must be the real target path, never relative/path.ext."
                     "\n*.server.luau must NOT use top-level return. Use GetService(\"Players\")."
+                    "\nNEVER use LocalPlayer in .server.luau — use Players.PlayerAdded "
+                    "or GetPlayerFromCharacter."
                     '\nCheckpoints: include Humanoid.Died / LoadCharacter and '
                     'FindFirstChild("Checkpoint"..idx) when those bullets appear above.'
                 )

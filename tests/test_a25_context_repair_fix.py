@@ -10,12 +10,14 @@ from unittest.mock import patch
 ROOT = Path(__file__).resolve().parent.parent
 
 MANDATORY_FILE = (
-    'MANDATORY: Your reply MUST contain <FILE path="...">...</FILE>. '
+    'MANDATORY: Your reply MUST contain <FILE path="...">content</FILE>. '
     "If you don't include the FILE tag, your fix will be rejected."
 )
+# A26 strengthened Coins MUST (still covers A25 Destroy/GetPlayer/task.wait intent)
 COINS_MUST = (
-    "You MUST use Players:GetPlayerFromCharacter(char). "
-    "You MUST call coin:Destroy(). You MUST use task.wait()."
+    "You MUST use Players:GetPlayerFromCharacter(char) to find the player. "
+    "You MUST call coin:Destroy() and FireAllClients UpdateLeaderboard. "
+    "You MUST use task.wait()."
 )
 
 

@@ -362,10 +362,29 @@ def build_prompt(
 
     feedback = ""
     if validator_feedback:
-        # Prefer short checklist; trim long freeform validator walls
+        # Prefer short checklist; trim long freeform validator walls.
+        # Keep MANDATORY FILE + A22 first-error pin lines even when truncating.
         vf = validator_feedback.strip()
-        if local_ollama and len(vf) > 600:
-            vf = vf[:600] + "\n...(validator trimmed)..."
+        if local_ollama and len(vf) > 800:
+            head = vf[:800]
+            # Prefer cutting on a newline so we don't bisect MANDATORY / Fix ONLY lines
+            cut = head.rfind("\n")
+            if cut >= 500:
+                head = head[:cut]
+            pin_needles = (
+                "MANDATORY:",
+                "MANDATORY FILE TAG",
+                FIRST_ERROR_ONLY_INSTRUCTION,
+            )
+            pins = [
+                ln
+                for ln in vf.splitlines()
+                if any(n in ln for n in pin_needles)
+            ]
+            for pin in pins:
+                if pin not in head:
+                    head = pin + "\n" + head
+            vf = head.rstrip() + "\n...(validator trimmed)..."
         feedback = f"\n=== VALIDATOR FEEDBACK (fix ONLY these issues) ===\n{vf}\n"
     if repair_draft:
         draft = repair_draft
@@ -374,10 +393,12 @@ def build_prompt(
             draft_cap = 1200 if is_7b else 1800
             if len(draft) > draft_cap:
                 draft = draft[: draft_cap // 2] + "\n...(draft mid truncated)...\n" + draft[-draft_cap // 2 :]
+        # MANDATORY FILE must stay at absolute top of REPAIR MODE (pin vs hard-fit trim).
         feedback += (
             "\n=== REPAIR MODE (A15 PATCH / 7B) ===\n"
-            'MANDATORY: Your reply MUST contain <FILE path="...">...</FILE>. '
+            'MANDATORY: Your reply MUST contain <FILE path="...">content</FILE>. '
             "If you don't include the FILE tag, your fix will be rejected.\n"
+            "MANDATORY FILE TAG — do not omit; replies without <FILE> are rejected.\n"
             f"START YOUR REPLY WITH <DONE>{task.task_id}</DONE>. DO NOT FORGET THE XML TAGS.\n"
             'You MUST include <FILE path="...">content</FILE>. The FILE tag is mandatory.\n'
             "Below is YOUR previous draft (almost done). Do NOT rewrite from scratch.\n"
@@ -646,7 +667,7 @@ end
     if task.target_path and "Coins.server.luau" in task.target_path.replace("\\", "/"):
         coins_template = """
 === COINS TEMPLATE (Script — NO top-level return) ===
-You MUST use Players:GetPlayerFromCharacter(char). You MUST call coin:Destroy(). You MUST use task.wait().
+You MUST use Players:GetPlayerFromCharacter(char) to find the player. You MUST call coin:Destroy() and FireAllClients UpdateLeaderboard. You MUST use task.wait().
 --!strict
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -813,8 +834,9 @@ Never use .Left. Prefer workspace.Puzzles folder.
         )
         coins_template = _short_tmpl(
             coins_template,
-            "You MUST use Players:GetPlayerFromCharacter(char). "
-            "You MUST call coin:Destroy(). You MUST use task.wait(). "
+            "You MUST use Players:GetPlayerFromCharacter(char) to find the player. "
+            "You MUST call coin:Destroy() and FireAllClients UpdateLeaderboard. "
+            "You MUST use task.wait(). "
             "Destroy coin ONLY here; player attrs; FireClient CoinCollected; ChildAdded.",
         )
         levelconfig_template = _short_tmpl(
@@ -829,8 +851,9 @@ Never use .Left. Prefer workspace.Puzzles folder.
         )
         qa_template = _short_tmpl(qa_template, "BUGS/SUGGESTIONS/TEST CASES/SCORE sections.") if qa_template else ""
 
-    # HARD CAPS - repeated mistakes from 14B Generator/HUD/Checkpoints (A19.0 / A22.0)
+    # HARD CAPS - repeated mistakes from 14B Generator/HUD/Checkpoints (A19.0 / A22.0 / A26)
     hard_caps = """HARD CAPS (NEVER violate - validator CRITICAL FAIL):
+- NEVER use LocalPlayer in .server.luau files. LocalPlayer is client-only. Use Players.PlayerAdded or GetPlayerFromCharacter.
 - NEVER use character:GetAttribute("Coins"). ALWAYS use player:GetAttribute("Coins").
 - NEVER use Remotes.CoinsCollected. The remote is exactly Remotes.CoinCollected.
 - NEVER destroy Coins in Checkpoints.server.luau. Coins must only be destroyed in Coins.server.luau.
@@ -839,10 +862,16 @@ Never use .Left. Prefer workspace.Puzzles folder.
 - Checkpoints: SetAttribute("Checkpoint", idx) where idx is a number (tonumber(match)), NEVER a Part/Instance.
 - Checkpoints.server.luau MUST NOT use DataStoreService. DataStore is ONLY for datastore_service archetype."""
 
+    localplayer_server_rule = (
+        "NEVER use LocalPlayer in .server.luau files. LocalPlayer is client-only. "
+        "Use Players.PlayerAdded or GetPlayerFromCharacter."
+    )
+
     if local_ollama:
         strict_rules = f"""STRICT (local; gameplay/client ctx<=4k):
 - ONLY this task. <DONE>{task.task_id}</DONE> + <FILE> required when -> path.
 - NEVER use wait(). Use task.wait(). This is a critical error.
+- {localplayer_server_rule}
 - server/client: no top-level return; ModuleScript: return table.
 - Checkpoint.."id" (no _); ALWAYS require Remotes via ReplicatedStorage:WaitForChild("Gameplay"):WaitForChild("Remotes") never bare Remotes; LevelConfig Luau `=`; coins Destroy+FireClient.
 - Compact code; SEARCH/REPLACE preferred on existing files.
@@ -855,6 +884,7 @@ Never use .Left. Prefer workspace.Puzzles folder.
 - If task says '-> path/file.md#section', '#' is a section name, NOT part of the filename.
 - No stubs, no empty TODOs. Ship playable / readable content.
 - NEVER use wait(). Use task.wait(). This is a critical error.
+- {localplayer_server_rule}
 - *.server.luau / *.client.luau MUST NOT end with return.
 - *.luau ModuleScripts MUST end with return <table>.
 - You MUST include at least one <FILE path="...">...</FILE> when the task has a -> path.
@@ -866,7 +896,7 @@ Never use .Left. Prefer workspace.Puzzles folder.
 - Generator checkpoint names: "Checkpoint" .. tostring(id) - NEVER "Checkpoint_".
 - ALWAYS require Remotes via ReplicatedStorage:WaitForChild("Gameplay"):WaitForChild("Remotes") — NEVER bare ReplicatedStorage.Remotes; never return a Folder.
 - LevelConfig: Luau `id = n` only - NEVER JavaScript `id: n`. return array for ipairs.
-- Coins: coin:Destroy(); FireClient(player); FindFirstChild Coins + ChildAdded.
+- Coins: coin:Destroy(); FireClient(player); FindFirstChild Coins + ChildAdded; FireAllClients UpdateLeaderboard.
 - HUD: create ScreenGui; player.CharacterAdded - never bare characterAdded.
 - Leaderboard: create UI; UpdateLeaderboard only - no LeaderboardFrame WaitForChild.
 - Void: Heartbeat Y<-20 LoadCharacter. Puzzles: TouchEnded not .Left.
