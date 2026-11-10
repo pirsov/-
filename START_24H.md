@@ -6,13 +6,28 @@
 
 ```bash
 git pull
-# ветка со стеком A9→A10, либо main после мержа
-git checkout cursor/a10-3-4-fullstack-9409   # или актуальная после merge
+# стек A9→A11 или main после мержа
+git checkout cursor/a11-asset-integration-9409   # или актуальная после merge
 
 # ключи (User env)
 # DEEPSEEK_API_KEY=...          — HITL / improve goal / TZ
 # Ollama локально ИЛИ Cloud Fallback (FORGE_BACKEND / OpenRouter)
 ```
+
+### 0.1. LEGO / 3D ассеты (A11.0) — обязательно перед «фруктовым» промптом
+
+1. Положи модели в **`assets/models/`**:
+   - пример: `Apple.glb`, `Banana.ldr`, `Coin.glb`
+   - форматы: `.glb` `.gltf` `.ldr` `.fbx` `.obj`
+2. Обнови каталог:
+
+```bash
+python -u run.py --scan-assets
+# → assets/catalog/assets.json
+# Available 3D assets: Apple, Banana, Coin
+```
+
+Planner / DeepSeek увидит этот список. Если в плане `proposed_assets: ["DragonFruit"]`, а файла нет — **Gate блокирует** задачу (анти-галлюцинация ассетов).
 
 Проверка:
 
@@ -31,10 +46,11 @@ python -u run.py --ui
 
 В agent dock (верх):
 
-1. Напиши: *«Сделай игру про сбор монет с сохранением»* → Enter  
+1. Напиши задачу, например:  
+   *«Сделай хоррор-симулятор, где нужно собирать LEGO-яблоки и убегать от монстра. Используй ассеты Apple»*  
+   или *«Сделай игру про сбор монет с сохранением»*  
 2. Ответь на A/B/C (или Другое)  
 3. Нажми **Старт 24h**
-
 Можно закрыть вкладку — процесс `run.py --ui` продолжает жить. Если агенту нужен ответ, статус станет `waiting_human` (парк, не CPU-spin).
 
 ## 2. Что делает «Старт 24h»
@@ -60,6 +76,7 @@ python -u run.py --ui
 | State / очередь | `state.json` |
 | HITL-правила | `knowledge_base.json` → `rules` (`active`/`draft`) |
 | Контракты | `contracts/` (+ `contracts/golden/` после verify «y») |
+| 3D каталог | `assets/catalog/assets.json` (источник: `assets/models/`) |
 
 Пример:
 
@@ -110,6 +127,7 @@ game1 polygon по-прежнему **frozen** — новые фичи копя�
 ## 7. Быстрый чеклист перед марафоном
 
 - [ ] `python -m unittest discover -s tests -q` → OK  
+- [ ] `.glb`/`.ldr` лежат в `assets/models/` + `python -u run.py --scan-assets`  
 - [ ] DeepSeek ключ или осознанный stub/fallback  
 - [ ] `python -u run.py --ui` слушает `:8787`  
 - [ ] Знаешь, где `.forge/ui_run/`  

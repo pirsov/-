@@ -391,6 +391,13 @@
       "status": "closed",
       "type": "infra",
       "closed_at": "2026-11-10T09:45:00+00:00"
+    },
+    {
+      "id": "A11.0",
+      "title": "3D asset catalog for Planner/Gate",
+      "status": "closed",
+      "type": "infra",
+      "closed_at": "2026-11-10T10:00:00+00:00"
     }
   ],
   "open_questions": [
@@ -415,8 +422,8 @@
     "next_compact_at_cycle": 5,
     "next_metrics_at_cycle": 8,
     "e2e_at": "2026-11-10T07:13:42.087643+00:00",
-    "status": "a10_4_fullstack_pass",
-    "focus": "donation_shop full-stack + START_24H",
+    "status": "a11_0_assets_pass",
+    "focus": "3D asset catalog + 24h ready",
     "last_compact_cycle": 6,
     "last_compact_at": "2026-11-10T07:28:51.769663+00:00"
   },
@@ -630,5 +637,15 @@
     "guide": "START_24H.md",
     "tests": "78 OK",
     "artifact": "artifacts/a10_4_e2e/"
+  },
+  "a11_0": {
+    "cycle": "A11.0",
+    "asset_hub": "forge/asset_hub.py",
+    "models_dir": "assets/models",
+    "catalog": "assets/catalog/assets.json",
+    "cli": "python -u run.py --scan-assets",
+    "gate": "proposed_assets must exist in catalog",
+    "tests": "82 OK",
+    "guide": "START_24H.md §0.1"
   }
 }
