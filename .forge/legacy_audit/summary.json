@@ -1,0 +1,22 @@
+{
+  "ok": true,
+  "project": "/workspace/legacy_project",
+  "forge_root": "/workspace",
+  "modules": 6,
+  "functions": 3,
+  "pitfalls": 8,
+  "by_severity": {
+    "crit": 3,
+    "high": 2,
+    "med": 3
+  },
+  "draft_rules": 7,
+  "kb_merge": {
+    "added": 7,
+    "total_rules": 7
+  },
+  "architecture": "/workspace/docs/LEGACY_ARCHITECTURE.md",
+  "pitfalls_md": "/workspace/docs/LEGACY_PITFALLS.md",
+  "draft_rules_json": "/workspace/.forge/legacy_audit/draft_rules.json",
+  "at": "2026-11-10T12:00:05.309315+00:00"
+}

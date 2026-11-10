@@ -1,0 +1,15 @@
+{
+  "project": "legacy_project",
+  "pitfalls": 8,
+  "draft_rules": 7,
+  "recommended_activate": ["R001", "R004", "R006"],
+  "rules": [
+    {"id": "R001", "severity": "crit", "title": "DataStoreService on client", "archetypes": ["client_ui"]},
+    {"id": "R002", "severity": "med", "title": "FireServer → server must validate", "archetypes": ["datastore_service", "server_script"]},
+    {"id": "R003", "severity": "med", "title": "GetPlayerFromCharacter nil guard", "archetypes": ["server_script", "client_ui"]},
+    {"id": "R004", "severity": "crit", "title": "DataStore must use pcall", "archetypes": ["datastore_service", "server_script"]},
+    {"id": "R005", "severity": "high", "title": "while true needs wait", "archetypes": ["server_script", "client_ui", "datastore_service"]},
+    {"id": "R006", "severity": "high", "title": "OnServerEvent typeof/assert", "archetypes": ["datastore_service", "server_script"]},
+    {"id": "R007", "severity": "med", "title": "use task.wait not wait()", "archetypes": ["server_script", "client_ui", "datastore_service"]}
+  ]
+}
