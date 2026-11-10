@@ -13,7 +13,7 @@ KNOWN_ARCHETYPES = (
     "client_ui",
     "shared_data",
     "network_remote",
-    "datastore_service",  # reserved for A7.2+ evolution
+    "datastore_service",  # A10.1 — server PlayerSave / DataStore
 )
 
 

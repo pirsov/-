@@ -1,0 +1,19 @@
+=== CONTRACT CARDS (for 14B) ===
+{"id":"forge-luau-touch","exports":["forge_luau_touch()"],"attrs":[],"forbid":["- Destroy the **coin Part**, never `hit` / `hit.Parent` (cha","- Puzzles: Touched open, TouchEnded close — never `.Left`."],"files":[]}
+{"id":"forge-player-attrs","exports":["GetAttribute(\"Coins\")","Destroy()","SetAttribute(\"Coins\", n)"],"attrs":["BestTime","Checkpoint","Coins","Score"],"forbid":["- NEVER `character:GetAttribute(\"Coins\")` — Character attrs ","- NEVER invent `CoinsCollected`.","- LevelConfig: Luau `id = n` only (never JS `id:`)."],"files":[]}
+{"id":"forge-ui-animation","exports":["forge_ui_animation()"],"attrs":[],"forbid":[],"files":[]}
+=== SKELETON datastore_service@v1 ===
+--!strict
+-- archetype: datastore_service@v1
+-- Server-only PlayerSave: pcall around GetAsync/SetAsync; attrs on Player; never UI.
+local Players = game:GetService("Players")
+local DataStoreService = game:GetService("DataStoreService")
+local store = DataStoreService:GetDataStore("PlayerSave_v1")
+
+local function key(player: Player): string
+	return "p_" .. tostring(player.UserId)
+end
+
+local function loadPlayer(player: Player)
+	local ok, data = pcall(function()
+		return store:GetAsync(key(player))

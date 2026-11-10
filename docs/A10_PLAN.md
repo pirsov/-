@@ -83,11 +83,12 @@ A7.3 как один скелет недостаточен: без связки 
 
 ## Критерий готовности A10.0
 
-- [ ] `datastore_service@v1` в registry, `--archetypes-list` показывает
-- [ ] Негативный тест: DataStore в client → FAIL
-- [ ] Позитивный E2E: server save/load skeleton + remote whitelist → validator PASS, gate не пропускает выдуманные API
+- [x] `datastore_service@v1` в registry, `--archetypes-list` показывает *(A10.1)*
+- [x] Негативный тест: DataStore в client → FAIL *(A10.1)*
+- [x] Позитивный E2E: server save/load (`system.player_save`) → validator PASS, gate блокирует галлюцинации *(A10.1)*
 - [ ] Из UI: chat → HITL → (опционально) 24h burst не зависает в CPU на `waiting_human`
-- [ ] Тесты suite зелёные (цель: +8–12 к текущим 56)
+- [x] Тесты suite зелёные (+8 к A9) *(A10.1)*
+- [ ] A10.2 networking glue + A10.3 rules + A10.4 full stack E2E
 
 ---
 

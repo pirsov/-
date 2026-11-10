@@ -1,0 +1,20 @@
+{
+  "kind": "tz_task",
+  "task_id": "A10.1",
+  "title": "PlayerSave coins (system.player_save)",
+  "description": "REWRITE server PlayerSave: DataStoreService GetDataStore PlayerSave_v1; pcall GetAsync/SetAsync; SetAttribute Coins; PlayerAdded/PlayerRemoving; NEVER ScreenGui/LocalPlayer/client UI",
+  "owner": "gameplay_programmer",
+  "archetype": "datastore_service",
+  "skeleton_version": "v1",
+  "target_path": "artifacts/a10_e2e/PlayerSave.server.luau",
+  "proposed_calls": [
+    "DataStoreService",
+    "GetDataStore",
+    "GetAsync",
+    "SetAsync",
+    "get_player_coins",
+    "PlayerRemoving",
+    "SetAttribute"
+  ],
+  "plugin": "system.player_save"
+}
