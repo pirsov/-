@@ -1,8 +1,10 @@
 """A9.0 API hub — bridge UI ↔ planner / feedback / state / run_hub."""
 from __future__ import annotations
 
+import json
+import os
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from . import deepseek, feedback, planner, run_hub, state_hub
 from .planner_schema import validate_hitl_pack
@@ -274,3 +276,176 @@ def start_24h(
 
 def stop_24h(**kwargs: Any) -> Dict[str, Any]:
     return run_hub.stop_24h(**kwargs)
+
+
+# ---- A17.0 file explorer -------------------------------------------------
+
+_CODE_SUFFIXES = {".luau", ".lua", ".json", ".md", ".txt"}
+
+
+def _active_project_id(root: Path) -> Optional[str]:
+    active = root / ".forge" / "active_project.json"
+    if not active.exists():
+        return None
+    try:
+        data = json.loads(active.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    pid = data.get("id") if isinstance(data, dict) else None
+    return str(pid) if pid else None
+
+
+def _file_scan_roots(root: Path) -> List[Tuple[str, Path]]:
+    """Allowed scan roots as (label_prefix, absolute_dir)."""
+    roots: List[Tuple[str, Path]] = []
+    live = (root / "src").resolve()
+    if live.is_dir():
+        roots.append(("src", live))
+    pid = _active_project_id(root)
+    if pid:
+        # keep project id path-safe (no traversal via active_project.json)
+        safe = str(pid).replace("\\", "/").strip("/")
+        if safe and ".." not in safe.split("/") and "/" not in safe and "\\" not in safe:
+            proj_src = (root / "projects" / safe / "src").resolve()
+            if proj_src.is_dir():
+                roots.append((f"projects/{safe}/src", proj_src))
+    return roots
+
+
+def _collect_under(dir_path: Path, *, prefix: str, limit: int) -> List[str]:
+    out: List[str] = []
+    if not dir_path.is_dir():
+        return out
+    for p in sorted(dir_path.rglob("*")):
+        if not p.is_file():
+            continue
+        if p.suffix.lower() not in _CODE_SUFFIXES:
+            continue
+        try:
+            rel = p.relative_to(dir_path).as_posix()
+        except ValueError:
+            continue
+        out.append(f"{prefix}/{rel}" if prefix else rel)
+        if len(out) >= limit:
+            break
+    return out
+
+
+def _files_to_tree(files: List[str]) -> List[Dict[str, Any]]:
+    """Build nested accordion tree from flat posix paths."""
+    root: Dict[str, Any] = {}
+    for rel in files:
+        parts = [p for p in rel.split("/") if p]
+        node = root
+        for i, part in enumerate(parts):
+            is_file = i == len(parts) - 1
+            key = part + ("\0f" if is_file else "\0d")
+            if key not in node:
+                entry: Dict[str, Any] = {"name": part, "type": "file" if is_file else "dir"}
+                if is_file:
+                    entry["path"] = "/".join(parts)
+                else:
+                    entry["children"] = {}
+                node[key] = entry
+            if not is_file:
+                node = node[key]["children"]
+
+    def freeze(children: Dict[str, Any]) -> List[Dict[str, Any]]:
+        out: List[Dict[str, Any]] = []
+        for entry in sorted(children.values(), key=lambda e: (e["type"] != "dir", e["name"].lower())):
+            item = {"name": entry["name"], "type": entry["type"]}
+            if entry["type"] == "file":
+                item["path"] = entry["path"]
+            else:
+                item["children"] = freeze(entry["children"])
+            out.append(item)
+        return out
+
+    return freeze(root)
+
+
+def list_files(root: Optional[Path] = None, *, limit: int = 200) -> Dict[str, Any]:
+    """
+    File tree for UI explorer: workspace src/ + projects/<active>/src if present.
+    Returns paths as posix strings relative to workspace root + nested tree.
+    """
+    root = (root or ROOT_DEFAULT).resolve()
+    files: List[str] = []
+    seen = set()
+    for prefix, dir_path in _file_scan_roots(root):
+        remaining = max(0, limit - len(files))
+        if remaining <= 0:
+            break
+        for rel in _collect_under(dir_path, prefix=prefix, limit=remaining):
+            if rel in seen:
+                continue
+            seen.add(rel)
+            files.append(rel)
+    return {
+        "ok": True,
+        "files": files,
+        "tree": _files_to_tree(files),
+        "count": len(files),
+        "active_project": _active_project_id(root),
+        "roots": [prefix for prefix, _ in _file_scan_roots(root)],
+    }
+
+
+def _resolve_under_allowed(root: Path, rel: str) -> Path:
+    """Resolve rel under allowed src roots; raise ValueError on traversal / escape."""
+    rel = (rel or "").replace("\\", "/").lstrip("/")
+    if not rel or rel.startswith("/") or ":" in rel.split("/")[0]:
+        raise ValueError("bad path")
+    parts = rel.split("/")
+    if ".." in parts or any(p == "" for p in parts):
+        raise ValueError("path traversal rejected")
+
+    allowed = [dir_path for _, dir_path in _file_scan_roots(root)]
+    # Also allow reading any file under root/src or projects/*/src even if active differs,
+    # but only via explicit projects/<id>/src/... form that still resolves under root/projects.
+    proj = (root / "projects").resolve()
+    if proj.is_dir():
+        for child in proj.iterdir():
+            if child.is_dir():
+                src = (child / "src").resolve()
+                if src.is_dir() and src not in allowed:
+                    allowed.append(src)
+    live = (root / "src").resolve()
+    if live.is_dir() and live not in allowed:
+        allowed.append(live)
+
+    candidate = (root / rel).resolve()
+    root_s = str(root.resolve())
+    if not (str(candidate) == root_s or str(candidate).startswith(root_s + os.sep)):
+        raise ValueError("path outside root")
+    under = False
+    for base in allowed:
+        base_s = str(base)
+        if str(candidate) == base_s or str(candidate).startswith(base_s + os.sep):
+            under = True
+            break
+    if not under:
+        raise ValueError("path not under allowed src roots")
+    if not candidate.is_file():
+        raise FileNotFoundError(rel)
+    return candidate
+
+
+def read_file(
+    rel: str,
+    root: Optional[Path] = None,
+    *,
+    max_chars: int = 120000,
+) -> Dict[str, Any]:
+    """Read text of a code file under allowed roots (path-traversal safe)."""
+    root = (root or ROOT_DEFAULT).resolve()
+    path = _resolve_under_allowed(root, rel)
+    text = path.read_text(encoding="utf-8", errors="replace")
+    truncated = len(text) > max_chars
+    return {
+        "ok": True,
+        "path": rel.replace("\\", "/").lstrip("/"),
+        "chars": len(text),
+        "truncated": truncated,
+        "content": text[:max_chars],
+    }

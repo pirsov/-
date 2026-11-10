@@ -49,6 +49,56 @@ let focusStage = 1;
 let lastProgress = null;
 let pendingHitl = null;
 let selectedHitl = {};
+let filesPollTimer = null;
+let lastFilePath = "";
+let knownFilePaths = [];
+let loop24Active = false;
+
+function isLoop24Active(run, snap) {
+  const st = (run && run.status) || "";
+  const mode = (run && run.mode) || (snap && snap.mode) || null;
+  if (mode === "loop_24h" && (st === "running" || st === "looping" || st === "waiting_human")) {
+    return true;
+  }
+  if (st === "looping") return true;
+  if (st === "running" && mode === "loop_24h") return true;
+  return false;
+}
+
+function syncStartStopButton(active) {
+  loop24Active = !!active;
+  const startBtn = el("btn-start-24h");
+  const stopBtn = el("btn-stop-24h");
+  if (startBtn) {
+    if (loop24Active) {
+      startBtn.dataset.mode = "stop";
+      startBtn.textContent = "Остановить (Stop)";
+      startBtn.classList.add("ghost");
+    } else {
+      startBtn.dataset.mode = "start";
+      startBtn.textContent = "Старт 24h";
+      startBtn.classList.remove("ghost");
+    }
+  }
+  if (stopBtn) stopBtn.hidden = !loop24Active;
+}
+
+function highlightCode(text, path) {
+  const codeEl = el("file-view-code");
+  const pre = el("file-view");
+  if (!codeEl) {
+    if (pre) pre.textContent = text || "";
+    return;
+  }
+  codeEl.textContent = text || "";
+  const ext = String(path || "").split(".").pop() || "lua";
+  const lang = ext === "luau" || ext === "lua" ? "lua" : (ext === "json" ? "json" : "plaintext");
+  codeEl.className = "language-" + lang;
+  if (window.hljs) {
+    try { window.hljs.highlightElement(codeEl); } catch (_) { /* ignore */ }
+  }
+}
+
 
 function formatTimer(ms) {
   const s = Math.max(0, Math.floor(ms / 1000));
@@ -285,12 +335,17 @@ function renderRun(run) {
     box.textContent = run.log_tail;
     if (auto || atBottom) box.scrollTop = box.scrollHeight;
   }
-  if (st === "running") startPoll();
+  if (st === "running") {
+    startPoll();
+    startFilesPoll();
+  }
   if (st === "done" || st === "error") {
     stopPoll();
-    loadFiles();
+    stopFilesPoll();
+    loadFiles({ autoOpen: !lastFilePath }).catch(() => {});
     refreshProgressOnly();
   }
+  if (st === "idle" && !loop24Active) stopFilesPoll();
 }
 
 function startPoll() {
@@ -304,24 +359,91 @@ function stopPoll() {
   if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
 }
 
-async function loadFiles() {
-  const j = await api("/api/run/files");
-  const files = j.files || [];
-  el("file-list").innerHTML = files.map(f =>
-    `<button type="button" class="btn file-btn" data-path="${f.path}">${f.path} <span class="muted">${f.chars}</span></button>`
-  ).join("") || "<p class='muted'>нет .luau</p>";
-  el("file-list").querySelectorAll(".file-btn").forEach(btn => {
-    btn.onclick = async () => {
-      el("file-list").querySelectorAll(".file-btn").forEach(b => b.classList.remove("active"));
-      btn.classList.add("active");
-      const file = await api("/api/run/file?path=" + encodeURIComponent(btn.getAttribute("data-path")));
-      lastFileContent = file.content || "";
-      el("file-view").textContent = lastFileContent;
-      el("btn-copy-code").disabled = !lastFileContent;
-    };
-  });
-  const first = el("file-list").querySelector(".file-btn");
-  if (first) first.click();
+function shortFileLabel(path) {
+  const p = String(path || "");
+  const parts = p.split("/");
+  if (parts.length <= 3) return p;
+  return parts.slice(-3).join("/");
+}
+
+async function openCodeFile(path) {
+  if (!path) return;
+  lastFilePath = path;
+  const file = await api("/api/file?path=" + encodeURIComponent(path));
+  lastFileContent = file.content || "";
+  highlightCode(lastFileContent, path);
+  el("btn-copy-code").disabled = !lastFileContent;
+  const list = el("file-list");
+  if (list) {
+    list.querySelectorAll(".file-btn").forEach(b => {
+      b.classList.toggle("active", b.getAttribute("data-path") === path);
+    });
+  }
+  const sel = el("file-select");
+  if (sel && sel.value !== path) sel.value = path;
+  const pathLabel = el("file-path-label");
+  if (pathLabel) pathLabel.textContent = path;
+}
+
+function renderFileExplorer(paths) {
+  const list = Array.isArray(paths) ? paths.slice() : [];
+  knownFilePaths = list;
+  const sel = el("file-select");
+  const box = el("file-list");
+  if (sel) {
+    const prev = lastFilePath || sel.value;
+    sel.innerHTML = list.length
+      ? list.map(p => `<option value="${p.replace(/"/g, "&quot;")}">${shortFileLabel(p)}</option>`).join("")
+      : `<option value="">— нет .luau —</option>`;
+    if (prev && list.includes(prev)) sel.value = prev;
+  }
+  if (box) {
+    box.innerHTML = list.map(p =>
+      `<button type="button" class="btn file-btn${p === lastFilePath ? " active" : ""}" data-path="${p.replace(/"/g, "&quot;")}" title="${p}">${shortFileLabel(p)}</button>`
+    ).join("") || "<p class='muted'>нет .luau — агент ещё не записал код</p>";
+    box.querySelectorAll(".file-btn").forEach(btn => {
+      btn.onclick = () => {
+        openCodeFile(btn.getAttribute("data-path")).catch(e => toast(String(e.message || e)));
+      };
+    });
+  }
+}
+
+async function loadFiles({ autoOpen = true } = {}) {
+  const j = await api("/api/files");
+  const files = Array.isArray(j.files) ? j.files : [];
+  const prev = lastFilePath;
+  renderFileExplorer(files);
+  if (!files.length) {
+    lastFileContent = "";
+    highlightCode("", "");
+    el("btn-copy-code").disabled = true;
+    return files;
+  }
+  const keep = prev && files.includes(prev) ? prev : files[0];
+  if (autoOpen && (!prev || !files.includes(prev) || !lastFileContent)) {
+    await openCodeFile(keep);
+  } else if (autoOpen && keep !== prev) {
+    await openCodeFile(keep);
+  }
+  return files;
+}
+
+function startFilesPoll() {
+  if (filesPollTimer) return;
+  filesPollTimer = setInterval(() => {
+    loadFiles({ autoOpen: false }).catch(() => {});
+  }, 4000);
+}
+function stopFilesPoll() {
+  if (filesPollTimer) { clearInterval(filesPollTimer); filesPollTimer = null; }
+}
+
+if (el("file-select")) {
+  el("file-select").onchange = () => {
+    const p = el("file-select").value;
+    if (p) openCodeFile(p).catch(e => toast(String(e.message || e)));
+  };
 }
 
 el("btn-copy-code").onclick = async () => {
@@ -850,11 +972,16 @@ function renderAgentSnap(snap) {
     const cycle = run.loop_cycle != null ? ` · цикл ${run.loop_cycle}/${run.loop_max || "?"}` : "";
     stats.textContent = `плагины ${closed} · очередь ${pending}${cycle}`;
   }
-  const stopBtn = el("btn-stop-24h");
-  if (stopBtn) stopBtn.hidden = !(st === "looping" || run.mode === "loop_24h");
+  const active24 = isLoop24Active(run, snap);
+  syncStartStopButton(active24);
   if (snap.waiting_human && snap.hitl_pack) renderHitlPack(snap.hitl_pack);
-  if (st === "looping" || st === "waiting_human" || st === "running") startSnapPoll();
-  else if (st === "idle" || st === "done" || st === "error") stopSnapPoll();
+  if (st === "looping" || st === "waiting_human" || st === "running") {
+    startSnapPoll();
+    startFilesPoll();
+  } else if (st === "idle" || st === "done" || st === "error") {
+    stopSnapPoll();
+    if (!active24) stopFilesPoll();
+  }
 }
 
 function startSnapPoll() {
@@ -905,35 +1032,55 @@ el("chat-form").onsubmit = async (ev) => {
   }
 };
 
+async function doStop24h() {
+  const j = await api("/api/stop_24h", { method: "POST", body: "{}" });
+  chatAppend("sys", "24h stopped");
+  renderAgentSnap({ run: j, waiting_human: false });
+  syncStartStopButton(false);
+  stopSnapPoll();
+  stopFilesPoll();
+  toast("24h остановлен");
+  return j;
+}
+
+async function doStart24h() {
+  const j = await api("/api/start_24h", {
+    method: "POST",
+    body: JSON.stringify({ sleep: 5, max_cycles: 48, week_max_steps: 5 }),
+  });
+  chatAppend("sys", "24h loop started");
+  renderAgentSnap({
+    run: j,
+    plugins_closed: 0,
+    queue_pending: 0,
+    waiting_human: j.status === "waiting_human",
+  });
+  syncStartStopButton(true);
+  startSnapPoll();
+  startFilesPoll();
+  loadFiles({ autoOpen: false }).catch(() => {});
+  toast("24h запущен");
+  return j;
+}
+
 el("btn-start-24h").onclick = async () => {
+  const mode = el("btn-start-24h").dataset.mode || "start";
   try {
-    const j = await api("/api/start_24h", {
-      method: "POST",
-      body: JSON.stringify({ sleep: 5, max_cycles: 48, week_max_steps: 5 }),
-    });
-    chatAppend("sys", "24h loop started");
-    renderAgentSnap({ run: j, plugins_closed: 0, queue_pending: 0, waiting_human: j.status === "waiting_human" });
-    startSnapPoll();
-    toast("24h запущен");
+    if (mode === "stop" || loop24Active) await doStop24h();
+    else await doStart24h();
   } catch (e) {
     toast(String(e.message || e));
   }
 };
 
 el("btn-stop-24h").onclick = async () => {
-  try {
-    const j = await api("/api/stop_24h", { method: "POST", body: "{}" });
-    chatAppend("sys", "24h stopped");
-    renderAgentSnap({ run: j, waiting_human: false });
-    stopSnapPoll();
-    toast("24h остановлен");
-  } catch (e) {
-    toast(String(e.message || e));
-  }
+  try { await doStop24h(); }
+  catch (e) { toast(String(e.message || e)); }
 };
 
 refresh().then(async () => {
   if (lastProgress) setFocus(lastProgress.stage || 1, { scroll: false });
+  loadFiles({ autoOpen: true }).catch(() => {});
   // After reload: if smoke already done, put answers back into panel 5
   const flags = (lastProgress && lastProgress.flags) || {};
   if (flags.smoke_done || (lastProgress && lastProgress.issue_count > 0)) {

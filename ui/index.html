@@ -8,6 +8,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Chakra+Petch:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Spline+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/styles.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css" />
 </head>
 <body>
   <div id="toast" class="toast" hidden></div>
@@ -61,7 +62,7 @@
       <button type="submit" class="btn primary" id="btn-chat">Отправить</button>
     </form>
     <div class="row agent-actions">
-      <button type="button" class="btn" id="btn-start-24h">Старт 24h</button>
+      <button type="button" class="btn" id="btn-start-24h" data-mode="start">Старт 24h</button>
       <button type="button" class="btn ghost" id="btn-stop-24h" hidden>Стоп 24h</button>
       <div class="loop-progress" aria-hidden="true">
         <div id="loop-bar" class="loop-bar" style="--pct:0%"></div>
@@ -160,8 +161,17 @@
           <h3 class="sub">Готовый код</h3>
           <button id="btn-copy-code" type="button" class="btn ghost" disabled>Копировать</button>
         </div>
-        <div id="file-list" class="files"></div>
-        <pre id="file-view" class="out code" data-empty="выбери файл"></pre>
+        <div class="code-explorer">
+          <aside class="file-sidebar" aria-label="Файлы кода">
+            <label class="field file-select-wrap">файл
+              <select id="file-select" class="file-select">
+                <option value="">— нет файлов —</option>
+              </select>
+            </label>
+            <div id="file-list" class="files" role="listbox" aria-label="Список .luau"></div>
+          </aside>
+          <pre id="file-view" class="out code" data-empty="выбери файл"><code id="file-view-code" class="language-lua"></code></pre>
+        </div>
       </div>
     </section>
 
@@ -215,6 +225,8 @@
     <span>Claude+DeepSeek: scripts\start-claude-deepseek.ps1</span>
     <span>python -u run.py --ui</span>
   </footer>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/lua.min.js"></script>
   <script src="/app.js"></script>
 </body>
 </html>
