@@ -1,0 +1,20 @@
+{
+  "id": "forge-player-attrs",
+  "exports": [
+    "GetAttribute(\"Coins\")",
+    "Destroy()",
+    "SetAttribute(\"Coins\", n)"
+  ],
+  "attrs": [
+    "BestTime",
+    "Checkpoint",
+    "Coins",
+    "Score"
+  ],
+  "forbid": [
+    "- NEVER `character:GetAttribute(\"Coins\")` — Character attrs ",
+    "- NEVER invent `CoinsCollected`.",
+    "- LevelConfig: Luau `id = n` only (never JS `id:`)."
+  ],
+  "files": []
+}

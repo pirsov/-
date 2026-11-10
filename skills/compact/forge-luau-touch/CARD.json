@@ -1,0 +1,12 @@
+{
+  "id": "forge-luau-touch",
+  "exports": [
+    "forge_luau_touch()"
+  ],
+  "attrs": [],
+  "forbid": [
+    "- Destroy the **coin Part**, never `hit` / `hit.Parent` (cha",
+    "- Puzzles: Touched open, TouchEnded close — never `.Left`."
+  ],
+  "files": []
+}

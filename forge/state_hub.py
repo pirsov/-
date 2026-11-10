@@ -41,22 +41,25 @@ def load_state(root: Path) -> Dict[str, Any]:
 
 
 def save_state(root: Path, data: Dict[str, Any]) -> None:
-    state_path(root).write_text(
-        json.dumps(data, ensure_ascii=False, indent=2) + "\n",
-        encoding="utf-8",
-    )
+    from . import token_economy as te
+
+    state_path(root).write_text(te.dumps_disk(data), encoding="utf-8")
 
 
 def _one_liner(snapshot: Any) -> str:
+    from . import token_economy as te
+
     if isinstance(snapshot, dict):
         purpose = snapshot.get("purpose") or snapshot.get("name") or ""
-        return str(purpose)[:160]
+        return te.englishize_text(str(purpose), max_chars=120)
     if isinstance(snapshot, str):
-        return snapshot[:160]
+        return te.englishize_text(snapshot, max_chars=120)
     return ""
 
 
 def _write_contract_file(root: Path, plugin: str, snapshot: Dict[str, Any]) -> str:
+    from . import contract_index
+
     contracts = root / "contracts"
     contracts.mkdir(parents=True, exist_ok=True)
     safe = "".join(c if c.isalnum() or c in "._-" else "_" for c in plugin) or "plugin"
@@ -64,16 +67,22 @@ def _write_contract_file(root: Path, plugin: str, snapshot: Dict[str, Any]) -> s
     payload = {
         "plugin": plugin,
         "compacted_at": now_iso(),
-        "contract_snapshot": snapshot,
+        "contract_snapshot": dict(snapshot),
     }
-    (root / rel).write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    contract_index.write_contract_payload(root / rel, payload)
     return rel
 
 
 def compact_done_entry(root: Path, entry: Dict[str, Any], *, keep_recent_cycles: int = 1, current_cycle: int = 0) -> bool:
     """Collapse inline contract_snapshot into contract_ref. Returns True if mutated."""
+    from . import token_economy as te
+
     snap = entry.get("contract_snapshot")
     if not isinstance(snap, dict):
+        # Still englishize existing summary on compact pass
+        if isinstance(entry.get("contract_summary"), str) and te.has_cyrillic(entry["contract_summary"]):
+            entry["contract_summary"] = te.englishize_text(entry["contract_summary"], max_chars=120)
+            return True
         return False
     closed_cycle = int(entry.get("closed_cycle") or 0)
     if keep_recent_cycles and closed_cycle and current_cycle and (current_cycle - closed_cycle) < keep_recent_cycles:
@@ -119,12 +128,20 @@ def compact_state(
     if not due:
         return report
 
+    from . import token_economy as te
+
     compacted = 0
     for entry in data.get("done") or []:
         if not isinstance(entry, dict):
             continue
         if compact_done_entry(root, entry, keep_recent_cycles=keep_recent_cycles, current_cycle=cycle):
             compacted += 1
+        elif isinstance(entry.get("contract_summary"), str):
+            # A13: every compact cycle — EN summaries even when snapshot already extracted
+            en = te.englishize_text(entry["contract_summary"], max_chars=120)
+            if en != entry["contract_summary"]:
+                entry["contract_summary"] = en
+                compacted += 1
 
     pulse["last_compact_cycle"] = cycle
     pulse["last_compact_at"] = now_iso()

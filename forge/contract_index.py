@@ -6,6 +6,8 @@ import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
 
+from . import token_economy as te
+
 # Always-allowed Remotes / Roblox builtins (not every contract repeats them)
 BUILTIN_EXPORTS = {
     "Checkpoint",
@@ -76,6 +78,30 @@ def _safe_load(path: Path) -> Optional[Dict[str, Any]]:
     except (OSError, json.JSONDecodeError):
         return None
     return data if isinstance(data, dict) else None
+
+
+def write_contract_payload(path: Path, payload: Dict[str, Any]) -> None:
+    """Persist contract JSON minified (A13). Full keys kept for schema readers."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    # Englishize purpose for token economy; keep export/forbid identifiers intact
+    out = dict(payload)
+    snap = out.get("contract_snapshot")
+    if isinstance(snap, dict) and isinstance(snap.get("purpose"), str):
+        snap = dict(snap)
+        snap["purpose"] = te.englishize_text(snap["purpose"], max_chars=160)
+        out["contract_snapshot"] = snap
+    path.write_text(te.dumps_disk(out), encoding="utf-8")
+
+
+def compact_index_for_llm(root: Path, *, max_chars: int = 800) -> str:
+    """Minified short-key index slice for optional 14B injection."""
+    idx = build(root)
+    slim = {
+        "exp": (idx.get("exports") or [])[:40],
+        "f": (idx.get("forbids") or [])[:20],
+        "pl": sorted((idx.get("plugins") or {}).keys())[:20],
+    }
+    return te.dumps_llm(slim)[:max_chars]
 
 
 def _normalize_export_token(s: str) -> str:

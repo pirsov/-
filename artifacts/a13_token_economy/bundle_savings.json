@@ -1,0 +1,31 @@
+{
+  "fixture": {
+    "bytes_before": 841,
+    "bytes_after": 572,
+    "bytes_saved": 269,
+    "percent_saved": 32.0,
+    "note": "RU purpose/forbid card + active HITL rule + skeleton"
+  },
+  "live_repo": {
+    "bytes_before": 1113,
+    "bytes_after": 884,
+    "bytes_saved": 229,
+    "percent_saved": 20.6,
+    "skill_ids": ["forge-player-attrs", "forge-luau-touch", "forge-ui-modern"],
+    "archetype": "client_ui@v1"
+  },
+  "cli_sample": {
+    "bytes_before": 1058,
+    "bytes_after": 837,
+    "percent_saved": 20.9
+  },
+  "levers": [
+    "EN englishize of purpose/forbid/rules (RU→EN)",
+    "short keys exp/a/f/p/fl",
+    "minified JSON in LLM bundle",
+    "compact ===CARDS=== / ===RULES=== headers",
+    "CODE_ECONOMY prompt rules",
+    "EN contract_summary on state compact + dumps_disk minify"
+  ],
+  "note": "A13.0 Token Economy — percent_saved is bytes shrink of bundle_for_14b (fat=pretty+full keys, lean=economy)"
+}

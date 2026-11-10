@@ -633,6 +633,13 @@ STRICT RULES:
 - HUD: create ScreenGui; player.CharacterAdded — never bare characterAdded.
 - Leaderboard: create UI; UpdateLeaderboard only — no LeaderboardFrame WaitForChild.
 - Void: Heartbeat Y<-20 LoadCharacter. Puzzles: TouchEnded not .Left.
+- TOKEN ECONOMY: Do not write excessive comments. Use concise local variable names. Output only the necessary code.
+
+TOKEN ECONOMY (local 14B ctx≤4k):
+- Do not write excessive comments. Critical one-liners only.
+- Use concise local variable names; keep public/contract names stable.
+- Output only the necessary code for THIS task.
+- Prefer Luau-compact forms; no decorative blank lines.
 
 Format:
 <DONE>{task.task_id}</DONE>
