@@ -113,15 +113,22 @@ def stop_24h(*, join_timeout: float = 5.0) -> Dict[str, Any]:
     return {"ok": True, **status()}
 
 
+# A20.1: high week burst budget for 24h Start (was 5 → `--max 5` killed runs early).
+DEFAULT_WEEK_MAX_STEPS = 500
+DEFAULT_24H_MAX_CYCLES = 48
+
+
 def start_24h(
     root: Optional[Path] = None,
     *,
     sleep: float = 30.0,
-    max_cycles: int = 48,
-    week_max_steps: int = 5,
+    max_cycles: int = DEFAULT_24H_MAX_CYCLES,
+    week_max_steps: Optional[int] = DEFAULT_WEEK_MAX_STEPS,
 ) -> Dict[str, Any]:
     """
-    Autonomous loop: plan_next → if waiting_human park; else run short --week batch.
+    Autonomous loop: plan_next → if waiting_human park; else run --week burst.
+    week_max_steps bounds each week subprocess (--max); max_cycles bounds 24h cycles.
+    None week_max_steps → omit --max (orchestrator week default applies).
     Does not spin CPU while waiting_human.
     """
     root = root or ROOT_DEFAULT
@@ -138,6 +145,10 @@ def start_24h(
     run_dir = _run_dir(root)
     stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
     log_path = run_dir / f"loop24-{stamp}.log"
+    # Normalize burst size: keep parameter for tests, never silently fall back to 5.
+    if week_max_steps is not None:
+        week_max_steps = max(1, int(week_max_steps))
+    max_cycles = max(1, int(max_cycles or DEFAULT_24H_MAX_CYCLES))
 
     def _park_waiting(logf, *, reason: str = "waiting_human") -> None:
         """Block until human answers / stop — does NOT advance cycle."""
@@ -160,7 +171,10 @@ def start_24h(
     def _loop() -> None:
         cycle = 0
         with log_path.open("w", encoding="utf-8") as logf:
-            logf.write(f"# 24h loop start {stamp} max_cycles={max_cycles}\n")
+            logf.write(
+                f"# 24h loop start {stamp} max_cycles={max_cycles} "
+                f"week_max_steps={week_max_steps}\n"
+            )
             logf.flush()
             while not _stop_event.is_set() and cycle < max_cycles:
                 try:

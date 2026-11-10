@@ -395,16 +395,18 @@ def start_24h(
     *,
     sleep: float = 30.0,
     max_cycles: int = 48,
-    week_max_steps: int = 5,
+    week_max_steps: Optional[int] = None,
 ) -> Dict[str, Any]:
-    """Start autonomous loop in background (threading)."""
+    """Start autonomous loop in background (threading).
+
+    A20.1: when week_max_steps is omitted/None, run_hub uses DEFAULT_WEEK_MAX_STEPS (500),
+    not 5. max_cycles is the 24h cycle budget; week_max_steps is per-burst --max only.
+    """
     root = root or ROOT_DEFAULT
-    return run_hub.start_24h(
-        root,
-        sleep=sleep,
-        max_cycles=max_cycles,
-        week_max_steps=week_max_steps,
-    )
+    kwargs: Dict[str, Any] = {"sleep": sleep, "max_cycles": max_cycles}
+    if week_max_steps is not None:
+        kwargs["week_max_steps"] = week_max_steps
+    return run_hub.start_24h(root, **kwargs)
 
 
 def stop_24h(**kwargs: Any) -> Dict[str, Any]:
