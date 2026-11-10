@@ -1635,6 +1635,11 @@ def main(argv: Optional[List[str]] = None) -> int:
         sleep_s = 30.0 if args.sleep is None else float(args.sleep)
         validate_every = int(WEEK_MODE.get("validate_every_n_steps") or 5)
         print("Quality Forge WEEK MODE | greenfield | no micro-split | 14b+7b-repair")
+        # A19.0: print current Quality Score to console before week work
+        week_score, week_notes = quality_score(root)
+        print(f"Quality score: {week_score}/100")
+        for n in week_notes[:8]:
+            print(f"  - {n}")
     else:
         max_steps = args.max if args.max is not None else (500 if args.loop else 1)
         sleep_s = 0.0 if args.sleep is None else float(args.sleep)

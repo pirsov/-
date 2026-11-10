@@ -256,21 +256,24 @@ def validate_file(path: Path, *, root: Optional[Path] = None) -> Tuple[bool, Lis
             errors.append("HUD must Connect CheckpointReached and CoinCollected OnClientEvent")
         if "Instance.new" not in content and "TextLabel" not in content and "ScreenGui" not in content:
             errors.append("HUD must create ScreenGui/TextLabel UI (not only comments)")
-        # Server sets attrs on Player; reading Character attrs wipes left HUD every frame
+        # A19.0 CRITICAL: attrs live on Player; character:GetAttribute stays nil and wipes HUD.
+        # Must FAIL the task (errors list) - never log-only / advisory.
         if re.search(
-            r"char(?:acter)?\s*:\s*GetAttribute\(\s*[\"'](?:Coins|Checkpoint|Score|BestTime)[\"']",
+            r"\bchar(?:acter)?\s*:\s*GetAttribute\s*\(",
             code_hud,
             re.I,
         ):
             errors.append(
-                "HUD must read player:GetAttribute(Coins/Checkpoint) — "
-                "NOT character:GetAttribute (server writes on Player; char attrs stay nil)"
+                "CRITICAL: NEVER use character:GetAttribute - ALWAYS player:GetAttribute "
+                "(server writes Coins/Checkpoint/Score/BestTime on Player; char attrs stay nil)"
             )
         if re.search(r"GetAttribute\(\s*[\"'](?:Coins|Checkpoint)[\"']", code_hud) and not re.search(
             r"player\s*:\s*GetAttribute\(\s*[\"'](?:Coins|Checkpoint)[\"']",
             code_hud,
         ):
-            errors.append("HUD GetAttribute for Coins/Checkpoint must be on `player`")
+            errors.append(
+                "CRITICAL: HUD GetAttribute for Coins/Checkpoint must be on `player`"
+            )
 
     if name == "Leaderboard.client.luau":
         if re.search(r'WaitForChild\(\s*["\']LeaderboardFrame["\']', content):

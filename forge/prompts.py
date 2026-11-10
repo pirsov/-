@@ -769,28 +769,38 @@ Never use .Left. Prefer workspace.Puzzles folder.
         effects_template = _short_tmpl(effects_template, "LocalScript; OnClientEvent sounds; no top-level return.")
         generator_template = _short_tmpl(
             generator_template,
-            'Map/Checkpoints/Coins folders; SpawnLocation; Name="Checkpoint"..id; print section ids.',
+            'Map/Checkpoints/Coins folders; Instance.new("SpawnLocation") NEVER Part-rename; '
+            'Name="Checkpoint"..id; print section ids.',
         )
         coins_template = _short_tmpl(
-            coins_template, "Destroy coin; player attrs; FireClient; ChildAdded hook."
+            coins_template, "Destroy coin ONLY here; player attrs; FireClient CoinCollected; ChildAdded."
         )
         levelconfig_template = _short_tmpl(
             levelconfig_template, "return { { id = n, gap = g, coins = c }, ... } Luau `=` only."
         )
         hud_template = _short_tmpl(
-            hud_template, "ScreenGui; read PLAYER attrs (not Character); CharacterAdded."
+            hud_template,
+            'ScreenGui; ALWAYS player:GetAttribute("Coins") NEVER character:GetAttribute; CharacterAdded.',
         )
         leaderboard_template = _short_tmpl(
             leaderboard_template, "create UI; UpdateLeaderboard only — no LeaderboardFrame."
         )
         qa_template = _short_tmpl(qa_template, "BUGS/SUGGESTIONS/TEST CASES/SCORE sections.") if qa_template else ""
 
+    # HARD CAPS - repeated mistakes from 14B Generator/HUD (A19.0)
+    hard_caps = """HARD CAPS (NEVER violate - validator CRITICAL FAIL):
+- NEVER use character:GetAttribute("Coins"). ALWAYS use player:GetAttribute("Coins").
+- NEVER use Remotes.CoinsCollected. The remote is exactly Remotes.CoinCollected.
+- NEVER destroy Coins in Checkpoints.server.luau. Coins must only be destroyed in Coins.server.luau.
+- Spawn MUST be created with Instance.new("SpawnLocation"). NEVER use Instance.new("Part") and rename it to SpawnLocation."""
+
     if local_ollama:
-        strict_rules = f"""STRICT (ctx≤2k):
-- ONLY this task. <DONE>{task.task_id}</DONE> + <FILE> required when → path.
+        strict_rules = f"""STRICT (ctx<=2k):
+- ONLY this task. <DONE>{task.task_id}</DONE> + <FILE> required when -> path.
 - task.wait() not wait(); server/client: no top-level return; ModuleScript: return table.
 - Checkpoint.."id" (no _); Remotes ModuleScript; LevelConfig Luau `=`; coins Destroy+FireClient.
-- Compact code; SEARCH/REPLACE preferred on existing files."""
+- Compact code; SEARCH/REPLACE preferred on existing files.
+{hard_caps}"""
         token_econ = "TOKEN ECONOMY: minimal comments; only code for THIS task."
     else:
         strict_rules = f"""STRICT RULES:
@@ -798,24 +808,25 @@ Never use .Left. Prefer workspace.Puzzles folder.
 - Do NOT block due to task ordering. Prerequisites are already done.
 - If task says '-> path/file.md#section', '#' is a section name, NOT part of the filename.
 - No stubs, no empty TODOs. Ship playable / readable content.
-- NEVER use wait() — always task.wait().
+- NEVER use wait() - always task.wait().
 - *.server.luau / *.client.luau MUST NOT end with return.
 - *.luau ModuleScripts MUST end with return <table>.
-- You MUST include at least one <FILE path="...">...</FILE> when the task has a → path.
+- You MUST include at least one <FILE path="...">...</FILE> when the task has a -> path.
 - Reply MUST begin with <DONE>{task.task_id}</DONE>. Never output <BLOCKED>.
 - NEVER list PlayerRespawn / PlayerRespawned as a BUG. That API is not in this project.
-- For Checkpoints: Touched, SetAttribute, FireClient, Died/LoadCharacter — report only what you see.
+- For Checkpoints: Touched, SetAttribute, FireClient, Died/LoadCharacter - report only what you see.
 - FILE path must be the real target (e.g. {task.target_path or "src/..."}), NEVER relative/path.ext.
 - Generator: CREATE Map/Path/Spawn (Instance.new); never WaitForChild Map first.
-- Generator checkpoint names: "Checkpoint" .. tostring(id) — NEVER "Checkpoint_".
+- Generator checkpoint names: "Checkpoint" .. tostring(id) - NEVER "Checkpoint_".
 - Remotes: require Gameplay.Remotes ModuleScript; never return a Folder.
-- LevelConfig: Luau `id = n` only — NEVER JavaScript `id: n`. return array for ipairs.
+- LevelConfig: Luau `id = n` only - NEVER JavaScript `id: n`. return array for ipairs.
 - Coins: coin:Destroy(); FireClient(player); FindFirstChild Coins + ChildAdded.
-- HUD: create ScreenGui; player.CharacterAdded — never bare characterAdded.
-- Leaderboard: create UI; UpdateLeaderboard only — no LeaderboardFrame WaitForChild.
+- HUD: create ScreenGui; player.CharacterAdded - never bare characterAdded.
+- Leaderboard: create UI; UpdateLeaderboard only - no LeaderboardFrame WaitForChild.
 - Void: Heartbeat Y<-20 LoadCharacter. Puzzles: TouchEnded not .Left.
+{hard_caps}
 - TOKEN ECONOMY: Do not write excessive comments. Use concise local variable names. Output only the necessary code."""
-        token_econ = """TOKEN ECONOMY (local 14B ctx≤4k):
+        token_econ = """TOKEN ECONOMY (local 14B ctx<=4k):
 - Do not write excessive comments. Critical one-liners only.
 - Use concise local variable names; keep public/contract names stable.
 - Output only the necessary code for THIS task.
