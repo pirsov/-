@@ -227,7 +227,7 @@ def apply_file_ops(root: Path, ops: List[FileOp], task: Task) -> List[str]:
                         existing + sep + op.content + ("\n" if not op.content.endswith("\n") else ""),
                         encoding="utf-8",
                     )
-                    print(f"   appended {path}")
+                    print(f"   appended {path}", flush=True)
             else:
                 if full.is_dir():
                     # Never rmtree placeholder-like or non-empty project roots
@@ -245,11 +245,11 @@ def apply_file_ops(root: Path, ops: List[FileOp], task: Task) -> List[str]:
                 existing = full.read_text(encoding="utf-8") if full.is_file() else None
                 body, how = patch_apply.materialize_file_content(existing, op.content)
                 full.write_text(body if body.endswith("\n") else body + "\n", encoding="utf-8")
-                print(f"   wrote {path}" + (" (patch)" if how == "patch" else ""))
+                print(f"   wrote {path}" + (" (patch)" if how == "patch" else ""), flush=True)
             if path not in written:
                 written.append(path)
         except OSError as e:
-            print(f"   write failed {path}: {e}")
+            print(f"   write failed {path}: {e}", flush=True)
             continue
     return written
 
@@ -480,7 +480,7 @@ def pick_model(owner: str, attempt: int, escalate: bool) -> dict:
             is_7b = True
             base["ctx"] = int(repair.get("ctx") or base.get("ctx") or 2048)
             base["predict"] = int(repair.get("predict") or 512)
-            print(f"   repair model: {preferred} ctx={base['ctx']} predict={base['predict']}")
+            print(f"   repair model: {preferred} ctx={base['ctx']} predict={base['predict']}", flush=True)
         else:
             idx = min(attempt - 1, len(ESCALATION) - 1)
             preferred = ESCALATION[idx]
@@ -524,7 +524,7 @@ def pick_model(owner: str, attempt: int, escalate: bool) -> dict:
     resolved = llm.resolve_model(preferred, installed, allow_any=FALLBACK_ANY)
     if resolved:
         if resolved != preferred:
-            print(f"   model remap: {preferred} -> {resolved}")
+            print(f"   model remap: {preferred} -> {resolved}", flush=True)
         base["model"] = resolved
         if "is_7b" not in base:
             base["is_7b"] = "7b" in str(resolved).lower()
@@ -672,7 +672,7 @@ class Orchestrator:
         title = (task.description or task.raw or task.task_id).strip()
         print()
         print("=" * 60)
-        print(f"HITL: {task.task_id} needs YOU")
+        print(f"HITL: {task.task_id} needs YOU", flush=True)
         print(f"   {title}")
         print("   1) Open place in Studio (Rojo sync preferred)")
         print("   2) Smoke-test what the task asks")
@@ -682,18 +682,18 @@ class Orchestrator:
 
         forced = resolve_hitl_choice(auto=self.hitl_auto)
         if forced is True:
-            print("   FORGE_HITL_AUTO/y: marking done and continuing")
+            print("   FORGE_HITL_AUTO/y: marking done and continuing", flush=True)
             confirmed = True
         elif forced is False:
-            print("   FORGE_HITL_AUTO/n: stopping")
+            print("   FORGE_HITL_AUTO/n: stopping", flush=True)
             confirmed = False
         elif self.dry_run:
             print("   dry-run: would ask [y/n] - treating as n")
             confirmed = False
         elif not sys.stdin.isatty():
             print("   stdin is not a TTY - cannot ask y/n. Re-run in a terminal, or:")
-            print("     $env:FORGE_HITL_AUTO='y'   # auto-confirm")
-            print("     $env:FORGE_HITL_AUTO='n'   # stop")
+            print("     $env:FORGE_HITL_AUTO='y'   # auto-confirm", flush=True)
+            print("     $env:FORGE_HITL_AUTO='n'   # stop", flush=True)
             confirmed = False
         else:
             confirmed = ask_yn(
@@ -704,21 +704,21 @@ class Orchestrator:
         if confirmed:
             if not self.dry_run:
                 mark_tz_done(self.root, task.task_id, "human confirmed via y/n prompt")
-            print(f"   marked {task.task_id} done - continuing")
+            print(f"   marked {task.task_id} done - continuing", flush=True)
             write_heartbeat(self.root, {"status": "human_done", "task": task.task_id})
             return StepResult(ok=True, task_id=task.task_id, note="human ok", reason="human_ok")
 
-        print(f"   stopped on {task.task_id}. When ready, re-run and answer y.")
+        print(f"   stopped on {task.task_id}. When ready, re-run and answer y.", flush=True)
         print(f"   Or manually: change '- [ ] {task.task_id}' to '- [x]' in PROJECT_TZ.md")
         return StepResult(ok=False, task_id=task.task_id, reason="human")
 
     def invoke_step(self) -> StepResult:
         task = self.next_task()
         if not task:
-            print("=== No more actionable tasks. ===")
+            print("=== No more actionable tasks. ===", flush=True)
             score, notes = quality_score(self.root)
             write_heartbeat(self.root, {"status": "idle", "quality_score": score, "notes": notes})
-            print(f"Quality score: {score}/100")
+            print(f"Quality score: {score}/100", flush=True)
             if notes:
                 for n in notes[:8]:
                     print(f"  - {n}")
@@ -727,13 +727,13 @@ class Orchestrator:
         if task.owner == "human":
             return self._handle_hitl(task)
 
-        print(f"[{task.task_id}] -> @{task.owner}  mode={task.mode.value}")
+        print(f"[{task.task_id}] -> @{task.owner}  mode={task.mode.value}", flush=True)
         write_heartbeat(self.root, {"status": "running", "task": task.task_id, "owner": task.owner})
 
         # A6.1 stub: never generate, never mark TZ/plugin closed
         be, be_reason = llm.resolve_runtime_backend()
         if be == "stub" and task.task_id not in self.mock_responses and not self.dry_run:
-            print(f"[STUB] Dry run: skipping code generation ({task.task_id})")
+            print(f"[STUB] Dry run: skipping code generation ({task.task_id})", flush=True)
             print(f"   reason: {be_reason}")
             state_hub.record_task_status(
                 self.root,
@@ -768,12 +768,12 @@ class Orchestrator:
 
         for attempt in range(1, max_attempts + 1):
             cfg = pick_model(task.owner, attempt, escalate=True)
-            print(f"   attempt {attempt}/{max_attempts} model={cfg['model']} predict={cfg['predict']}")
+            print(f"   attempt {attempt}/{max_attempts} model={cfg['model']} predict={cfg['predict']}", flush=True)
             prior = None
             if task.target_path and (self.root / task.target_path).is_file():
                 prior = (self.root / task.target_path).read_text(encoding="utf-8")
             if repair_draft:
-                print("   repair mode: fixing previous draft (not rewriting from seed)")
+                print("   repair mode: fixing previous draft (not rewriting from seed)", flush=True)
 
             prompt = build_prompt(
                 self.root,
@@ -806,13 +806,14 @@ class Orchestrator:
                     prompt, meta = llm_backends.fit_prompt(prompt, budget)
                     print(
                         f"   HARD_FIT prompt {meta.get('tokens_before')}->{meta.get('tokens_after')} "
-                        f"tok (budget={budget}, dropped={meta.get('dropped_sections')})"
+                        f"tok (budget={budget}, dropped={meta.get('dropped_sections')})",
+                        flush=True,
                     )
                 else:
                     print(f"   prompt_tokens~{tok} / budget={budget} (num_ctx={cfg.get('ctx')})")
                 llm_backends.assert_prompt_fits(prompt, budget)
             except ValueError as e:
-                print(f"   HARD_FIT refuse: {e}")
+                print(f"   HARD_FIT refuse: {e}", flush=True)
                 raise
             (logs / f"{stamp}-{task.task_id}-prompt.txt").write_text(prompt, encoding="utf-8")
 
@@ -820,7 +821,7 @@ class Orchestrator:
             try:
                 out = self._call_model(task, prompt, cfg, attempt, temp)
             except llm.StubModeError as e:
-                print(f"[STUB] Dry run: skipping code generation ({task.task_id})")
+                print(f"[STUB] Dry run: skipping code generation ({task.task_id})", flush=True)
                 print(f"   {e}")
                 state_hub.record_task_status(
                     self.root,
@@ -833,11 +834,11 @@ class Orchestrator:
                 write_heartbeat(self.root, {"status": "stub_skip", "task": task.task_id, "closed": False})
                 return StepResult(ok=False, task_id=task.task_id, reason="stub", note="stub skip — not closed")
             except llm.AuthError as e:
-                print(f"   AUTH FAIL (no retries): {e}")
+                print(f"   AUTH FAIL (no retries): {e}", flush=True)
                 write_heartbeat(self.root, {"status": "auth_failed", "task": task.task_id})
                 return StepResult(ok=False, task_id=task.task_id, reason="auth", note=str(e))
             except Exception as e:
-                print(f"   API abort: {e}")
+                print(f"   API abort: {e}", flush=True)
                 validator_feedback = f"API error: {e}"
                 continue
 
@@ -845,12 +846,12 @@ class Orchestrator:
 
             done_id, note, file_ops, blocked = parse_agent_output(out, task.task_id)
             if blocked:
-                print("   model refused (BLOCKED) - retrying")
+                print("   model refused (BLOCKED) - retrying", flush=True)
                 validator_feedback = "Do not output BLOCKED. Produce <DONE> and <FILE> now."
                 continue
 
             if not done_id:
-                print(f"   attempt {attempt}/{max_attempts} malformed (no DONE), retrying...")
+                print(f"   attempt {attempt}/{max_attempts} malformed (no DONE), retrying...", flush=True)
                 validator_feedback = "Reply MUST start with <DONE>{id}</DONE> then <NOTE> and <FILE>."
                 continue
 
@@ -861,7 +862,7 @@ class Orchestrator:
 
             # BUG FIX: require FILE when task targets a path
             if task.requires_file and not file_ops:
-                print("   REJECTED: DONE without <FILE> but task requires a file write")
+                print("   REJECTED: DONE without <FILE> but task requires a file write", flush=True)
                 validator_feedback = (
                     f"You returned DONE without <FILE>. Task requires writing {task.target_path}. "
                     "Output the file content inside <FILE path=\"...\"> tags."
@@ -883,7 +884,7 @@ class Orchestrator:
                 file_ops = cleaned
 
             if task.requires_file and not file_ops:
-                print("   REJECTED: only placeholder FILE paths (e.g. relative/path.ext)")
+                print("   REJECTED: only placeholder FILE paths (e.g. relative/path.ext)", flush=True)
                 validator_feedback = (
                     f'FILE path must be exactly "{task.target_path}", '
                     "never relative/path.ext or other placeholders."
@@ -899,9 +900,9 @@ class Orchestrator:
             for rel in written:
                 ok, errs = validate_file(self.root / rel)
                 if ok:
-                    print(f"  VALIDATOR PASS [{Path(rel).name}]")
+                    print(f"  VALIDATOR PASS [{Path(rel).name}]", flush=True)
                 else:
-                    print(f"  VALIDATOR FAIL [{Path(rel).name}]: {'; '.join(errs)}")
+                    print(f"  VALIDATOR FAIL [{Path(rel).name}]: {'; '.join(errs)}", flush=True)
                     all_valid = False
                     err_msgs.extend(errs)
                     # Keep the draft for the next attempt to PATCH (user's 7b→fix loop).
@@ -910,7 +911,7 @@ class Orchestrator:
                     except OSError:
                         rejected_for_repair = None
                     restore_snapshot(self.root, rel)
-                    print(f"   rolled back disk to seed; draft kept in memory for repair")
+                    print(f"   rolled back disk to seed; draft kept in memory for repair", flush=True)
 
             if written and not all_valid:
                 repair_draft = rejected_for_repair or repair_draft
@@ -969,14 +970,14 @@ class Orchestrator:
                     '\nCheckpoints: include Humanoid.Died / LoadCharacter and '
                     'FindFirstChild("Checkpoint"..idx) when those bullets appear above.'
                 )
-                print("   VALIDATOR REJECTED - next attempt is repair-only")
+                print("   VALIDATOR REJECTED - next attempt is repair-only", flush=True)
                 print("   repair checklist:")
                 for i, msg in enumerate(err_msgs, 1):
                     print(f"      {i}. {msg}")
                 continue
 
             if task.requires_file and not written:
-                print("   REJECTED: no files written (paths skipped)")
+                print("   REJECTED: no files written (paths skipped)", flush=True)
                 validator_feedback = f'Write <FILE path="{task.target_path}"> with real code.'
                 continue
 
@@ -994,7 +995,7 @@ class Orchestrator:
                         )
                         for rel in written:
                             restore_snapshot(self.root, rel)
-                        print("   INTEGRITY REJECTED append overwrite residue - retrying")
+                        print("   INTEGRITY REJECTED append overwrite residue - retrying", flush=True)
                         continue
 
             mark_tz_done(self.root, task.task_id, note)
@@ -1008,11 +1009,11 @@ class Orchestrator:
                     "files": written,
                 },
             )
-            print(f"   DONE: {task.task_id} - {note} (quality={score})")
+            print(f"   DONE: {task.task_id} - {note} (quality={score})", flush=True)
             return StepResult(ok=True, task_id=task.task_id, note=note, files=written)
 
         # Failed after retries
-        print("   AGENT FAILED after retries.")
+        print("   AGENT FAILED after retries.", flush=True)
 
         # Re-apply known seed if present in git tree, then keep-check
         if task.target_path and task.target_path.replace("\\", "/") in KNOWN_SEEDS:
@@ -1074,7 +1075,7 @@ class Orchestrator:
                     target_path=task.target_path or "",
                     validator_fails=last_validator_fails,
                 )
-                print(f"   KEPT seed -> failed_repair (continuing): {', '.join(checked)}")
+                print(f"   KEPT seed -> failed_repair (continuing): {', '.join(checked)}", flush=True)
                 write_heartbeat(
                     self.root,
                     {"status": "failed_repair", "task": task.task_id, "continue": True},
@@ -1092,7 +1093,7 @@ class Orchestrator:
                 "RETRY",
                 "model output not applied; seed kept; leave [ ] for re-run",
             )
-            print(f"   KEPT seed (task still pending): {', '.join(checked)}")
+            print(f"   KEPT seed (task still pending): {', '.join(checked)}", flush=True)
             write_heartbeat(self.root, {"status": "retry", "task": task.task_id})
             return StepResult(ok=False, task_id=task.task_id, reason="retry", note="kept seed")
 
@@ -1119,7 +1120,7 @@ class Orchestrator:
                 target_path=task.target_path or "",
                 validator_fails=last_validator_fails,
             )
-            print("   FAILED (week mode) - marked failed_repair; continuing to next task")
+            print("   FAILED (week mode) - marked failed_repair; continuing to next task", flush=True)
             write_heartbeat(
                 self.root,
                 {
@@ -1313,7 +1314,7 @@ def run_loop(
         if not result.ok:
             # Week fail after 3 retries: park failed_repair and keep the 24h/--week cycle going
             if result.reason == "failed_repair":
-                print("   failed_repair - skipping to next queue task (week/24h continues)")
+                print("   failed_repair - skipping to next queue task (week/24h continues)", flush=True)
                 if sleep_s > 0 and i + 1 < max_steps:
                     time.sleep(sleep_s)
                 continue
@@ -1323,11 +1324,12 @@ def run_loop(
                     n_new = try_live_ops_more_tasks(root)
                 except Exception as e:
                     n_new = 0
-                    print(f"[Live Ops] generate failed: {type(e).__name__}: {e}")
+                    print(f"[Live Ops] generate failed: {type(e).__name__}: {e}", flush=True)
                 if n_new > 0:
                     live_ops_fail_streak = 0
                     print(
-                        f"[Live Ops] Tasks exhausted. Generated {n_new} new tasks. Continuing."
+                        f"[Live Ops] Tasks exhausted. Generated {n_new} new tasks. Continuing.",
+                        flush=True,
                     )
                     write_heartbeat(
                         root,
@@ -1338,11 +1340,12 @@ def run_loop(
                     continue
                 live_ops_fail_streak += 1
                 if live_ops_fail_streak >= 3:
-                    print("[Live Ops] DeepSeek could not invent new tasks. Stopping.")
+                    print("[Live Ops] DeepSeek could not invent new tasks. Stopping.", flush=True)
                     write_heartbeat(root, {"status": "live_ops_stop", "streak": live_ops_fail_streak})
                     break
                 print(
-                    f"[Live Ops] empty/duplicate batch ({live_ops_fail_streak}/3). Retrying..."
+                    f"[Live Ops] empty/duplicate batch ({live_ops_fail_streak}/3). Retrying...",
+                    flush=True,
                 )
                 if sleep_s > 0 and i + 1 < max_steps:
                     time.sleep(sleep_s)
@@ -1360,10 +1363,10 @@ def run_loop(
             try:
                 state_hub.maybe_compact_after_week_gate(root, completed, every_n=validate_every)
             except Exception as e:
-                print(f"   [compact] warn: {e}")
+                print(f"   [compact] warn: {e}", flush=True)
 
             ok, errs = validate_project_integrity(root)
-            print(f"   [gate] validate after {completed} steps: {'OK' if ok else 'INVALID'}")
+            print(f"   [gate] validate after {completed} steps: {'OK' if ok else 'INVALID'}", flush=True)
             if not ok:
                 for e in errs[:8]:
                     print(f"      FAIL: {e}")
@@ -1374,7 +1377,7 @@ def run_loop(
                 # Default week: keep going so later F*/R* tasks can rewrite failing files
                 print("   Gate soft-fail - continuing week (later TZ tasks should repair). Use --gate-strict to stop.")
             score, _ = quality_score(root)
-            print(f"   [gate] quality_score={score}")
+            print(f"   [gate] quality_score={score}", flush=True)
         if sleep_s > 0 and i + 1 < max_steps:
             time.sleep(sleep_s)
     return completed
@@ -1625,7 +1628,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         path = asset_hub.write_catalog(root)
         cat = asset_hub.load_catalog(root)
         print(asset_hub.catalog_for_prompt(root))
-        print(f"wrote {path} count={cat.get('count')}")
+        print(f"wrote {path} count={cat.get('count')}", flush=True)
         for a in cat.get("assets") or []:
             print(f"  {a.get('id')}  {a.get('rel')}  {a.get('bytes')}b")
         return 0
@@ -1792,7 +1795,7 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     if args.score:
         score, notes = quality_score(root)
-        print(f"Quality score: {score}/100")
+        print(f"Quality score: {score}/100", flush=True)
         for n in notes:
             print(f"  - {n}")
         return 0 if score >= 80 else 1
@@ -1818,10 +1821,10 @@ def main(argv: Optional[List[str]] = None) -> int:
         # None -> 30s pacing; explicit --sleep 0 must stay 0 (do not coerce to 30)
         sleep_s = 30.0 if args.sleep is None else float(args.sleep)
         validate_every = int(WEEK_MODE.get("validate_every_n_steps") or 5)
-        print("Quality Forge WEEK MODE | greenfield | no micro-split | 14b+7b-repair")
+        print("Quality Forge WEEK MODE | greenfield | no micro-split | 14b+7b-repair", flush=True)
         # A19.0: print current Quality Score to console before week work
         week_score, week_notes = quality_score(root)
-        print(f"Quality score: {week_score}/100")
+        print(f"Quality score: {week_score}/100", flush=True)
         for n in week_notes[:8]:
             print(f"  - {n}")
     else:
@@ -1833,20 +1836,21 @@ def main(argv: Optional[List[str]] = None) -> int:
     be, reason = llm.resolve_runtime_backend()
     print(
         f"Quality Forge | backend={be} | root={root} | max_steps={max_steps} | "
-        f"sleep={sleep_s}s | gate_every={validate_every}"
+        f"sleep={sleep_s}s | gate_every={validate_every}",
+        flush=True,
     )
-    print(f"  resolve: {reason}")
+    print(f"  resolve: {reason}", flush=True)
     if not args.dry_run:
         # A6.1: never hard-exit on Ollama down — stub/cloud continue the pipeline
         if be == "stub":
-            print("[STUB] No live LLM - tasks will be skipped and left pending (never closed)")
+            print("[STUB] No live LLM - tasks will be skipped and left pending (never closed)", flush=True)
         elif not llm.ping():
             print(f"WARN: backend '{be}' ping unexpected fail - continuing with resolve cascade")
             llm.reset_runtime_backend()
             be, reason = llm.resolve_runtime_backend()
-            print(f"  re-resolve: {be} ({reason})")
+            print(f"  re-resolve: {be} ({reason})", flush=True)
         installed = installed_models(force=True) if be != "stub" else ["stub"]
-        print(f"Models: {', '.join(installed) if installed else '(none)'}")
+        print(f"Models: {', '.join(installed) if installed else '(none)'}", flush=True)
 
     hitl_auto: Optional[str] = None
     if args.yes:
@@ -1864,11 +1868,11 @@ def main(argv: Optional[List[str]] = None) -> int:
         gate_strict=bool(getattr(args, "gate_strict", False)),
         week=week,
     )
-    print(f"Completed {completed} step(s).")
+    print(f"Completed {completed} step(s).", flush=True)
     score, notes = quality_score(root)
-    print(f"Final quality score: {score}/100")
+    print(f"Final quality score: {score}/100", flush=True)
     if week:
-        print("HITL: when asked, type y after Studio smoke (or n to stop).")
+        print("HITL: when asked, type y after Studio smoke (or n to stop).", flush=True)
     return 0
 
 

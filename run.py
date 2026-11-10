@@ -16,14 +16,28 @@ if sys.platform.startswith("win"):
     try:
         if hasattr(sys.stdout, "buffer"):
             sys.stdout = io.TextIOWrapper(
-                sys.stdout.buffer, encoding="utf-8", errors="replace"
+                sys.stdout.buffer,
+                encoding="utf-8",
+                errors="replace",
+                line_buffering=True,
             )
         if hasattr(sys.stderr, "buffer"):
             sys.stderr = io.TextIOWrapper(
-                sys.stderr.buffer, encoding="utf-8", errors="replace"
+                sys.stderr.buffer,
+                encoding="utf-8",
+                errors="replace",
+                line_buffering=True,
             )
     except Exception:
         # Keep original streams if reassignment fails (errors='replace' already preferred).
+        pass
+
+# A21.0: line-buffer stdout/stderr so UI /api/logs sees progress during long Ollama gens
+# (Windows often block-buffers even with python -u / PYTHONUNBUFFERED).
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(line_buffering=True)
+    except Exception:
         pass
 
 from forge.orchestrator import main
