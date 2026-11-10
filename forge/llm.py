@@ -224,7 +224,7 @@ def generate(
     model: str,
     prompt: str,
     *,
-    num_ctx: int = 4096,
+    num_ctx: int = 2048,
     temperature: float = 0.1,
     num_predict: int = 1024,
     timeout: int = 1800,

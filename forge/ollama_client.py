@@ -98,14 +98,14 @@ def generate(
     model: str,
     prompt: str,
     *,
-    num_ctx: int = 4096,
+    num_ctx: int = 2048,
     temperature: float = 0.1,
     num_predict: int = 1024,
     timeout: int = 1800,
     url: str = DEFAULT_GENERATE,
     diff_mode: bool = False,
 ) -> str:
-    # Never request more ctx than the card can hold for 14b (6GB ≈ 4k practical).
+    # A17: num_ctx hard-capped at 2048 for 14B/7B; leave room for num_predict≤1024.
     # A15: num_predict capped via llm_backends (default 1024 / diff 512).
     try:
         from . import llm_backends
@@ -119,8 +119,21 @@ def generate(
         num_ctx = int(opts["num_ctx"])
         temperature = float(opts["temperature"])
         num_predict = int(opts["num_predict"])
+        # Refuse oversized prompts — Ollama would log `truncating input prompt`
+        is_7b = "7b" in (model or "").lower()
+        budget = llm_backends.effective_prompt_token_budget(
+            is_7b=is_7b,
+            num_ctx=num_ctx,
+            num_predict=num_predict,
+            diff_mode=diff_mode or is_7b,
+        )
+        if llm_backends.estimate_tokens(prompt) > budget:
+            prompt, _meta = llm_backends.fit_prompt(prompt, budget)
+            llm_backends.assert_prompt_fits(prompt, budget)
+    except ValueError:
+        raise
     except Exception:
-        num_ctx = min(int(num_ctx), 4096)
+        num_ctx = min(int(num_ctx), 2048)
         num_predict = min(int(num_predict), 1024)
     body: Dict[str, Any] = {
         "model": model,

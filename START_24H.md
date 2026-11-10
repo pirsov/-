@@ -2,7 +2,7 @@
 
 Фоновый автономный цикл Quality Forge: Planner → Gate → генерация (14B + SEARCH/REPLACE) → Validator (R001/R004/R006), с паузой `waiting_human` без жжения CPU.
 
-**Контекст (A15):** `num_predict≤1024` (diff/repair `512`), semantic prune бандла, компакция стейта на локальной **7B**.
+**Контекст (A17 hard-fit):** `num_ctx=2048` (14B+7B), prompt **≤2000 / ≤1000** tok STRICT (фактически `ctx−predict`), `num_predict≤1024` (diff/repair `512`). TZ/контракты жмутся **до** Ollama — без `truncating input prompt`.
 
 ## 0. Подготовка (один раз)
 
@@ -18,11 +18,14 @@ git pull
 #   ollama pull qwen2.5-coder:7b-2k   # repair + compact
 ```
 
-### 0.1. Env flags (A13/A15)
+### 0.1. Env flags (A13/A15/A17)
 
 | Переменная | Default | Смысл |
 |------------|---------|--------|
 | `FORGE_TOKEN_ECONOMY` | `1` | EN + short keys в `bundle_for_14b` |
+| `FORGE_NUM_CTX` | `2048` | Жёсткий потолок ctx для 14B и 7B |
+| `FORGE_PROMPT_TOKENS_14B` | `2000` | STRICT потолок prompt 14B |
+| `FORGE_PROMPT_TOKENS_7B` | `1000` | STRICT потолок prompt 7B repair |
 | `FORGE_NUM_PREDICT` | `1024` | Потолок вывода Ollama (код) |
 | `FORGE_NUM_PREDICT_DIFF` | `512` | Потолок для repair/PATCH |
 | `FORGE_COMPACT_7B` | `1` | Суммаризация compact_state на 7B |
@@ -209,7 +212,7 @@ python -u run.py --bundle-savings
 # FORGE_NUM_PREDICT=512  — ещё жёстче урезать вывод
 ```
 
-Не поднимай `num_ctx` выше **4096** на 6 ГБ.
+Не поднимай `num_ctx` выше **2048** на 6 ГБ (A17 hard-fit; нужно место под `num_predict≤1024`).
 
 ### Ассеты «не видит»
 

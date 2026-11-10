@@ -160,7 +160,7 @@ def economy_rules_block(rules: List[Dict[str, Any]], *, max_chars: int = 800) ->
 
 
 CODE_ECONOMY_RULES = (
-    "TOKEN ECONOMY (local 14B ctx≤4k):\n"
+    "TOKEN ECONOMY (local 14B/7B ctx≤2k, prompt≤2000/1000):\n"
     "- Do not write excessive comments. Critical one-liners only.\n"
     "- Use concise local variable names; keep public/contract names stable.\n"
     "- Output only the necessary code for THIS task.\n"

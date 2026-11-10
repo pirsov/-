@@ -469,6 +469,7 @@ def pick_model(owner: str, attempt: int, escalate: bool) -> dict:
 
     base = dict(AGENT_MODELS.get(owner, AGENT_MODELS["refactorer"]))
     preferred = base["model"]
+    is_7b = False
     # Attempt 2+: prefer repair model (7b) — surgical patch, less VRAM than second 14b pass
     if escalate and attempt >= 2:
         from .prompts import load_model_config
@@ -476,13 +477,14 @@ def pick_model(owner: str, attempt: int, escalate: bool) -> dict:
         repair = dict(load_model_config().get("repair") or {})
         if repair.get("model"):
             preferred = str(repair["model"])
+            is_7b = True
             base["ctx"] = int(repair.get("ctx") or base.get("ctx") or 2048)
-            base["predict"] = int(repair.get("predict") or 3072)
+            base["predict"] = int(repair.get("predict") or 512)
             print(f"   repair model: {preferred} ctx={base['ctx']} predict={base['predict']}")
         else:
             idx = min(attempt - 1, len(ESCALATION) - 1)
             preferred = ESCALATION[idx]
-            base["predict"] = max(int(base.get("predict", 2048)), 3072)
+            base["predict"] = max(int(base.get("predict", 1024)), 1024)
 
     # Cap predict on local Ollama so 6GB cards don't blow KV during long FILE writes
     week_cap = int(WEEK_MODE.get("max_predict_code") or 0)
@@ -493,9 +495,9 @@ def pick_model(owner: str, attempt: int, escalate: bool) -> dict:
         "integrator",
         "tech_architect",
     }:
-        base["predict"] = min(int(base.get("predict", 2048)), week_cap)
+        base["predict"] = min(int(base.get("predict", 1024)), week_cap)
 
-    # A15: hard Ollama output ceiling (diff/repair tighter)
+    # A15/A17: hard Ollama output + ctx ceilings (diff/repair tighter; num_ctx=2048)
     try:
         from . import llm_backends
 
@@ -504,9 +506,19 @@ def pick_model(owner: str, attempt: int, escalate: bool) -> dict:
             int(base.get("predict") or llm_backends.DEFAULT_NUM_PREDICT),
             diff_mode=diff_mode,
         )
+        base["ctx"] = llm_backends.cap_num_ctx(int(base.get("ctx") or llm_backends.LOCAL_NUM_CTX))
         base["diff_mode"] = diff_mode
+        base["is_7b"] = is_7b or ("7b" in str(preferred).lower())
+        base["prompt_budget_tokens"] = llm_backends.effective_prompt_token_budget(
+            is_7b=bool(base["is_7b"]),
+            num_ctx=int(base["ctx"]),
+            num_predict=int(base["predict"]),
+            diff_mode=diff_mode,
+        )
     except Exception:
-        pass
+        base["ctx"] = min(int(base.get("ctx") or 2048), 2048)
+        base["is_7b"] = is_7b
+        base["prompt_budget_tokens"] = 1000 if is_7b else 2000
 
     installed = installed_models()
     resolved = llm.resolve_model(preferred, installed, allow_any=FALLBACK_ANY)
@@ -514,6 +526,8 @@ def pick_model(owner: str, attempt: int, escalate: bool) -> dict:
         if resolved != preferred:
             print(f"   model remap: {preferred} -> {resolved}")
         base["model"] = resolved
+        if "is_7b" not in base:
+            base["is_7b"] = "7b" in str(resolved).lower()
     else:
         base["model"] = preferred
     return base
@@ -769,7 +783,37 @@ class Orchestrator:
                 validator_feedback=validator_feedback,
                 prior_snapshot=prior,
                 repair_draft=repair_draft,
+                is_7b=bool(cfg.get("is_7b")),
+                prompt_budget_tokens=cfg.get("prompt_budget_tokens"),
+                num_ctx=cfg.get("ctx"),
+                num_predict=cfg.get("predict"),
             )
+            # A17: second-chance hard-fit if somehow still over (never send truncating prompts)
+            try:
+                from . import llm_backends
+
+                budget = int(
+                    cfg.get("prompt_budget_tokens")
+                    or llm_backends.effective_prompt_token_budget(
+                        is_7b=bool(cfg.get("is_7b")),
+                        num_ctx=int(cfg.get("ctx") or llm_backends.LOCAL_NUM_CTX),
+                        num_predict=int(cfg.get("predict") or llm_backends.DEFAULT_NUM_PREDICT),
+                        diff_mode=bool(cfg.get("diff_mode")),
+                    )
+                )
+                tok = llm_backends.estimate_tokens(prompt)
+                if tok > budget:
+                    prompt, meta = llm_backends.fit_prompt(prompt, budget)
+                    print(
+                        f"   HARD_FIT prompt {meta.get('tokens_before')}→{meta.get('tokens_after')} "
+                        f"tok (budget={budget}, dropped={meta.get('dropped_sections')})"
+                    )
+                else:
+                    print(f"   prompt_tokens≈{tok} / budget={budget} (num_ctx={cfg.get('ctx')})")
+                llm_backends.assert_prompt_fits(prompt, budget)
+            except ValueError as e:
+                print(f"   HARD_FIT refuse: {e}")
+                raise
             (logs / f"{stamp}-{task.task_id}-prompt.txt").write_text(prompt, encoding="utf-8")
 
             temp = 0.1 if attempt == 1 else 0.0
