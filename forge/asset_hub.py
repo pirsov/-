@@ -52,19 +52,21 @@ def _load_place_meshes(root: Path) -> List[Dict[str, Any]]:
     for m in data.get("meshes") or []:
         if not isinstance(m, dict) or not m.get("id"):
             continue
-        out.append(
-            {
-                "id": str(m["id"]),
-                "file": f"{m['id']}.rbxassetid",
-                "ext": ".rbxassetid",
-                "rel": "assets/catalog/place_meshes.json",
-                "bytes": 0,
-                "mesh_id": m.get("mesh_id"),
-                "texture_id": m.get("texture_id"),
-                "source": "place_rbxl",
-                "kind": m.get("kind") or "mesh",
-            }
-        )
+        item = {
+            "id": str(m["id"]),
+            "file": f"{m['id']}.rbxassetid",
+            "ext": ".rbxassetid",
+            "rel": "assets/catalog/place_meshes.json",
+            "bytes": 0,
+            "mesh_id": m.get("mesh_id"),
+            "texture_id": m.get("texture_id"),
+            "source": "place_rbxl",
+            "kind": m.get("kind") or "mesh",
+        }
+        for key in ("geometry", "parts", "folder", "class", "alias_of", "place_instance", "sibling_of"):
+            if m.get(key) is not None:
+                item[key] = m[key]
+        out.append(item)
     return out
 
 

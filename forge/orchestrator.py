@@ -1125,6 +1125,11 @@ def main(argv: Optional[List[str]] = None) -> int:
         help="A11.0: scan assets/models/ → assets/catalog/assets.json and print ids",
     )
     parser.add_argument(
+        "--scan-place-fruits",
+        action="store_true",
+        help="Scan working_game.rbxl Fruits_Inventory → place_meshes.json + INVENTORY.md",
+    )
+    parser.add_argument(
         "--audit-legacy",
         type=str,
         default=None,
@@ -1205,6 +1210,27 @@ def main(argv: Optional[List[str]] = None) -> int:
         print(skeletons_hub.catalog_for_prompt(root))
         for a in skeletons_hub.list_archetypes(root):
             print(f"  {a['id']} latest={a['latest']} versions={a['versions']}")
+        return 0
+
+    if args.scan_place_fruits:
+        from . import asset_hub
+        from . import rbxl_inventory
+
+        report = rbxl_inventory.write_place_meshes(root)
+        inv_md = root / "artifacts" / "reference_place" / "INVENTORY.md"
+        inv_md.parent.mkdir(parents=True, exist_ok=True)
+        inv_md.write_text(
+            rbxl_inventory.inventory_markdown(report["scan"]), encoding="utf-8"
+        )
+        cat_path = asset_hub.write_catalog(root)
+        cat = asset_hub.load_catalog(root)
+        print(asset_hub.catalog_for_prompt(root))
+        print(
+            f"wrote {report['path']} fruits={report['count']}; "
+            f"{inv_md.as_posix()}; catalog {cat_path} count={cat.get('count')}"
+        )
+        for a in cat.get("assets") or []:
+            print(f"  {a.get('id')}  source={a.get('source') or 'file'}  {a.get('rel')}")
         return 0
 
     if args.scan_assets:
