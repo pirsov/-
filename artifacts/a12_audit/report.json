@@ -1,0 +1,22 @@
+{
+  "cycle": "A12.0",
+  "title": "Legacy auditor — pitfalls → draft validator rules",
+  "ok": true,
+  "cli": "python -u run.py --audit-legacy PATH [--audit-no-kb-merge]",
+  "module": "forge/legacy_auditor.py",
+  "heuristics": [
+    "DataStore *Async without nearby pcall",
+    "DataStoreService on client",
+    "while true do without task.wait/wait",
+    "OnServerEvent without typeof/assert",
+    "Client FireServer advisory",
+    "GetPlayerFromCharacter without nil guard",
+    "deprecated wait()"
+  ],
+  "fixture_demo": {
+    "path": "artifacts/a12_audit_fixture",
+    "pitfalls": 5,
+    "draft_rules": 5
+  },
+  "tests": "84 OK"
+}

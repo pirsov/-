@@ -1103,6 +1103,18 @@ def main(argv: Optional[List[str]] = None) -> int:
         action="store_true",
         help="A11.0: scan assets/models/ → assets/catalog/assets.json and print ids",
     )
+    parser.add_argument(
+        "--audit-legacy",
+        type=str,
+        default=None,
+        metavar="PATH",
+        help="A12.0: static audit of a legacy Luau tree → docs/LEGACY_*.md + draft KB rules",
+    )
+    parser.add_argument(
+        "--audit-no-kb-merge",
+        action="store_true",
+        help="With --audit-legacy: write draft_rules.json but do not merge into knowledge_base.json",
+    )
     parser.add_argument("--ui", action="store_true", help="Open control UI (projects/skills/DeepSeek/smoke)")
     parser.add_argument("--ui-port", type=int, default=8787, help="UI port (default 8787)")
     parser.add_argument("--project", type=str, default=None, help="Activate projects/<id> into live src+TZ")
@@ -1171,6 +1183,32 @@ def main(argv: Optional[List[str]] = None) -> int:
         print(f"wrote {path} count={cat.get('count')}")
         for a in cat.get("assets") or []:
             print(f"  {a.get('id')}  {a.get('rel')}  {a.get('bytes')}b")
+        return 0
+
+    if args.audit_legacy is not None:
+        from . import legacy_auditor
+
+        project = Path(args.audit_legacy).expanduser().resolve()
+        if not project.exists():
+            print(f"ERROR: legacy path not found: {project}")
+            return 1
+        report = legacy_auditor.audit_legacy(
+            project,
+            forge_root=root,
+            merge_kb=not args.audit_no_kb_merge,
+        )
+        print(
+            f"audit-legacy: modules={report.get('modules')} functions={report.get('functions')} "
+            f"pitfalls={report.get('pitfalls')} draft_rules={report.get('draft_rules')} "
+            f"kb_added={(report.get('kb_merge') or {}).get('added')}"
+        )
+        print(f"  architecture → {report.get('architecture')}")
+        print(f"  pitfalls     → {report.get('pitfalls_md')}")
+        print(f"  draft rules  → {report.get('draft_rules_json')}")
+        for p in (report.get("_pitfalls") or [])[:12]:
+            print(f"  [{p.get('severity')}] {p.get('id')} {p.get('file')}:{p.get('line')} — {p.get('title')}")
+        if (report.get("pitfalls") or 0) > 12:
+            print(f"  … +{report['pitfalls'] - 12} more (see LEGACY_PITFALLS.md)")
         return 0
 
     if args.ask_pack or args.plan_next:

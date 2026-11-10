@@ -1,8 +1,8 @@
-# LAST_UPDATE: A11.0 PASS — 3D asset catalog + Gate. Suite 82 OK. Ready for 24h + LEGO fruits.
+# LAST_UPDATE: A12.0 PASS — legacy_auditor pitfalls→draft rules. Suite 84 OK.
 
 ## AGENT CORE DONE
-- [x] A6.*–A10.4 agent core + UI + DataStore + networking + full-stack + START_24H
-- [x] A11.0 Asset Integration (assets/models → catalog → Planner prompt → Gate)
+- [x] A6.*–A11.0 agent core + UI + DataStore + net + full-stack + assets + START_24H
+- [x] A12.0 legacy_auditor (`--audit-legacy PATH`) — architecture + pitfalls + draft KB rules
 
 ## DEFERRED
 - A7.1b richer UI A/B/C redesign
@@ -10,4 +10,5 @@
 - A10.5 Studio smoke pack (optional)
 
 ## NEXT
-- [ ] H15 | Desktop: положить .glb в assets/models/, --scan-assets, --ui, Старт 24h | @human
+- [ ] H15 | Desktop: .glb → --scan-assets → --ui → Старт 24h | @human
+- [ ] H16 | Drop legacy tree → `python -u run.py --audit-legacy <path>` → review draft rules | @human

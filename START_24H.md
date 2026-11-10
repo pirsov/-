@@ -121,6 +121,8 @@ curl -s http://127.0.0.1:8787/api/run/status
 | UI+FireServer | `client_ui@v1.1` | A10.4 `system.donation_shop` |
 | HITL rules | forbid RunStartedAt в UI/Remotes | A10.3 |
 | Full-stack | UI → DonateRequest → DataStore → CoinSync | A10.4 |
+| 3D assets | catalog Gate | A11.0 |
+| Legacy audit | pitfalls → draft rules | A12.0 `run.py --audit-legacy PATH` |
 
 game1 polygon по-прежнему **frozen** — новые фичи копятся в `artifacts/` и `contracts/system.*`.
 
