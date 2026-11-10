@@ -237,7 +237,7 @@ def apply_file_ops(root: Path, ops: List[FileOp], task: Task) -> List[str]:
                     try:
                         shutil.rmtree(full)
                     except OSError as e:
-                        print(f"   rmtree failed {path}: {e} — skip write")
+                        print(f"   rmtree failed {path}: {e} - skip write")
                         continue
                 # A15: SEARCH/REPLACE patches when baseline exists
                 from . import patch_apply
@@ -558,7 +558,7 @@ def doctor(root: Path) -> int:
                 print("  FIX: https://openrouter.ai/keys  (key must start with sk-or-)")
             return 1
         print(f"  model: {'space-bunny-alpha' if be == 'spacebunny' else 'stealth/space-bunny-alpha'}")
-        print("  probing API…")
+        print("  probing API...")
         ok, msg = llm.auth_probe()
         print(f"  probe: {'OK' if ok else 'FAIL'}")
         if not ok:
@@ -572,7 +572,7 @@ def doctor(root: Path) -> int:
     ok_ping = _ollama.ping()
     print(f"  ollama reachable: {ok_ping}")
     if not ok_ping:
-        print("  (unexpected) runtime said ollama but ping failed — cascade should have stubbed")
+        print("  (unexpected) runtime said ollama but ping failed - cascade should have stubbed")
         return 1
     installed = installed_models(force=True)
     print(f"  installed models ({len(installed)}):")
@@ -581,7 +581,7 @@ def doctor(root: Path) -> int:
     if not installed:
         print("  FIX: ollama pull qwen2.5-coder:14b-4k  OR  use Space Bunny")
         return 1
-    print("  role → resolved model:")
+    print("  role -> resolved model:")
     for role, cfg in sorted(AGENT_MODELS.items()):
         pref = cfg["model"]
         got = llm.resolve_model(pref, installed, allow_any=FALLBACK_ANY)
@@ -688,10 +688,10 @@ class Orchestrator:
             print("   FORGE_HITL_AUTO/n: stopping")
             confirmed = False
         elif self.dry_run:
-            print("   dry-run: would ask [y/n] — treating as n")
+            print("   dry-run: would ask [y/n] - treating as n")
             confirmed = False
         elif not sys.stdin.isatty():
-            print("   stdin is not a TTY — cannot ask y/n. Re-run in a terminal, or:")
+            print("   stdin is not a TTY - cannot ask y/n. Re-run in a terminal, or:")
             print("     $env:FORGE_HITL_AUTO='y'   # auto-confirm")
             print("     $env:FORGE_HITL_AUTO='n'   # stop")
             confirmed = False
@@ -704,7 +704,7 @@ class Orchestrator:
         if confirmed:
             if not self.dry_run:
                 mark_tz_done(self.root, task.task_id, "human confirmed via y/n prompt")
-            print(f"   marked {task.task_id} done — continuing")
+            print(f"   marked {task.task_id} done - continuing")
             write_heartbeat(self.root, {"status": "human_done", "task": task.task_id})
             return StepResult(ok=True, task_id=task.task_id, note="human ok", reason="human_ok")
 
@@ -733,7 +733,7 @@ class Orchestrator:
         # A6.1 stub: never generate, never mark TZ/plugin closed
         be, be_reason = llm.resolve_runtime_backend()
         if be == "stub" and task.task_id not in self.mock_responses and not self.dry_run:
-            print(f"[STUB] Dry run: пропускаю генерацию кода ({task.task_id})")
+            print(f"[STUB] Dry run: skipping code generation ({task.task_id})")
             print(f"   reason: {be_reason}")
             state_hub.record_task_status(
                 self.root,
@@ -805,11 +805,11 @@ class Orchestrator:
                 if tok > budget:
                     prompt, meta = llm_backends.fit_prompt(prompt, budget)
                     print(
-                        f"   HARD_FIT prompt {meta.get('tokens_before')}→{meta.get('tokens_after')} "
+                        f"   HARD_FIT prompt {meta.get('tokens_before')}->{meta.get('tokens_after')} "
                         f"tok (budget={budget}, dropped={meta.get('dropped_sections')})"
                     )
                 else:
-                    print(f"   prompt_tokens≈{tok} / budget={budget} (num_ctx={cfg.get('ctx')})")
+                    print(f"   prompt_tokens~{tok} / budget={budget} (num_ctx={cfg.get('ctx')})")
                 llm_backends.assert_prompt_fits(prompt, budget)
             except ValueError as e:
                 print(f"   HARD_FIT refuse: {e}")
@@ -820,7 +820,7 @@ class Orchestrator:
             try:
                 out = self._call_model(task, prompt, cfg, attempt, temp)
             except llm.StubModeError as e:
-                print(f"[STUB] Dry run: пропускаю генерацию кода ({task.task_id})")
+                print(f"[STUB] Dry run: skipping code generation ({task.task_id})")
                 print(f"   {e}")
                 state_hub.record_task_status(
                     self.root,
@@ -939,7 +939,7 @@ class Orchestrator:
                             validator_fails=last_validator_fails,
                         )
                         print(
-                            "   SKELETON ROUTING FAIL — skip 7B repair → failed_repair"
+                            "   SKELETON ROUTING FAIL - skip 7B repair -> failed_repair"
                         )
                         for i, msg in enumerate(err_msgs, 1):
                             print(f"      {i}. {msg}")
@@ -969,7 +969,7 @@ class Orchestrator:
                     '\nCheckpoints: include Humanoid.Died / LoadCharacter and '
                     'FindFirstChild("Checkpoint"..idx) when those bullets appear above.'
                 )
-                print("   VALIDATOR REJECTED — next attempt is repair-only")
+                print("   VALIDATOR REJECTED - next attempt is repair-only")
                 print("   repair checklist:")
                 for i, msg in enumerate(err_msgs, 1):
                     print(f"      {i}. {msg}")
@@ -1074,7 +1074,7 @@ class Orchestrator:
                     target_path=task.target_path or "",
                     validator_fails=last_validator_fails,
                 )
-                print(f"   KEPT seed → failed_repair (continuing): {', '.join(checked)}")
+                print(f"   KEPT seed -> failed_repair (continuing): {', '.join(checked)}")
                 write_heartbeat(
                     self.root,
                     {"status": "failed_repair", "task": task.task_id, "continue": True},
@@ -1119,7 +1119,7 @@ class Orchestrator:
                 target_path=task.target_path or "",
                 validator_fails=last_validator_fails,
             )
-            print("   FAILED (week mode) — marked failed_repair; continuing to next task")
+            print("   FAILED (week mode) - marked failed_repair; continuing to next task")
             write_heartbeat(
                 self.root,
                 {
@@ -1165,7 +1165,7 @@ def run_loop(
         if not result.ok:
             # Week fail after 3 retries: park failed_repair and keep the 24h/--week cycle going
             if result.reason == "failed_repair":
-                print("   failed_repair — skipping to next queue task (week/24h continues)")
+                print("   failed_repair - skipping to next queue task (week/24h continues)")
                 if sleep_s > 0 and i + 1 < max_steps:
                     time.sleep(sleep_s)
                 continue
@@ -1173,7 +1173,7 @@ def run_loop(
                 if result.reason == "retry":
                     print("   Stopping so you can fix model/parser and re-run --week (task left pending).")
                 if result.reason == "stub":
-                    print("   Stub backend — task left pending (not closed). Continuing only if more steps+backends.")
+                    print("   Stub backend - task left pending (not closed). Continuing only if more steps+backends.")
                 break
             break
         completed += 1
@@ -1191,10 +1191,10 @@ def run_loop(
                     print(f"      FAIL: {e}")
                 write_heartbeat(root, {"status": "gate_failed", "errors": errs[:8]})
                 if gate_strict:
-                    print("   Stopping week loop — fix sources or git checkout seeds, then re-run.")
+                    print("   Stopping week loop - fix sources or git checkout seeds, then re-run.")
                     break
                 # Default week: keep going so later F*/R* tasks can rewrite failing files
-                print("   Gate soft-fail — continuing week (later TZ tasks should repair). Use --gate-strict to stop.")
+                print("   Gate soft-fail - continuing week (later TZ tasks should repair). Use --gate-strict to stop.")
             score, _ = quality_score(root)
             print(f"   [gate] quality_score={score}")
         if sleep_s > 0 and i + 1 < max_steps:
@@ -1203,7 +1203,7 @@ def run_loop(
 
 
 def main(argv: Optional[List[str]] = None) -> int:
-    parser = argparse.ArgumentParser(description="Quality Forge — long-horizon game orchestrator")
+    parser = argparse.ArgumentParser(description="Quality Forge - long-horizon game orchestrator")
     parser.add_argument("--loop", action="store_true", help="Process many tasks in one run")
     parser.add_argument("--week", action="store_true", help="Week mode: loop + sleep + validate gates + no micro-split")
     parser.add_argument(
@@ -1241,7 +1241,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         "--clear-queue",
         action="store_true",
         help=(
-            "Clear pending tasks in state.json (task_queue + partial) only — "
+            "Clear pending tasks in state.json (task_queue + partial) only - "
             "keeps pulse/done/TZ; use before a new game/donate run when stuck on old checkpoints"
         ),
     )
@@ -1268,13 +1268,13 @@ def main(argv: Optional[List[str]] = None) -> int:
     parser.add_argument(
         "--ask-pack",
         action="store_true",
-        help="A7.1: print DeepSeek HITL pack (A/B/C/Другое) and save pending_hitl_pack",
+        help="A7.1: print DeepSeek HITL pack (A/B/C/Other) and save pending_hitl_pack",
     )
     parser.add_argument(
         "--answer",
         type=str,
         default=None,
-        help='A7.1: answer pending pack e.g. Q1=B or Q1=other (use --note for Другое text)',
+        help="A7.1: answer pending pack e.g. Q1=B or Q1=other (use --note for Other text)",
     )
     parser.add_argument(
         "--plan-next",
@@ -1285,7 +1285,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         "--gate-plan",
         type=str,
         default=None,
-        help='A7.1: JSON plan string or @file.json — hallucination gate (blocks unknown exports)',
+        help="A7.1: JSON plan string or @file.json - hallucination gate (blocks unknown exports)",
     )
     parser.add_argument(
         "--archetypes-list",
@@ -1295,19 +1295,19 @@ def main(argv: Optional[List[str]] = None) -> int:
     parser.add_argument(
         "--scan-assets",
         action="store_true",
-        help="A11.0: scan assets/models/ → assets/catalog/assets.json and print ids",
+        help="A11.0: scan assets/models/ -> assets/catalog/assets.json and print ids",
     )
     parser.add_argument(
         "--scan-place-fruits",
         action="store_true",
-        help="Scan working_game.rbxl Fruits_Inventory → place_meshes.json + INVENTORY.md",
+        help="Scan working_game.rbxl Fruits_Inventory -> place_meshes.json + INVENTORY.md",
     )
     parser.add_argument(
         "--audit-legacy",
         type=str,
         default=None,
         metavar="PATH",
-        help="A12.0: static audit of a legacy Luau tree → docs/LEGACY_*.md + draft KB rules",
+        help="A12.0: static audit of a legacy Luau tree -> docs/LEGACY_*.md + draft KB rules",
     )
     parser.add_argument(
         "--audit-no-kb-merge",
@@ -1354,7 +1354,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         report = state_hub.reset_state(root, project_id=args.project)
         print(f"reset_state: {json.dumps(report, ensure_ascii=False)}")
         if args.project:
-            print(f"  project={args.project} → empty TZ + activated; other projects untouched")
+            print(f"  project={args.project} -> empty TZ + activated; other projects untouched")
         else:
             print("  workspace runtime cleared (pass --project <id> to scaffold a new game)")
         return 0
@@ -1362,7 +1362,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     if args.clear_queue:
         report = state_hub.clear_queue(root)
         print(f"clear_queue: {json.dumps(report, ensure_ascii=False)}")
-        print("  task_queue/partial cleared — pulse/done/TZ kept; ready for new game or --week")
+        print("  task_queue/partial cleared - pulse/done/TZ kept; ready for new game or --week")
         return 0
 
     if args.rules_list:
@@ -1477,16 +1477,16 @@ def main(argv: Optional[List[str]] = None) -> int:
             "approx_output_tokens_diff": predict_diff,
             "approx_cycle_tokens_code": lean_chars // 4 + predict,
             "approx_cycle_tokens_diff": lean_chars // 4 + predict_diff,
-            "note": "Rough Latin≈4chars/token; patches cut output ~50-80% vs full file",
+            "note": "Rough Latin~4chars/token; patches cut output ~50-80% vs full file",
         }
         out = root / "artifacts" / "a15_context_opt" / "bundle_savings.json"
         out.parent.mkdir(parents=True, exist_ok=True)
         out.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         print(json.dumps(report, ensure_ascii=False, indent=2))
-        print(f"bundle-savings: {report.get('percent_saved')}% smaller → {out}")
+        print(f"bundle-savings: {report.get('percent_saved')}% smaller -> {out}")
         cyc = report["a15_cycle_estimate"]
         print(
-            f"a15 cycle≈ {cyc['approx_cycle_tokens_code']} tok (code) / "
+            f"a15 cycle~ {cyc['approx_cycle_tokens_code']} tok (code) / "
             f"{cyc['approx_cycle_tokens_diff']} tok (diff) "
             f"[predict {predict}/{predict_diff}]"
         )
@@ -1509,13 +1509,13 @@ def main(argv: Optional[List[str]] = None) -> int:
             f"pitfalls={report.get('pitfalls')} draft_rules={report.get('draft_rules')} "
             f"kb_added={(report.get('kb_merge') or {}).get('added')}"
         )
-        print(f"  architecture → {report.get('architecture')}")
-        print(f"  pitfalls     → {report.get('pitfalls_md')}")
-        print(f"  draft rules  → {report.get('draft_rules_json')}")
+        print(f"  architecture -> {report.get('architecture')}")
+        print(f"  pitfalls     -> {report.get('pitfalls_md')}")
+        print(f"  draft rules  -> {report.get('draft_rules_json')}")
         for p in (report.get("_pitfalls") or [])[:12]:
-            print(f"  [{p.get('severity')}] {p.get('id')} {p.get('file')}:{p.get('line')} — {p.get('title')}")
+            print(f"  [{p.get('severity')}] {p.get('id')} {p.get('file')}:{p.get('line')} - {p.get('title')}")
         if (report.get("pitfalls") or 0) > 12:
-            print(f"  … +{report['pitfalls'] - 12} more (see LEGACY_PITFALLS.md)")
+            print(f"  ... +{report['pitfalls'] - 12} more (see LEGACY_PITFALLS.md)")
         return 0
 
     if args.ask_pack or args.plan_next:
@@ -1650,9 +1650,9 @@ def main(argv: Optional[List[str]] = None) -> int:
     if not args.dry_run:
         # A6.1: never hard-exit on Ollama down — stub/cloud continue the pipeline
         if be == "stub":
-            print("[STUB] No live LLM — tasks will be skipped and left pending (never closed)")
+            print("[STUB] No live LLM - tasks will be skipped and left pending (never closed)")
         elif not llm.ping():
-            print(f"WARN: backend '{be}' ping unexpected fail — continuing with resolve cascade")
+            print(f"WARN: backend '{be}' ping unexpected fail - continuing with resolve cascade")
             llm.reset_runtime_backend()
             be, reason = llm.resolve_runtime_backend()
             print(f"  re-resolve: {be} ({reason})")

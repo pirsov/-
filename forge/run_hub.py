@@ -142,7 +142,7 @@ def start_24h(
     def _park_waiting(logf, *, reason: str = "waiting_human") -> None:
         """Block until human answers / stop — does NOT advance cycle."""
         park_s = max(5.0, float(sleep) or 5.0)
-        logf.write(f"{reason} — parked (cycle paused, wake every {park_s:.0f}s)\n")
+        logf.write(f"{reason} - parked (cycle paused, wake every {park_s:.0f}s)\n")
         logf.flush()
         # slice sleeps so stop_event + answer are responsive
         slice_s = 1.0
@@ -198,7 +198,7 @@ def start_24h(
                             detail={k: plan.get(k) for k in ("plugin", "hint") if plan.get(k)},
                         )
                         # Park here without incrementing cycle — human answer resumes same budget
-                        _park_waiting(logf, reason=f"→ waiting_human ({plan.get('action')})")
+                        _park_waiting(logf, reason=f"-> waiting_human ({plan.get('action')})")
                         continue
 
                     # Count only productive work cycles (week bursts)

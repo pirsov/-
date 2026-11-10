@@ -50,7 +50,7 @@ def _clean_key(raw: Optional[str]) -> str:
 def _mask_key(key: str) -> str:
     if len(key) <= 8:
         return "(too short / empty)"
-    return f"{key[:6]}…{key[-4:]} (len={len(key)})"
+    return f"{key[:6]}...{key[-4:]} (len={len(key)})"
 
 
 def _spacebunny_key() -> str:
@@ -108,15 +108,15 @@ def resolve_runtime_backend(
     def _cloud_or_stub(why: str) -> Tuple[str, str]:
         if _spacebunny_key():
             if log:
-                print("[llm] Ollama недоступна, переключаюсь на spacebunny")
-            return _finish("spacebunny", f"{why} → spacebunny")
+                print("[llm] Ollama unavailable, cascading to spacebunny")
+            return _finish("spacebunny", f"{why} -> spacebunny")
         if _openrouter_key():
             if log:
-                print("[llm] Ollama недоступна, переключаюсь на openrouter")
-            return _finish("openrouter", f"{why} → openrouter")
+                print("[llm] Ollama unavailable, cascading to openrouter")
+            return _finish("openrouter", f"{why} -> openrouter")
         if log:
-            print("[llm] Ollama недоступна, переключаюсь на заглушку/stub")
-        return _finish("stub", f"{why} → stub (dry skip, never closed)")
+            print("[llm] Ollama unavailable, cascading to stub")
+        return _finish("stub", f"{why} -> stub (dry skip, never closed)")
 
     # 1) Explicit usable backends
     if explicit == "stub":
@@ -126,14 +126,14 @@ def resolve_runtime_backend(
     if explicit == "openrouter" and _openrouter_key():
         return _finish("openrouter", "FORGE_BACKEND=openrouter")
     if explicit in {"spacebunny", "openrouter"} and log:
-        print(f"[llm] FORGE_BACKEND={explicit} but key missing — cascade to ollama/stub")
+        print(f"[llm] FORGE_BACKEND={explicit} but key missing - cascade to ollama/stub")
 
     # 2) Ollama when reachable
     if ping_fn():
         return _finish("ollama", "ollama ping ok")
 
     # 3–4) Cloud keys, else stub
-    return _cloud_or_stub("Ollama недоступна")
+    return _cloud_or_stub("Ollama unavailable")
 
 
 def active_backend() -> str:
@@ -190,15 +190,15 @@ def _openai_compat_generate(
                 f"LLM auth failed HTTP {e.code}: {e.reason}\n{detail}\n"
                 f"Key in use: {_mask_key(api_key)}\n"
                 "OpenRouter 'User not found' = key revoked / wrong account / truncated.\n"
-                "Fix NOW (local Ollama — no cloud key):\n"
+                "Fix NOW (local Ollama - no cloud key):\n"
                 "  $env:FORGE_BACKEND = 'ollama'\n"
                 "  Remove-Item Env:OPENROUTER_API_KEY -ErrorAction SilentlyContinue\n"
                 "  Remove-Item Env:SPACE_BUNNY_API_KEY -ErrorAction SilentlyContinue\n"
                 "  ollama serve\n"
                 "  python run.py --week\n"
                 "Or new OpenRouter key: https://openrouter.ai/keys (must start sk-or-v1-)\n"
-                "Or Space Bunny: https://spacebunnymodel.com/get-jev → SPACE_BUNNY_API_KEY=sb_live_...\n"
-                "If OPENROUTER_API_KEY is set in Windows User env, remove it in System Properties → Environment Variables."
+                "Or Space Bunny: https://spacebunnymodel.com/get-jev -> SPACE_BUNNY_API_KEY=sb_live_...\n"
+                "If OPENROUTER_API_KEY is set in Windows User env, remove it in System Properties -> Environment Variables."
             ) from e
         raise RuntimeError(f"LLM HTTP {e.code}: {e.reason}\n{detail}") from e
     except urllib.error.URLError as e:
@@ -233,7 +233,7 @@ def generate(
     be, reason = resolve_runtime_backend()
     if be == "stub":
         raise StubModeError(
-            f"[STUB] Dry run: пропускаю генерацию кода ({reason}). "
+            f"[STUB] Dry run: skipping code generation ({reason}). "
             "Plugin must NOT be marked closed."
         )
     # A15: hard output ceiling (diff/repair tighter)
@@ -306,7 +306,7 @@ def auth_probe(timeout: int = 20) -> Tuple[bool, str]:
     """Tiny chat call to verify the cloud key. Returns (ok, message)."""
     be, reason = resolve_runtime_backend()
     if be == "stub":
-        return True, f"stub ready ({reason}) — generation will skip, never closed"
+        return True, f"stub ready ({reason}) - generation will skip, never closed"
     if be == "ollama":
         return ollama_client.ping(), "ollama ping"
     try:
