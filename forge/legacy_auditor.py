@@ -208,17 +208,11 @@ def find_pitfalls(project: Path) -> List[Pitfall]:
                 snippet=snip,
                 why="DataStore failures throw; without pcall the script dies and progress is lost.",
                 rule_hint={
-                    "type": "forbid_regex",
-                    # heuristic: SetAsync( not preceded by pcall in same rough region —
-                    # validator uses file-level forbid of bare call; prefer require pcall near DS
-                    "pattern": rf":{m.group(1)}\s*\(",
+                    # Require pcall in DS files (do NOT forbid :SetAsync itself — that breaks safe pcall wraps)
+                    "type": "require_regex",
+                    "pattern": r"\bpcall\s*\(",
                     "msg": f"HITL/legacy: wrap DataStore {m.group(1)} in pcall",
-                    "companion_require": {
-                        "type": "require_regex",
-                        "pattern": r"\bpcall\s*\(",
-                        "msg": "HITL/legacy: DataStore file must use pcall",
-                    },
-                    "match_files": [Path(rel).name],
+                    "match_files": [],
                     "archetypes": ["datastore_service", "server_script"],
                 },
             )
@@ -263,7 +257,8 @@ def find_pitfalls(project: Path) -> List[Pitfall]:
                     "type": "forbid_regex",
                     "pattern": r"while\s+true\s+do(?![\s\S]{0,400}\b(?:task\.wait|wait)\s*\()",
                     "msg": "HITL/legacy: while true do must include task.wait/wait",
-                    "match_files": [Path(rel).name],
+                    "match_files": [],
+                    "archetypes": ["server_script", "client_ui", "datastore_service"],
                 },
             )
 
@@ -330,7 +325,8 @@ def find_pitfalls(project: Path) -> List[Pitfall]:
                     "type": "forbid_regex",
                     "pattern": r"GetPlayerFromCharacter\s*\([^)]*\)\s*\n(?!\s*if\b)",
                     "msg": "HITL/legacy: nil-check player from GetPlayerFromCharacter",
-                    "match_files": [Path(rel).name],
+                    "match_files": [],
+                    "archetypes": ["server_script", "client_ui"],
                 },
             )
 
@@ -348,7 +344,8 @@ def find_pitfalls(project: Path) -> List[Pitfall]:
                     "type": "forbid_regex",
                     "pattern": r"(?<![\w.])wait\s*\(",
                     "msg": "HITL/legacy: use task.wait, not wait",
-                    "match_files": [Path(rel).name],
+                    "match_files": [],
+                    "archetypes": ["server_script", "client_ui", "datastore_service"],
                 },
             )
 
@@ -398,15 +395,18 @@ def pitfalls_to_draft_rules(
                     "msg": companion.get("msg") or "require pcall",
                 }
             )
+        # A14 bootstrap: prefer archetypes so rules apply to NEW gens, not only legacy filenames.
+        # Keep evidence_file for human review; do not pin match.files when archetypes exist.
         match: Dict[str, Any] = {}
-        if hint.get("match_files"):
-            match["files"] = list(hint["match_files"])
         if hint.get("archetypes"):
             match["archetypes"] = list(hint["archetypes"])
+        elif hint.get("match_files"):
+            match["files"] = list(hint["match_files"])
         if not match:
             match["files"] = []
         rid = f"R{n:03d}"
         n += 1
+        evidence = Path(p.file).name if p.file else ""
         rules.append(
             {
                 "id": rid,
@@ -419,6 +419,7 @@ def pitfalls_to_draft_rules(
                 "created_at": now_iso(),
                 "from_pitfall": p.id,
                 "severity": p.severity,
+                "evidence_file": evidence,
             }
         )
     return rules
