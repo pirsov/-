@@ -969,6 +969,8 @@ class Orchestrator:
                 validator_feedback = (
                     f"START YOUR REPLY WITH <DONE>{task.task_id}</DONE>. "
                     "DO NOT FORGET THE XML TAGS.\n"
+                    'You MUST include <FILE path="...">content</FILE>. '
+                    "The FILE tag is mandatory.\n"
                     "REPAIR your previous draft (do not start over).\n"
                     + checklist
                     + "\nKeep the rest of the file identical."
