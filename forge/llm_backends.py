@@ -1,11 +1,11 @@
-"""A15/A17 — Ollama backend caps + hard prompt budgets (no DeepSeek for dirty work).
+"""A15/A17/A25 — Ollama backend caps + hard prompt budgets (no DeepSeek for dirty work).
 
 num_predict defaults keep 6GB cards from generating prose walls.
 Diff/repair paths use a tighter cap than first-pass codegen.
 
-A17.0 Hard Context Fit:
-  - local num_ctx = 2048 for 14B and 7B (leave room for num_predict≤1024)
-  - STRICT prompt ceilings: 14B ≤ 2000 tok, 7B ≤ 1000 tok
+A25.0 Context & Repair Fix (user A23.0):
+  - gameplay/client 14B may use num_ctx=4096 (qwen2.5-coder:14b-4k)
+  - STRICT prompt ceilings: 14B ≤ 3000 tok, 7B ≤ 1000 tok
   - effective budget = min(STRICT, num_ctx - num_predict - slack)
   - NEVER send prompts that would trigger Ollama `truncating input prompt`
 """
@@ -36,11 +36,14 @@ COMPACT_NUM_PREDICT = int(_COMPACT.get("predict") or 256)
 COMPACT_MODEL = str(_COMPACT.get("model") or "qwen2.5-coder:7b-2k")
 COMPACT_CTX = int(_COMPACT.get("ctx") or 2048)
 
-# ---- A17.0 hard context ----------------------------------------------------
+# ---- A17/A25 hard context ----------------------------------------------------
 CHARS_PER_TOKEN = 4
+# Default when role/cfg omits ctx (ollama.num_ctx). Role overrides may be higher.
 LOCAL_NUM_CTX = int(os.environ.get("FORGE_NUM_CTX") or _OLLAMA.get("num_ctx") or 2048)
+# Absolute max Ollama num_ctx forge will request (14b-4k supports 4096).
+MAX_NUM_CTX = int(os.environ.get("FORGE_MAX_NUM_CTX") or 4096)
 # Absolute STRICT ceilings (never exceed even if ctx is larger)
-HARD_PROMPT_TOKENS_14B = int(os.environ.get("FORGE_PROMPT_TOKENS_14B") or 2000)
+HARD_PROMPT_TOKENS_14B = int(os.environ.get("FORGE_PROMPT_TOKENS_14B") or 3000)
 HARD_PROMPT_TOKENS_7B = int(os.environ.get("FORGE_PROMPT_TOKENS_7B") or 1000)
 # Slack so prompt + predict never fill the whole window
 PROMPT_CTX_RESERVE = int(os.environ.get("FORGE_PROMPT_CTX_RESERVE") or 32)
@@ -57,12 +60,12 @@ def cap_num_predict(n: int, *, diff_mode: bool = False) -> int:
 
 
 def cap_num_ctx(n: int) -> int:
-    """A17: local Ollama ctx hard-capped at 2048 (14B + 7B)."""
+    """A25: allow up to MAX_NUM_CTX (4096) so gameplay/client 14B can fit rules+skeletons."""
     try:
         val = int(n)
     except (TypeError, ValueError):
         val = LOCAL_NUM_CTX
-    return max(512, min(val, LOCAL_NUM_CTX))
+    return max(512, min(val, MAX_NUM_CTX))
 
 
 def ollama_options(
@@ -105,8 +108,9 @@ def effective_prompt_token_budget(
 ) -> int:
     """
     STRICT fit budget:
-      min(14B≤2000 | 7B≤1000,  num_ctx - num_predict - reserve)
-    With defaults (ctx=2048, predict=1024) → ~992 tok for 14B.
+      min(14B≤3000 | 7B≤1000,  num_ctx - num_predict - reserve)
+    With gameplay/client (ctx=4096, predict=1024) → ~3000 tok for 14B.
+    With default ctx=2048 → ~992 tok (room-limited).
     """
     ctx = cap_num_ctx(LOCAL_NUM_CTX if num_ctx is None else num_ctx)
     pred = cap_num_predict(

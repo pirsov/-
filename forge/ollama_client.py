@@ -105,7 +105,7 @@ def generate(
     url: str = DEFAULT_GENERATE,
     diff_mode: bool = False,
 ) -> str:
-    # A17: num_ctx hard-capped at 2048 for 14B/7B; leave room for num_predict≤1024.
+    # A25: num_ctx capped at MAX_NUM_CTX (4096) so gameplay/client 14B can use 4k.
     # A15: num_predict capped via llm_backends (default 1024 / diff 512).
     try:
         from . import llm_backends
@@ -133,7 +133,7 @@ def generate(
     except ValueError:
         raise
     except Exception:
-        num_ctx = min(int(num_ctx), 2048)
+        num_ctx = min(int(num_ctx), 4096)
         num_predict = min(int(num_predict), 1024)
     body: Dict[str, Any] = {
         "model": model,
