@@ -111,7 +111,7 @@
         "game1.hud"
       ],
       "status": "proposed",
-      "reason": "held for later cycles (human accepted I011/I012 only)"
+      "reason": "held — need valid rbxassetid before shipping"
     },
     {
       "id": "I010",
@@ -123,8 +123,8 @@
         "game1.checkpoints",
         "game1.effects"
       ],
-      "status": "proposed",
-      "reason": "held for later cycles (human accepted I011/I012 only)"
+      "status": "shipped",
+      "reason": "C5 cloud_fallback CP VFX pulse"
     },
     {
       "id": "I011",
@@ -160,21 +160,19 @@
       "needs": [
         "game1.generator"
       ],
-      "status": "proposed",
-      "reason": "held for later cycles (human accepted I011/I012 only)"
+      "status": "shipped",
+      "reason": "C5 cloud_fallback HorrorFog Lighting preset"
     }
   ],
   "pulse": {
-    "at": "2026-11-10T07:16:38.452991+00:00",
-    "cycle": 4,
+    "at": "2026-11-10T07:20:39.221862+00:00",
+    "cycle": 5,
     "shipped_batch": [
-      "I011",
-      "I012"
-    ],
-    "held": [
-      "I009",
       "I010",
       "I013"
+    ],
+    "held": [
+      "I009"
     ]
   }
 }

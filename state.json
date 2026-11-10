@@ -373,6 +373,52 @@
         }
       },
       "via": "cloud_fallback"
+    },
+    {
+      "plugin": "game1.effects",
+      "status": "done",
+      "closed_cycle": 5,
+      "idea": "I010",
+      "tests": [
+        "validator PASS"
+      ],
+      "contract_snapshot": {
+        "name": "game1.effects",
+        "purpose": "Client VFX on CheckpointReached / CoinCollected",
+        "exports": [
+          "pulseCheckpoint(idx): Neon flash + PointLight + ParticleEmitter Emit",
+          "flashHud CheckpointCount",
+          "CheckpointReached OnClientEvent"
+        ],
+        "forbidden": [
+          "character:GetAttribute",
+          "new unverified coin asset (I009 held)"
+        ]
+      },
+      "via": "cloud_fallback"
+    },
+    {
+      "plugin": "game1.horror_fog",
+      "status": "done",
+      "closed_cycle": 5,
+      "idea": "I013",
+      "tests": [
+        "validator PASS"
+      ],
+      "contract_snapshot": {
+        "name": "game1.horror_fog",
+        "purpose": "Lighting Fog + Atmosphere + ColorCorrection horror preset",
+        "exports": [
+          "FogEnd=90 FogStart=12",
+          "Atmosphere Density/Haze",
+          "ColorCorrection desaturate",
+          "ClockTime near midnight"
+        ],
+        "forbidden": [
+          "extra map prop spam"
+        ]
+      },
+      "via": "cloud_fallback"
     }
   ],
   "partial": [],
@@ -470,6 +516,20 @@
       "status": "closed",
       "type": "ui",
       "idea": "I012"
+    },
+    {
+      "id": "C5.I010",
+      "title": "Checkpoint VFX pulse",
+      "status": "closed",
+      "type": "polish",
+      "idea": "I010"
+    },
+    {
+      "id": "C5.I013",
+      "title": "Horror fog preset",
+      "status": "closed",
+      "type": "polish",
+      "idea": "I013"
     }
   ],
   "open_questions": [
@@ -489,12 +549,12 @@
     }
   ],
   "pulse": {
-    "cycle": 4,
+    "cycle": 5,
     "next_e2e_at_cycle": 4,
     "next_compact_at_cycle": 5,
     "next_metrics_at_cycle": 8,
     "e2e_at": "2026-11-10T07:13:42.087643+00:00",
-    "status": "cycle4_closed"
+    "status": "cycle5_closed"
   },
   "cycle1_report": {
     "at": "2026-11-10T07:02:36.854490+00:00",
@@ -538,18 +598,18 @@
     "next": "answer Q1-Q2 pack → cycle 4 from ideas + answers"
   },
   "stats_snapshot": {
-    "plugins_closed_done": 19,
+    "plugins_closed_done": 21,
     "partial": 0,
     "task_queue": {
-      "closed": 8
+      "closed": 10
     },
     "ideas_by_status": {
       "deferred": 1,
-      "proposed": 7,
+      "proposed": 5,
       "infra_backlog": 1,
-      "shipped": 4
+      "shipped": 6
     },
-    "pulse_cycle": 4
+    "pulse_cycle": 5
   },
   "e2e": {
     "H11": "PASS",
@@ -584,5 +644,38 @@
       "I013"
     ],
     "next": "Cycle 5 pulse or pick held ideas when ready"
+  },
+  "desktop_test": {
+    "status": "skipped",
+    "reason": "no PC/Studio access — non-blocking per architecture",
+    "at": "2026-11-10T07:20:39.221862+00:00"
+  },
+  "cycle5_report": {
+    "at": "2026-11-10T07:20:39.221862+00:00",
+    "mode": "cloud_fallback",
+    "I010": {
+      "status": "PASS",
+      "repairs": 0,
+      "path": "src/client/Effects.client.luau"
+    },
+    "I013": {
+      "status": "PASS",
+      "repairs": 0,
+      "path": "src/server/Atmosphere/HorrorFog.server.luau"
+    },
+    "I009": "held proposed",
+    "quotas": {
+      "ui": 0,
+      "mechanic": 0,
+      "polish": 2,
+      "ok": true
+    },
+    "ideas_by_status": {
+      "deferred": 1,
+      "proposed": 5,
+      "infra_backlog": 1,
+      "shipped": 6
+    },
+    "next": "Cycle 6 pulse or I009 when asset id ready"
   }
 }
