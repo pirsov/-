@@ -1,4 +1,4 @@
-# LAST_UPDATE: A10.2 PASS — network_remote@v1.1 + system.coin_sync E2E. Suite 73 OK.
+# LAST_UPDATE: A10.3+A10.4 PASS — HITL rules on archetypes + donation_shop full-stack. Suite 78 OK.
 
 ## AGENT CORE DONE
 - [x] A6.* degrade/compact/HITL rules
@@ -9,12 +9,13 @@
 - [x] A9.1 README_UI.md + A10 plan (DataStore & Networking)
 - [x] A10.1 datastore_service@v1 (META + skeleton + gate + E2E player_save)
 - [x] A10.2 networking glue (CoinSync remotes + server push + client HUD)
+- [x] A10.3 HITL rules E2E (RunStartedAt forbid on client_ui + network_remote)
+- [x] A10.4 full-stack system.donation_shop + START_24H.md
 
 ## DEFERRED
 - A7.1b richer UI A/B/C redesign
 - game1 polish (polygon frozen)
+- A10.5 Studio smoke pack (optional)
 
 ## NEXT
-- [ ] H14 | Desktop: `python -u run.py --ui` → chat «монеты с сохранением» + Старт 24h | @human
-- [ ] A10.3 | Validator/knowledge rules for save/remote path | @orchestrator
-- [ ] A10.4 | Full-stack E2E PlayerSave+CoinSync+HUD | @orchestrator
+- [ ] H14 | Desktop: см. START_24H.md — chat + Старт 24h | @human

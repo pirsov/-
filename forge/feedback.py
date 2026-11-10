@@ -209,6 +209,15 @@ def draft_rule_from_comment(
                 "msg": f"HITL: use player:GetAttribute — {text[:80]}",
             }
         )
+    # A10.3: timer/attr leakage into UI / remotes module
+    if "runstartedat" in lower.replace(" ", "") or "run started" in lower:
+        checks.append(
+            {
+                "type": "forbid_regex",
+                "pattern": r"RunStartedAt",
+                "msg": f"HITL: RunStartedAt is server-only — keep out of UI/Remotes — {text[:80]}",
+            }
+        )
     if not checks:
         # Generic: require a distinctive token from comment (quoted or CamelCase)
         tokens = re.findall(r"[A-Za-z_][A-Za-z0-9_]{3,}", text)
@@ -231,12 +240,23 @@ def draft_rule_from_comment(
         ]
 
     checks = checks[:3]
+    match: Dict[str, Any] = {"files": files or _default_files_for_plugin(plugin)}
+    # When HITL mentions UI / remotes, also scope by archetype (A10.3)
+    archetypes: List[str] = []
+    if any(k in lower for k in ("ui", "hud", "client", "screen", "кнопк")):
+        archetypes.append("client_ui")
+    if any(k in lower for k in ("remote", "network", "coinsync", "сеть")):
+        archetypes.append("network_remote")
+    if "runstartedat" in lower.replace(" ", "") and not archetypes:
+        archetypes.extend(["client_ui", "network_remote"])
+    if archetypes:
+        match["archetypes"] = archetypes
     rule = {
         "id": rule_id,
         "source": "hitl_n",
         "plugin": plugin,
         "human_comment": text[:500],
-        "match": {"files": files or _default_files_for_plugin(plugin)},
+        "match": match,
         "checks": checks,
         "status": "draft",
         "created_at": now_iso(),
@@ -253,6 +273,11 @@ def _default_files_for_plugin(plugin: str) -> List[str]:
         "game1.generator": ["Generator.server.luau"],
         "game1.effects": ["Effects.client.luau"],
         "game1.horror_fog": ["HorrorFog.server.luau"],
+        "system.donation_shop": [
+            "DonationShop.client.luau",
+            "DonationShop.server.luau",
+            "Remotes.luau",
+        ],
     }
     return mapping.get(plugin, [])
 
@@ -286,13 +311,35 @@ def apply_checks_to_text(content: str, checks: List[Dict[str, Any]], *, rule_id:
     return errors
 
 
-def rule_matches_file(rule: Dict[str, Any], path: Path) -> bool:
+def rule_matches_file(rule: Dict[str, Any], path: Path, *, root: Optional[Path] = None) -> bool:
     match = rule.get("match") or {}
-    files = match.get("files") if isinstance(match, dict) else None
-    if not files:
+    if not isinstance(match, dict):
         return True
+    files = match.get("files")
+    archetypes = match.get("archetypes")
     name = path.name
-    return any(str(f) == name or name.endswith(str(f)) or str(f) in str(path) for f in files)
+    file_ok = True
+    if files:
+        file_ok = any(str(f) == name or name.endswith(str(f)) or str(f) in str(path) for f in files)
+    arch_ok = True
+    if archetypes:
+        try:
+            from . import skeletons_hub
+
+            pinned_a, _ = skeletons_hub.find_contract_pin(root, path) if root else (None, None)
+            inferred = skeletons_hub.infer_archetype_from_path(path)
+            arch = pinned_a or inferred
+            arch_ok = arch in {str(a) for a in archetypes}
+        except Exception:
+            arch_ok = True
+    if files and archetypes:
+        # Either path match OR archetype match (HITL UI rules cover any client_ui)
+        return file_ok or arch_ok
+    if files:
+        return file_ok
+    if archetypes:
+        return arch_ok
+    return True
 
 
 def load_active_rules(root: Path) -> List[Dict[str, Any]]:
@@ -303,7 +350,7 @@ def load_active_rules(root: Path) -> List[Dict[str, Any]]:
 def apply_rules_to_file(root: Path, path: Path, content: str) -> List[str]:
     errors: List[str] = []
     for rule in load_active_rules(root):
-        if not rule_matches_file(rule, path):
+        if not rule_matches_file(rule, path, root=root):
             continue
         errors.extend(apply_checks_to_text(content, rule.get("checks") or [], rule_id=str(rule.get("id") or "")))
     return errors
@@ -321,11 +368,12 @@ def dry_run_rule_on_golden(root: Path, rule: Dict[str, Any]) -> Tuple[bool, List
     files = list((match.get("files") if isinstance(match, dict) else None) or [])
     scanned = 0
     # Prefer live src matches
+    archetypes = list((match.get("archetypes") if isinstance(match, dict) else None) or [])
     for p in root.rglob("*.luau"):
-        if files and not rule_matches_file(rule, p):
+        if not rule_matches_file(rule, p, root=root):
             continue
-        if not files and GOLDEN_DIR not in str(p):
-            # without file filter, only scan if golden has companion sample — skip broad
+        if not files and not archetypes and GOLDEN_DIR not in str(p):
+            # without file/archetype filter, only scan golden companions — skip broad
             continue
         try:
             content = p.read_text(encoding="utf-8")

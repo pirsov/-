@@ -1,0 +1,24 @@
+{
+  "plugin": "system.donation_shop.server",
+  "archetype": "datastore_service",
+  "skeleton_version": "v1",
+  "contract_snapshot": {
+    "name": "system.donation_shop.server",
+    "exports": [
+      "DataStoreService",
+      "GetDataStore",
+      "GetAsync",
+      "SetAsync",
+      "DonateRequest",
+      "OnServerEvent",
+      "FireClient",
+      "CoinSync",
+      "SaveAck",
+      "pcall"
+    ],
+    "forbidden": ["LocalPlayer", "ScreenGui", "FireServer"],
+    "archetype": "datastore_service",
+    "skeleton_version": "v1",
+    "files": ["artifacts/a10_4_e2e/DonationShop.server.luau"]
+  }
+}

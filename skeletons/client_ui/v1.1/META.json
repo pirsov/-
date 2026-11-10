@@ -1,0 +1,15 @@
+{
+  "id": "client_ui",
+  "version": "v1.1",
+  "required": ["LocalPlayer"],
+  "required_any": [["ScreenGui", "TextLabel", "TextButton", "PlayerGui"]],
+  "forbid": ["DataStoreService", "GetDataStore", "GetAsync", "SetAsync"],
+  "forbid_regex": [
+    "char(?:acter)?\\s*:\\s*GetAttribute",
+    "(?m)^return\\s",
+    "RunStartedAt"
+  ],
+  "prompt_budget_chars": 500,
+  "default_path_glob": "src/client/**/*.client.luau",
+  "path_hints": [".client.luau", "src/client/", "Donation", "Shop"]
+}

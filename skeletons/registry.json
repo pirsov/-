@@ -8,8 +8,8 @@
     },
     "client_ui": {
       "latest": "v1",
-      "versions": ["v1"],
-      "summary": "LocalScript UI — player attrs, ScreenGui"
+      "versions": ["v1", "v1.1"],
+      "summary": "LocalScript UI — v1.1 allows Remotes:FireServer, still bans DataStore"
     },
     "shared_data": {
       "latest": "v1",

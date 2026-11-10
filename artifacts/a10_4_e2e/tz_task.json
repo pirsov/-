@@ -1,0 +1,31 @@
+{
+  "kind": "tz_task",
+  "task_id": "A10.4",
+  "title": "Donation shop full-stack (system.donation_shop)",
+  "plugin": "system.donation_shop",
+  "planner_split": [
+    {
+      "id": "A10.4.R",
+      "archetype": "network_remote",
+      "skeleton_version": "v1.1",
+      "target_path": "artifacts/a10_4_e2e/Remotes.luau",
+      "proposed_calls": ["getOrCreate", "DonateRequest", "CoinSync", "SaveAck", "CoinCollected"]
+    },
+    {
+      "id": "A10.4.S",
+      "archetype": "datastore_service",
+      "skeleton_version": "v1",
+      "side": "server",
+      "target_path": "artifacts/a10_4_e2e/DonationShop.server.luau",
+      "proposed_calls": ["DataStoreService", "GetDataStore", "pcall", "GetAsync", "SetAsync", "OnServerEvent", "DonateRequest", "FireClient", "CoinSync"]
+    },
+    {
+      "id": "A10.4.C",
+      "archetype": "client_ui",
+      "skeleton_version": "v1.1",
+      "side": "client",
+      "target_path": "artifacts/a10_4_e2e/DonationShop.client.luau",
+      "proposed_calls": ["FireServer", "DonateRequest", "OnClientEvent", "CoinSync", "LocalPlayer", "ScreenGui", "TextButton"]
+    }
+  ]
+}

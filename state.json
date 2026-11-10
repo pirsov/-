@@ -377,6 +377,20 @@
       "status": "closed",
       "type": "infra",
       "closed_at": "2026-11-10T09:15:00+00:00"
+    },
+    {
+      "id": "A10.3",
+      "title": "HITL rules E2E on client_ui + network_remote",
+      "status": "closed",
+      "type": "infra",
+      "closed_at": "2026-11-10T09:45:00+00:00"
+    },
+    {
+      "id": "A10.4",
+      "title": "full-stack system.donation_shop + START_24H",
+      "status": "closed",
+      "type": "infra",
+      "closed_at": "2026-11-10T09:45:00+00:00"
     }
   ],
   "open_questions": [
@@ -401,8 +415,8 @@
     "next_compact_at_cycle": 5,
     "next_metrics_at_cycle": 8,
     "e2e_at": "2026-11-10T07:13:42.087643+00:00",
-    "status": "a10_2_networking_pass",
-    "focus": "network_remote@v1.1 + system.coin_sync",
+    "status": "a10_4_fullstack_pass",
+    "focus": "donation_shop full-stack + START_24H",
     "last_compact_cycle": 6,
     "last_compact_at": "2026-11-10T07:28:51.769663+00:00"
   },
@@ -603,5 +617,18 @@
       "artifacts/a10_2_e2e/CoinHUD.client.luau"
     ],
     "tests": "73 OK"
+  },
+  "a10_3": {
+    "cycle": "A10.3",
+    "rule": "forbid RunStartedAt on client_ui + network_remote",
+    "via": "feedback.submit_verdict n + FORGE_RULES_AUTO"
+  },
+  "a10_4": {
+    "cycle": "A10.4",
+    "plugin": "system.donation_shop",
+    "stack": ["network_remote@v1.1", "datastore_service@v1", "client_ui@v1.1"],
+    "guide": "START_24H.md",
+    "tests": "78 OK",
+    "artifact": "artifacts/a10_4_e2e/"
   }
 }
