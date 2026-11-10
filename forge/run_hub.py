@@ -348,6 +348,23 @@ def read_code_file(rel: str, root: Optional[Path] = None, *, max_chars: int = 40
     return {"path": rel, "chars": len(text), "content": text[:max_chars]}
 
 
+def _write_mirrored_log_line(logf, latestf, line: str) -> None:
+    """Append one line to the stamped log + latest.log and flush (live UI tail).
+
+    A21.0: never rewrite the whole latest.log per line - Windows + large logs
+    stall /api/logs until the child process exits.
+    """
+    logf.write(line)
+    logf.flush()
+    if latestf is None:
+        return
+    try:
+        latestf.write(line)
+        latestf.flush()
+    except OSError:
+        pass
+
+
 def start_week(
     root: Optional[Path] = None,
     *,
@@ -398,9 +415,14 @@ def start_week(
     env["OLLAMA_NUM_PARALLEL"] = env.get("OLLAMA_NUM_PARALLEL") or "1"
 
     def _worker() -> None:
-        with log_path.open("w", encoding="utf-8") as logf:
-            logf.write(f"# start {stamp}\n# cmd {' '.join(cmd)}\n\n")
-            logf.flush()
+        # A21.0: append+flush latest.log per line (do not rewrite whole file each line).
+        latest_path = run_dir / "latest.log"
+        with log_path.open("w", encoding="utf-8") as logf, latest_path.open(
+            "a", encoding="utf-8"
+        ) as latestf:
+            _write_mirrored_log_line(
+                logf, latestf, f"# start {stamp}\n# cmd {' '.join(cmd)}\n\n"
+            )
             try:
                 proc = subprocess.Popen(
                     cmd,
@@ -421,7 +443,7 @@ def start_week(
                             "report": {"error": str(e)},
                         }
                     )
-                logf.write(f"FAILED TO SPAWN: {e}\n")
+                _write_mirrored_log_line(logf, latestf, f"FAILED TO SPAWN: {e}\n")
                 return
 
             with _lock:
@@ -429,16 +451,7 @@ def start_week(
 
             assert proc.stdout is not None
             for line in proc.stdout:
-                logf.write(line)
-                logf.flush()
-                # mirror latest
-                try:
-                    (run_dir / "latest.log").write_text(
-                        log_path.read_text(encoding="utf-8", errors="replace"),
-                        encoding="utf-8",
-                    )
-                except OSError:
-                    pass
+                _write_mirrored_log_line(logf, latestf, line)
 
             code = proc.wait()
             text = log_path.read_text(encoding="utf-8", errors="replace")
@@ -462,10 +475,6 @@ def start_week(
                         "report": report,
                     }
                 )
-            try:
-                (run_dir / "latest.log").write_text(text, encoding="utf-8")
-            except OSError:
-                pass
             if code == 0 or report.get("quality"):
                 try:
                     from . import progress_hub
