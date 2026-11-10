@@ -126,11 +126,13 @@ def start_24h(
     """
     root = root or ROOT_DEFAULT
     global _loop_thread
+    # Copy under lock, then call status() OUTSIDE — Lock is not re-entrant (UI hang).
     with _lock:
-        if _state.get("status") in {"running", "looping"}:
-            return {"ok": False, "error": "already running", **status()}
-        if _state.get("status") == "waiting_human" and _state.get("mode") == "loop_24h":
-            return {"ok": False, "error": "already waiting_human in 24h mode", **status()}
+        cur = dict(_state)
+    if cur.get("status") in {"running", "looping"}:
+        return {"ok": False, "error": "already running", **status()}
+    if cur.get("status") == "waiting_human" and cur.get("mode") == "loop_24h":
+        return {"ok": False, "error": "already waiting_human in 24h mode", **status()}
 
     _stop_event.clear()
     run_dir = _run_dir(root)
@@ -209,9 +211,32 @@ def start_24h(
                     logf.write(f"\n## cycle {cycle}/{max_cycles}\n")
                     logf.flush()
 
-                    burst = start_week(root, sleep=0.0, hitl="y", max_steps=week_max_steps)
-                    logf.write(f"week burst: {json.dumps({k: burst.get(k) for k in ('ok','status','pid')})}\n")
+                    # allow_from_loop: status is "looping" here; without it start_week
+                    # deadlocks (status() under Lock) or returns "already running".
+                    burst = start_week(
+                        root,
+                        sleep=0.0,
+                        hitl="y",
+                        max_steps=week_max_steps,
+                        allow_from_loop=True,
+                    )
+                    logf.write(
+                        "week burst: "
+                        + json.dumps(
+                            {
+                                k: burst.get(k)
+                                for k in ("ok", "status", "pid", "error")
+                                if burst.get(k) is not None
+                            }
+                        )
+                        + "\n"
+                    )
                     logf.flush()
+                    if not burst.get("ok"):
+                        logf.write(f"week burst blocked: {burst.get('error')}\n")
+                        logf.flush()
+                        time.sleep(min(2.0, float(sleep) or 2.0))
+                        continue
                     # wait until week finishes or stop
                     while status().get("status") == "running" and not _stop_event.is_set():
                         time.sleep(1.0)
@@ -315,14 +340,23 @@ def start_week(
     sleep: float = 0.0,
     hitl: str = "y",
     max_steps: Optional[int] = None,
+    allow_from_loop: bool = False,
 ) -> Dict[str, Any]:
     root = root or ROOT_DEFAULT
+    # Never call status() while holding _lock — non-reentrant Lock deadlocks the UI thread.
     with _lock:
-        if _state.get("status") in {"running", "looping"}:
-            return {"ok": False, "error": "already running", **status()}
-        # week start clears waiting only if not part of loop park — explicit start is OK
-        if _state.get("status") == "waiting_human" and _state.get("mode") == "loop_24h":
-            return {"ok": False, "error": "waiting_human — answer via /api/answer first", **status()}
+        cur = dict(_state)
+    if cur.get("status") == "running":
+        return {"ok": False, "error": "already running", **status()}
+    if cur.get("status") == "looping" and not allow_from_loop:
+        return {"ok": False, "error": "already running", **status()}
+    # week start blocked while 24h is parked for HITL (unless internal loop resume)
+    if (
+        cur.get("status") == "waiting_human"
+        and cur.get("mode") == "loop_24h"
+        and not allow_from_loop
+    ):
+        return {"ok": False, "error": "waiting_human — answer via /api/answer first", **status()}
 
     run_dir = _run_dir(root)
     stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
@@ -400,9 +434,14 @@ def start_week(
                 json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8"
             )
             with _lock:
+                # Hand control back to 24h loop when this was an inner burst
+                if _state.get("mode") == "loop_24h" and not _stop_event.is_set():
+                    next_status = "looping"
+                else:
+                    next_status = "done" if code == 0 else "error"
                 _state.update(
                     {
-                        "status": "done" if code == 0 else "error",
+                        "status": next_status,
                         "ended_at": datetime.now(timezone.utc).isoformat(),
                         "exit_code": code,
                         "pid": None,
@@ -422,9 +461,12 @@ def start_week(
                     pass
 
     with _lock:
+        # Preserve mode=loop_24h when burst comes from the autonomous loop
+        prev_mode = _state.get("mode")
         _state.update(
             {
                 "status": "running",
+                "mode": prev_mode if allow_from_loop and prev_mode == "loop_24h" else "week",
                 "started_at": datetime.now(timezone.utc).isoformat(),
                 "ended_at": None,
                 "exit_code": None,

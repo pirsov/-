@@ -119,14 +119,26 @@ tail -f .forge/ui_run/latest.log
 2. Или `Ctrl+C` на `run.py --ui`
 3. Не `-9` без нужды
 
-## 5. Если застрял в waiting_human
+## 5. Если застрял в waiting_human / бесконечный HITL
 
-Агент ждёт тебя — CPU не крутится.
+Агент ждёт тебя — CPU не крутится. После **одного** ответа A/B/C цикл должен уйти в `idle`/`looping` и запустить `--week` (не задавать Q1 снова).
 
 - UI: **A / B / C / Другое** → `/api/answer`
-- verify плагина: `channel=verify`
+- verify плагина: `channel=verify` (или `--reset-state`, если старые `game1.*` в `done[]` мешают)
 - Лог: `grep -n waiting_human .forge/ui_run/loop24-*.log | tail`
 - Статус: `curl -s localhost:8787/api/status_snapshot | python -m json.tool | grep -A5 waiting`
+
+**Сейчас разморозить (Windows):**
+
+```powershell
+# 1) Стоп 24h в UI (или Ctrl+C на run.py --ui)
+# 2) Сброс leftover verify/HITL (чистый путь к генерации)
+python -u run.py --reset-state --project game2
+# 3) Заново UI + один HITL + Старт 24h
+python -u run.py --ui
+```
+
+Если UI «висит» на «starting…» при живом 24h — не жми этап 04 параллельно: либо **Стоп 24h**, либо дождись ответа HITL; внутренний week-burst идёт из 24h сам.
 
 ## 6. Troubleshooting
 

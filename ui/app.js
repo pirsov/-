@@ -810,8 +810,13 @@ async function sendHitlAnswer(qid, key, note) {
       chatAppend("agent", "Нужно уточнение");
       renderHitlPack(j.hitl_pack);
     } else {
-      chatAppend("agent", "Ответ принят — агент продолжает");
+      chatAppend("agent", j.message || "Ответ принят — агент продолжает");
       pendingHitl = null;
+      el("hitl-box").hidden = true;
+      // Do not leave a stale pack visible; 24h should go idle→week, not re-ask Q1
+      if (j.next && j.next.action && j.next.action !== "ask_hitl") {
+        /* keep hitl hidden */
+      }
     }
     if (j.snapshot) renderAgentSnap(j.snapshot);
     toast("Ответ отправлен");
