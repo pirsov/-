@@ -163,13 +163,27 @@ def render_files(paths: Sequence[Path], root: Path, budget_chars: Optional[int] 
     return "".join(parts) if parts else "(no files yet)"
 
 
-def mode_instructions(task: Task) -> str:
+def mode_instructions(task: Task, *, file_exists: bool = False, prefer_diff: bool = True) -> str:
     if task.mode == WriteMode.APPEND:
         return (
             "WRITE MODE = APPEND.\n"
             "- Return ONLY the new lines to append.\n"
             "- Do NOT repeat existing file content.\n"
             "- Do NOT rewrite the whole file.\n"
+            f"- Target file: {task.target_path}\n"
+        )
+    if task.mode == WriteMode.REWRITE and file_exists and prefer_diff:
+        return (
+            "WRITE MODE = PATCH (file already exists — A15 diff economy).\n"
+            "- Prefer SEARCH/REPLACE blocks inside <FILE> instead of rewriting the whole file.\n"
+            "- Format exactly:\n"
+            "<<<<<<< SEARCH\n"
+            "exact old lines from the baseline\n"
+            "=======\n"
+            "new lines\n"
+            ">>>>>>> REPLACE\n"
+            "- Multiple blocks allowed. SEARCH must match the baseline exactly.\n"
+            "- Full-file rewrite ONLY if >40% of the file must change.\n"
             f"- Target file: {task.target_path}\n"
         )
     if task.mode == WriteMode.REWRITE:
@@ -220,11 +234,11 @@ def build_prompt(
         feedback = f"\n=== VALIDATOR FEEDBACK (fix ONLY these issues) ===\n{validator_feedback}\n"
     if repair_draft:
         feedback += (
-            "\n=== REPAIR MODE ===\n"
+            "\n=== REPAIR MODE (A15 PATCH) ===\n"
             "Below is YOUR previous draft (almost done). Do NOT rewrite from scratch.\n"
             "Change the minimum lines needed to fix the validator errors "
             "(e.g. one wrong Roblox API call, a missing Name=\"Path\", Checkpoint_ → Checkpoint..id).\n"
-            "Return the FULL file with those small fixes applied.\n"
+            "Prefer SEARCH/REPLACE blocks against this draft; full file only if required.\n"
             f"{repair_draft}\n"
         )
     elif prior_snapshot and task.mode == WriteMode.APPEND:
@@ -234,7 +248,8 @@ def build_prompt(
         )
     elif prior_snapshot and task.mode in {WriteMode.REWRITE, WriteMode.CREATE}:
         feedback += (
-            "\n=== BASELINE FILE (REWRITE from THIS — do not invent a new architecture) ===\n"
+            "\n=== BASELINE FILE (PATCH from THIS — A15) ===\n"
+            "Prefer SEARCH/REPLACE against this baseline. Do not invent a new architecture.\n"
             "Preserve: Map folder, Name=\"Path\" floor, SpawnPlaza, SpawnLocation, "
             'checkpoint Name = "Checkpoint" .. tostring(id) (NO underscore), coins, print section ids.\n'
             "Only apply the task delta (e.g. add Obstacle parts).\n"
@@ -242,9 +257,11 @@ def build_prompt(
         )
 
     # Compact Roblox skills (DeepSeek-shortened / forge-learned) — keep under ~3.6k chars
+    # A15: semantic prune cards by task/TZ focus terms
     skills_block = ""
     try:
         from . import skills_hub
+        from . import token_economy as te
 
         skill_ids = ["forge-player-attrs", "forge-luau-touch"]
         active = root / ".forge" / "active_project.json"
@@ -256,7 +273,19 @@ def build_prompt(
             if meta_p.exists():
                 meta = _json.loads(meta_p.read_text(encoding="utf-8"))
                 skill_ids = list(meta.get("skills_compact") or skill_ids)[:3]
-        skills_block = skills_hub.inject_block(skill_ids, root, budget=3600)
+        focus = te.extract_focus_terms(task.raw or "", task.description or "", tz_compact[:800])
+        skills_block = skills_hub.bundle_for_14b(
+            root,
+            skill_ids[:3],
+            max_skills=3,
+            rules_budget=400,
+            focus_terms=focus,
+            economy=True,
+            prune=True,
+            skeleton_budget=0,
+        )
+        if len(skills_block) > 3600:
+            skills_block = skills_block[:3600]
         if skills_block:
             skills_block = "\n" + skills_block
     except Exception:
@@ -610,7 +639,7 @@ Follow AGENTS.md. Do the task for real — do not reply NOTE-only when a FILE is
 === YOUR TASK ===
 {task.raw.strip()}
 
-{mode_instructions(task)}
+{mode_instructions(task, file_exists=bool(prior_snapshot), prefer_diff=True)}
 
 STRICT RULES:
 - Do ONLY this one task. Do not touch other tasks.
@@ -645,6 +674,11 @@ Format:
 <DONE>{task.task_id}</DONE>
 <NOTE>one short sentence</NOTE>
 <FILE path="{task.target_path or "src/server/Example.server.luau"}">
-file content
+<<<<<<< SEARCH
+old lines
+=======
+new lines
+>>>>>>> REPLACE
 </FILE>
+(or full file content when CREATE / large rewrite)
 """

@@ -180,3 +180,109 @@ def measure_bundle_savings(fat: str, lean: str) -> Dict[str, Any]:
         "chars_before": len(fat),
         "chars_after": len(lean),
     }
+
+
+# ---- A15 semantic pruning -------------------------------------------------
+
+_IDENT = re.compile(r"\b([A-Za-z_][A-Za-z0-9_]{2,})\b")
+_STOP = {
+    "the",
+    "and",
+    "for",
+    "with",
+    "from",
+    "this",
+    "that",
+    "true",
+    "false",
+    "null",
+    "local",
+    "function",
+    "return",
+    "then",
+    "else",
+    "elseif",
+    "end",
+    "game",
+    "player",
+    "players",
+    "rewrite",
+    "append",
+    "create",
+    "fix",
+    "file",
+    "path",
+    "task",
+    "must",
+    "only",
+    "never",
+}
+
+
+def extract_focus_terms(*texts: str, limit: int = 24) -> List[str]:
+    """Pull API-ish identifiers from TZ / task text for card pruning."""
+    found: List[str] = []
+    seen = set()
+    for text in texts:
+        for m in _IDENT.finditer(text or ""):
+            tok = m.group(1)
+            low = tok.lower()
+            if low in _STOP or len(tok) < 3:
+                continue
+            if low in seen:
+                continue
+            seen.add(low)
+            found.append(tok)
+            if len(found) >= limit:
+                return found
+    return found
+
+
+def _term_hit(item: str, terms_lower: List[str]) -> bool:
+    s = (item or "").lower()
+    return any(t in s for t in terms_lower)
+
+
+def prune_card(
+    card: Dict[str, Any],
+    focus_terms: Optional[List[str]] = None,
+    *,
+    max_exports: int = 3,
+    max_forbid: int = 3,
+    max_attrs: int = 4,
+) -> Dict[str, Any]:
+    """
+    Keep only exports/attrs/forbid that mention focus terms (A15 semantic prune).
+    If nothing matches, keep the first N (still capped).
+    """
+    if not focus_terms:
+        out = dict(card)
+        if isinstance(out.get("exports"), list):
+            out["exports"] = out["exports"][:max_exports]
+        if isinstance(out.get("forbid"), list):
+            out["forbid"] = out["forbid"][:max_forbid]
+        if isinstance(out.get("attrs"), list):
+            out["attrs"] = out["attrs"][:max_attrs]
+        return out
+
+    terms = [t.lower() for t in focus_terms if t]
+    out = dict(card)
+
+    def pick(key: str, cap: int) -> None:
+        val = out.get(key)
+        if not isinstance(val, list):
+            return
+        hit = [x for x in val if isinstance(x, str) and _term_hit(x, terms)]
+        if hit:
+            out[key] = hit[:cap]
+        else:
+            out[key] = [x for x in val if isinstance(x, str)][:cap]
+
+    pick("exports", max_exports)
+    pick("forbid", max_forbid)
+    pick("attrs", max_attrs)
+    # short keys variant (economy cards)
+    pick("exp", max_exports)
+    pick("f", max_forbid)
+    pick("a", max_attrs)
+    return out

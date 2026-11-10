@@ -152,23 +152,33 @@ def bundle_for_14b(
     skeleton_version: Optional[str] = None,
     skeleton_budget: int = 500,
     economy: Optional[bool] = None,
+    focus_terms: Optional[List[str]] = None,
+    focus_text: Optional[str] = None,
+    prune: Optional[bool] = None,
 ) -> str:
     """
     Compact prompt block for local 14B:
     ≤3 contract cards + ONE pinned skeleton + active HITL rules.
     A13: Token Economy — EN cards, short keys, minified JSON, compact rules.
+    A15: Semantic prune — keep only exports/attrs matching focus_terms / TZ text.
     """
     from . import feedback
     from . import skeletons_hub
     from . import token_economy as te
 
     use_econ = te.economy_enabled() if economy is None else bool(economy)
+    use_prune = True if prune is None else bool(prune)
+    terms = list(focus_terms or [])
+    if focus_text:
+        terms = list(dict.fromkeys(terms + te.extract_focus_terms(focus_text)))
     r = root or ROOT_DEFAULT
     ids = list(skill_ids or [c["id"] for c in list_compact(r)[:max_skills]])[:max_skills]
     parts: List[str] = ["===CARDS===" if use_econ else "=== CONTRACT CARDS (for 14B) ==="]
     for sid in ids:
         card = ensure_skill_card(sid, r)
         card = clamp_skill_card(card, max_chars=card_budget)
+        if use_prune:
+            card = te.prune_card(card, terms if terms else None)
         if use_econ:
             card = te.economy_card(card)
             parts.append(te.dumps_llm(card))
@@ -202,14 +212,43 @@ def bundle_savings_report(
     skill_ids: Optional[List[str]] = None,
     **kwargs: Any,
 ) -> Dict[str, Any]:
-    """Compare fat vs economy bundle sizes (A13 report helper)."""
+    """Compare fat vs economy(+prune) bundle sizes (A13/A15 report helper)."""
     from . import token_economy as te
 
-    fat = bundle_for_14b(root, skill_ids, economy=False, **kwargs)
-    lean = bundle_for_14b(root, skill_ids, economy=True, **kwargs)
+    focus_text = kwargs.pop("focus_text", None)
+    focus_terms = kwargs.pop("focus_terms", None)
+    fat = bundle_for_14b(
+        root, skill_ids, economy=False, prune=False, focus_text=None, focus_terms=None, **kwargs
+    )
+    lean = bundle_for_14b(
+        root,
+        skill_ids,
+        economy=True,
+        prune=True,
+        focus_text=focus_text,
+        focus_terms=focus_terms,
+        **kwargs,
+    )
     report = te.measure_bundle_savings(fat, lean)
     report["fat_preview"] = fat[:200]
     report["lean_preview"] = lean[:200]
+    report["focus_terms"] = list(focus_terms or []) + (
+        te.extract_focus_terms(focus_text) if focus_text else []
+    )
+    # A15: economy-only vs economy+prune delta
+    mid = bundle_for_14b(
+        root, skill_ids, economy=True, prune=False, focus_text=None, focus_terms=None, **kwargs
+    )
+    prune_only = te.measure_bundle_savings(mid, lean)
+    report["a15_prune_vs_economy"] = prune_only
+    report["a15_num_predict_default"] = None
+    try:
+        from . import llm_backends
+
+        report["a15_num_predict_default"] = llm_backends.DEFAULT_NUM_PREDICT
+        report["a15_num_predict_diff"] = llm_backends.DIFF_NUM_PREDICT
+    except Exception:
+        pass
     return report
 
 
