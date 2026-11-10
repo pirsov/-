@@ -656,6 +656,136 @@ class TestStateCompaction(unittest.TestCase):
             self.assertIn("demo purpose", entry.get("contract_summary", ""))
 
 
+class TestSkeletonsA72(unittest.TestCase):
+    def test_wrong_archetype_fails_meta(self):
+        """client_ui forbids DataStoreService — wrong boilerplate must fail."""
+        import json
+        import shutil
+        from forge.skeletons_hub import apply_meta_checks, load_meta, validate_against_skeleton
+        from forge.validator import validate_file
+
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            # copy real skeletons registry into fixture
+            src_skel = Path(__file__).resolve().parent.parent / "skeletons"
+            shutil.copytree(src_skel, root / "skeletons")
+            (root / "PROJECT_TZ.md").write_text("# t\n", encoding="utf-8")
+            bad = root / "src" / "client" / "HUD.client.luau"
+            bad.parent.mkdir(parents=True)
+            bad.write_text(
+                "--!strict\n"
+                "local Players = game:GetService(\"Players\")\n"
+                "local player = Players.LocalPlayer\n"
+                "local ds = game:GetService(\"DataStoreService\")\n"
+                "local gui = Instance.new(\"ScreenGui\")\n",
+                encoding="utf-8",
+            )
+            (root / "contracts").mkdir()
+            (root / "contracts" / "game1.hud.json").write_text(
+                json.dumps(
+                    {
+                        "plugin": "game1.hud",
+                        "archetype": "client_ui",
+                        "skeleton_version": "v1",
+                        "contract_snapshot": {
+                            "files": ["src/client/HUD.client.luau"],
+                            "archetype": "client_ui",
+                            "skeleton_version": "v1",
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+            ok, errs = validate_file(bad, root=root)
+            self.assertFalse(ok)
+            self.assertTrue(any("DataStoreService" in e or "forbidden" in e for e in errs), errs)
+
+    def test_pinned_v1_survives_new_v2(self):
+        """Old contract pinned to v1 still passes after stricter v2 is added."""
+        import json
+        import shutil
+        from forge.validator import validate_file
+
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            src_skel = Path(__file__).resolve().parent.parent / "skeletons"
+            shutil.copytree(src_skel, root / "skeletons")
+            # Add v2 with extra required marker old files won't have
+            v2 = root / "skeletons" / "server_script" / "v2"
+            v2.mkdir(parents=True)
+            (v2 / "META.json").write_text(
+                json.dumps(
+                    {
+                        "id": "server_script",
+                        "version": "v2",
+                        "required": ["GetService", "ARCHETYPE_V2_MARKER"],
+                        "forbid": ["LocalPlayer"],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            (v2 / "SKELETON.luau").write_text("-- v2\n", encoding="utf-8")
+            reg = json.loads((root / "skeletons" / "registry.json").read_text(encoding="utf-8"))
+            reg["archetypes"]["server_script"]["latest"] = "v2"
+            reg["archetypes"]["server_script"]["versions"] = ["v1", "v2"]
+            (root / "skeletons" / "registry.json").write_text(json.dumps(reg), encoding="utf-8")
+
+            (root / "PROJECT_TZ.md").write_text("# t\n", encoding="utf-8")
+            f = root / "src" / "server" / "Data" / "PlayerData.server.luau"
+            f.parent.mkdir(parents=True)
+            f.write_text(
+                "--!strict\n"
+                "local Players = game:GetService(\"Players\")\n"
+                "print(Players)\n",
+                encoding="utf-8",
+            )
+            (root / "contracts").mkdir()
+            (root / "contracts" / "game1.player_data.json").write_text(
+                json.dumps(
+                    {
+                        "plugin": "game1.player_data",
+                        "archetype": "server_script",
+                        "skeleton_version": "v1",
+                        "contract_snapshot": {
+                            "files": ["src/server/Data/PlayerData.server.luau"],
+                            "archetype": "server_script",
+                            "skeleton_version": "v1",
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+            ok, errs = validate_file(f, root=root)
+            self.assertTrue(ok, errs)
+            # If we wrongly validated against latest v2, it would fail:
+            from forge.skeletons_hub import validate_against_skeleton
+
+            v2_errs = validate_against_skeleton(
+                f, f.read_text(encoding="utf-8"), root, archetype="server_script", version="v2"
+            )
+            self.assertTrue(any("ARCHETYPE_V2_MARKER" in e for e in v2_errs), v2_errs)
+
+    def test_bundle_injects_only_one_skeleton(self):
+        from forge import skills_hub
+
+        root = Path(__file__).resolve().parent.parent
+        blob = skills_hub.bundle_for_14b(
+            root, [], archetype="client_ui", skeleton_version="v1"
+        )
+        self.assertIn("SKELETON client_ui@v1", blob)
+        self.assertNotIn("SKELETON server_script", blob)
+        self.assertLessEqual(len(blob), 2500)
+
+    def test_task_archetype_schema(self):
+        from forge.planner_schema import validate_task_archetype
+
+        ok, _ = validate_task_archetype({"archetype": "client_ui", "skeleton_version": "v1"})
+        self.assertTrue(ok)
+        bad, errs = validate_task_archetype({"archetype": "made_up", "skeleton_version": "v1"})
+        self.assertFalse(bad)
+        self.assertTrue(errs)
+
+
 class TestPlannerSchema(unittest.TestCase):
     def test_hitl_pack_requires_abc_and_other(self):
         from forge.planner_schema import validate_hitl_pack

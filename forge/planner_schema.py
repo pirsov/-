@@ -8,6 +8,13 @@ from typing import Any, Dict, List, Optional, Tuple
 HITL_OPTION_KEYS = ("A", "B", "C")
 CARD_MAX_CHARS = 350
 HITL_MAX_QUESTIONS = 2
+KNOWN_ARCHETYPES = (
+    "server_script",
+    "client_ui",
+    "shared_data",
+    "network_remote",
+    "datastore_service",  # reserved for A7.2+ evolution
+)
 
 
 def _as_dict(obj: Any) -> Optional[Dict[str, Any]]:
@@ -195,4 +202,31 @@ def apply_timeout_defaults(pack: Dict[str, Any], answers: Dict[str, str]) -> Dic
         qid = str(q.get("id") or "")
         if qid and qid not in out:
             out[qid] = str(q.get("default_if_timeout") or "B").upper()
+    return out
+
+
+def validate_task_archetype(task: Any, *, known: Optional[List[str]] = None) -> Tuple[bool, List[str]]:
+    """A7.2: plan/TZ task must declare archetype + skeleton_version when present."""
+    errs: List[str] = []
+    if not isinstance(task, dict):
+        return False, ["task must be object"]
+    allow = set(known or KNOWN_ARCHETYPES)
+    arch = task.get("archetype")
+    ver = task.get("skeleton_version")
+    if arch is None and ver is None:
+        return True, []  # optional on legacy tasks
+    if not arch:
+        errs.append("skeleton_version set but archetype missing")
+    elif str(arch) not in allow:
+        errs.append(f"unknown archetype {arch!r}; known={sorted(allow)}")
+    if ver is not None:
+        if not re.match(r"^v\d+$", str(ver)):
+            errs.append(f"skeleton_version must look like v1, got {ver!r}")
+    return len(errs) == 0, errs
+
+
+def normalize_task_archetype(task: Dict[str, Any], *, default_version: str = "v1") -> Dict[str, Any]:
+    out = dict(task)
+    if out.get("archetype") and not out.get("skeleton_version"):
+        out["skeleton_version"] = default_version
     return out

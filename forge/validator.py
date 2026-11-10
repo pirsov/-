@@ -374,6 +374,15 @@ def validate_file(path: Path, *, root: Optional[Path] = None) -> Tuple[bool, Lis
         except Exception as e:  # never crash core validator on bad KB
             errors.append(f"feedback rules error: {type(e).__name__}: {e}")
 
+        # A7.2: pin-by-contract skeleton META (version from contracts/ when present)
+        if name.endswith(".luau"):
+            try:
+                from . import skeletons_hub as _skel
+
+                errors.extend(_skel.validate_against_skeleton(path, content, forge_root))
+            except Exception as e:
+                errors.append(f"skeleton rules error: {type(e).__name__}: {e}")
+
     return len(errors) == 0, errors
 
 

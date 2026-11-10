@@ -287,6 +287,18 @@
       ],
       "contract_summary": "planner schema + contract_index gate + HITL pack CLI",
       "via": "A7.1"
+    },
+    {
+      "plugin": "forge.skeletons",
+      "status": "done",
+      "closed_cycle": 8,
+      "tests": [
+        "test_wrong_archetype_fails_meta",
+        "test_pinned_v1_survives_new_v2",
+        "test_bundle_injects_only_one_skeleton"
+      ],
+      "contract_summary": "archetypes v1 + pin-by-contract META",
+      "via": "A7.2"
     }
   ],
   "partial": [],
@@ -330,6 +342,13 @@
       "status": "closed",
       "type": "infra",
       "closed_at": "2026-11-10T07:43:58.568613+00:00"
+    },
+    {
+      "id": "A7.2",
+      "title": "Plugin skeleton evolution",
+      "status": "closed",
+      "type": "infra",
+      "closed_at": "2026-11-10T07:54:08.837083+00:00"
     }
   ],
   "open_questions": [
@@ -349,12 +368,12 @@
     }
   ],
   "pulse": {
-    "cycle": 7,
+    "cycle": 8,
     "next_e2e_at_cycle": 4,
     "next_compact_at_cycle": 5,
     "next_metrics_at_cycle": 8,
     "e2e_at": "2026-11-10T07:13:42.087643+00:00",
-    "status": "a7_1_closed",
+    "status": "a7_2_closed",
     "focus": "graceful_degradation + state_compaction",
     "last_compact_cycle": 6,
     "last_compact_at": "2026-11-10T07:28:51.769663+00:00"
@@ -401,18 +420,18 @@
     "next": "answer Q1-Q2 pack → cycle 4 from ideas + answers"
   },
   "stats_snapshot": {
-    "plugins_closed_done": 24,
+    "plugins_closed_done": 25,
     "task_queue": {
-      "closed": 4
+      "closed": 5
     },
     "ideas_by_status": {
       "deferred": 5,
       "infra_backlog": 1,
       "proposed": 1,
-      "shipped": 10
+      "shipped": 11
     },
-    "pulse_cycle": 7,
-    "tests": 43,
+    "pulse_cycle": 8,
+    "tests": 47,
     "mode": "agent_core"
   },
   "e2e": {

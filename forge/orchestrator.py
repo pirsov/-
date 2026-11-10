@@ -1093,6 +1093,11 @@ def main(argv: Optional[List[str]] = None) -> int:
         default=None,
         help='A7.1: JSON plan string or @file.json — hallucination gate (blocks unknown exports)',
     )
+    parser.add_argument(
+        "--archetypes-list",
+        action="store_true",
+        help="A7.2: list plugin skeleton archetypes from skeletons/registry.json",
+    )
     parser.add_argument("--ui", action="store_true", help="Open control UI (projects/skills/DeepSeek/smoke)")
     parser.add_argument("--ui-port", type=int, default=8787, help="UI port (default 8787)")
     parser.add_argument("--project", type=str, default=None, help="Activate projects/<id> into live src+TZ")
@@ -1142,6 +1147,14 @@ def main(argv: Optional[List[str]] = None) -> int:
             return 1
         report = planner_hub.submit_plugin_verdict(root, args.plugin, args.feedback, note=args.note or "")
         print(json.dumps(report, ensure_ascii=False, indent=2, default=str))
+        return 0
+
+    if args.archetypes_list:
+        from . import skeletons_hub
+
+        print(skeletons_hub.catalog_for_prompt(root))
+        for a in skeletons_hub.list_archetypes(root):
+            print(f"  {a['id']} latest={a['latest']} versions={a['versions']}")
         return 0
 
     if args.ask_pack or args.plan_next:

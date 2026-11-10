@@ -124,12 +124,16 @@ def bundle_for_14b(
     max_skills: int = 3,
     card_budget: int = CARD_MAX_CHARS,
     rules_budget: int = 1200,
+    archetype: Optional[str] = None,
+    skeleton_version: Optional[str] = None,
+    skeleton_budget: int = 500,
 ) -> str:
     """
-    Compact prompt block for local 14B: ≤3 contract cards + active HITL rules.
-    Prefers CARD.json over prose SKILL.md.
+    Compact prompt block for local 14B:
+    ≤3 contract cards + ONE pinned skeleton + active HITL rules.
     """
     from . import feedback
+    from . import skeletons_hub
 
     r = root or ROOT_DEFAULT
     ids = list(skill_ids or [c["id"] for c in list_compact(r)[:max_skills]])[:max_skills]
@@ -138,6 +142,14 @@ def bundle_for_14b(
         card = ensure_skill_card(sid, r)
         card = clamp_skill_card(card, max_chars=card_budget)
         parts.append(json.dumps(card, ensure_ascii=False, separators=(",", ":")))
+    if archetype:
+        sk = skeletons_hub.inject_skeleton_block(
+            archetype, skeleton_version, r, max_chars=skeleton_budget
+        )
+        if sk:
+            parts.append(sk.rstrip())
+        else:
+            parts.append(f"=== SKELETON {archetype}@{skeleton_version or 'latest'} MISSING ===")
     rules = feedback.format_rules_for_prompt(feedback.load_active_rules(r), max_chars=rules_budget)
     if rules.strip():
         parts.append("=== ACTIVE HITL RULES ===")

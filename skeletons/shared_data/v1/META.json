@@ -1,0 +1,10 @@
+{
+  "id": "shared_data",
+  "version": "v1",
+  "required": ["return"],
+  "forbid": ["GetService(\"DataStoreService\")", "FireClient", "LocalPlayer"],
+  "forbid_regex": [],
+  "prompt_budget_chars": 400,
+  "default_path_glob": "src/shared/**/*.luau",
+  "path_hints": ["src/shared/", "LevelConfig"]
+}

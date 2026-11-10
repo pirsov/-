@@ -12,6 +12,13 @@
     "forbidden": [
       "character:GetAttribute",
       "Best shows 0.0 as record"
+    ],
+    "archetype": "client_ui",
+    "skeleton_version": "v1",
+    "files": [
+      "src/client/HUD.client.luau"
     ]
-  }
+  },
+  "archetype": "client_ui",
+  "skeleton_version": "v1"
 }

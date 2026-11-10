@@ -9,6 +9,13 @@
       "CheckpointReached",
       "UpdateLeaderboard",
       "CoinCollected"
+    ],
+    "archetype": "network_remote",
+    "skeleton_version": "v1",
+    "files": [
+      "src/shared/Gameplay/Remotes.luau"
     ]
-  }
+  },
+  "archetype": "network_remote",
+  "skeleton_version": "v1"
 }

@@ -218,6 +218,19 @@
       ],
       "status": "shipped",
       "reason": "A7.1 implemented"
+    },
+    {
+      "id": "A005",
+      "title": "Plugin skeleton archetypes A7.2",
+      "one_liner": "Versioned skeletons + META + pin-by-contract",
+      "type": "infra",
+      "cost": "L",
+      "needs": [
+        "forge.validator",
+        "forge.planner"
+      ],
+      "status": "shipped",
+      "reason": "A7.2 implemented"
     }
   ],
   "pulse": {

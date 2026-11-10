@@ -14,6 +14,13 @@
       "math.huge BestTime init",
       "character attrs",
       "blocking DataStore in Studio"
+    ],
+    "archetype": "server_script",
+    "skeleton_version": "v1",
+    "files": [
+      "src/server/Data/PlayerData.server.luau"
     ]
-  }
+  },
+  "archetype": "server_script",
+  "skeleton_version": "v1"
 }

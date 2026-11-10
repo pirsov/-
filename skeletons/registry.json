@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "archetypes": {
+    "server_script": {
+      "latest": "v1",
+      "versions": ["v1"],
+      "summary": "Server Script under ServerScriptService — no Module return"
+    },
+    "client_ui": {
+      "latest": "v1",
+      "versions": ["v1"],
+      "summary": "LocalScript UI — player attrs, ScreenGui"
+    },
+    "shared_data": {
+      "latest": "v1",
+      "versions": ["v1"],
+      "summary": "Shared ModuleScript — return table/config"
+    },
+    "network_remote": {
+      "latest": "v1",
+      "versions": ["v1"],
+      "summary": "Remotes ModuleScript — getOrCreate whitelist only"
+    }
+  }
+}
