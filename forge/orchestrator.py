@@ -1143,6 +1143,11 @@ def main(argv: Optional[List[str]] = None) -> int:
     )
     parser.add_argument("--ui", action="store_true", help="Open control UI (projects/skills/DeepSeek/smoke)")
     parser.add_argument("--ui-port", type=int, default=8787, help="UI port (default 8787)")
+    parser.add_argument(
+        "--checklist",
+        action="store_true",
+        help="A16.0: print launch checklist (Ollama/skeletons/assets/rules) and exit",
+    )
     parser.add_argument("--project", type=str, default=None, help="Activate projects/<id> into live src+TZ")
     parser.add_argument("--skills-list", action="store_true", help="List raw/compact skills and exit")
     parser.add_argument("--skills-compress", type=str, default=None, help="Compress raw skill id into compact/")
@@ -1331,6 +1336,12 @@ def main(argv: Optional[List[str]] = None) -> int:
         report = planner_hub.gate_and_plan(root, plan_obj if isinstance(plan_obj, dict) else {"description": str(plan_obj)})
         print(json.dumps(report, ensure_ascii=False, indent=2, default=str))
         return 0 if report.get("action") == "enqueue" else 1
+
+    if args.checklist:
+        from . import launch_checklist
+
+        report = launch_checklist.print_checklist(root)
+        return 0 if report.get("ready_for_ui") else 1
 
     if args.ui:
         from .ui_server import serve

@@ -1,0 +1,156 @@
+{
+  "version": 2,
+  "source": "artifacts/reference_place/working_game.rbxl",
+  "folder": "Fruits_Inventory",
+  "note": "Fruit Models live under Folder Fruits_Inventory in the place. Most are CSG/Union (no MeshId); Banana is an Accessory with SpecialMesh rbxassetid://178186804.",
+  "meshes": [
+    {
+      "id": "Banana",
+      "kind": "fruit",
+      "place_instance": "Banana",
+      "class": "Accessory",
+      "mesh_id": "rbxassetid://178186804",
+      "texture_id": "152661377"
+    },
+    {
+      "id": "Blackberry",
+      "kind": "fruit",
+      "place_instance": "Blackberry",
+      "class": "Model",
+      "folder": "Fruits_Inventory"
+    },
+    {
+      "id": "Blueberry",
+      "kind": "fruit",
+      "place_instance": "Blueberry",
+      "class": "Model",
+      "folder": "Fruits_Inventory"
+    },
+    {
+      "id": "Cherry",
+      "kind": "fruit",
+      "place_instance": "Cherry",
+      "class": "Model",
+      "folder": "Fruits_Inventory"
+    },
+    {
+      "id": "Coconut",
+      "kind": "fruit",
+      "place_instance": "Coconut",
+      "class": "Model",
+      "folder": "Fruits_Inventory"
+    },
+    {
+      "id": "DragonFruit",
+      "kind": "fruit",
+      "place_instance": "DragonFruit",
+      "class": "Model",
+      "folder": "Fruits_Inventory"
+    },
+    {
+      "id": "Grapes",
+      "kind": "fruit",
+      "place_instance": "Grapes",
+      "class": "Model",
+      "folder": "Fruits_Inventory"
+    },
+    {
+      "id": "Kiwi",
+      "kind": "fruit",
+      "place_instance": "Kiwi",
+      "class": "Model",
+      "folder": "Fruits_Inventory"
+    },
+    {
+      "id": "Lemon",
+      "kind": "fruit",
+      "place_instance": "Lemon",
+      "class": "Model",
+      "folder": "Fruits_Inventory"
+    },
+    {
+      "id": "Mango",
+      "kind": "fruit",
+      "place_instance": "Mango",
+      "class": "Model",
+      "folder": "Fruits_Inventory"
+    },
+    {
+      "id": "Orange",
+      "kind": "fruit",
+      "place_instance": "Orange",
+      "class": "Model",
+      "folder": "Fruits_Inventory"
+    },
+    {
+      "id": "Peach",
+      "kind": "fruit",
+      "place_instance": "Peach",
+      "class": "Model",
+      "folder": "Fruits_Inventory"
+    },
+    {
+      "id": "Pear",
+      "kind": "fruit",
+      "place_instance": "Pear",
+      "class": "Model",
+      "folder": "Fruits_Inventory"
+    },
+    {
+      "id": "Pineapple",
+      "kind": "fruit",
+      "place_instance": "Pineapple",
+      "class": "Model",
+      "folder": "Fruits_Inventory"
+    },
+    {
+      "id": "Pomegranate",
+      "kind": "fruit",
+      "place_instance": "Pomegranate",
+      "class": "Model",
+      "folder": "Fruits_Inventory"
+    },
+    {
+      "id": "Raspberry",
+      "kind": "fruit",
+      "place_instance": "Raspberry",
+      "class": "Model",
+      "folder": "Fruits_Inventory"
+    },
+    {
+      "id": "Strawberry",
+      "kind": "fruit",
+      "place_instance": "Strawberry",
+      "class": "Model",
+      "folder": "Fruits_Inventory"
+    },
+    {
+      "id": "Trash_Mango",
+      "kind": "fruit",
+      "place_instance": "Trash_Mango",
+      "class": "Model",
+      "folder": "Fruits_Inventory"
+    },
+    {
+      "id": "Trash_Orange",
+      "kind": "fruit",
+      "place_instance": "Trash_Orange",
+      "class": "Model",
+      "folder": "Fruits_Inventory"
+    },
+    {
+      "id": "VoxelApple",
+      "kind": "fruit",
+      "place_instance": "VoxelApple",
+      "class": "Model",
+      "folder": "Fruits_Inventory"
+    },
+    {
+      "id": "Watermelon",
+      "kind": "fruit",
+      "place_instance": "Watermelon",
+      "class": "Model",
+      "folder": "Fruits_Inventory"
+    }
+  ]
+}

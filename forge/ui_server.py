@@ -91,6 +91,11 @@ class Handler(BaseHTTPRequestHandler):
             force = (qs.get("force") or [""])[0] in {"1", "true", "yes"}
             self._json(200, health_snapshot(force=force))
             return
+        if path == "/api/checklist":
+            from . import launch_checklist
+
+            self._json(200, launch_checklist.build_checklist(ROOT))
+            return
         if path == "/api/progress":
             smoke_loaded = (qs.get("smoke_loaded") or [""])[0] in {"1", "true", "yes"}
             self._json(200, progress_hub.snapshot(ROOT, smoke_loaded=smoke_loaded))
@@ -417,7 +422,15 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def serve(host: str = "127.0.0.1", port: int = 8787) -> None:
+    # A16: pre-flight checklist before accepting traffic
+    try:
+        from . import launch_checklist
+
+        launch_checklist.print_checklist(ROOT)
+    except Exception as e:
+        print(f"[ui] checklist skipped: {e}")
     httpd = ThreadingHTTPServer((host, port), Handler)
     print(f"Quality Forge UI http://{host}:{port}")
     print("  chat / HITL / 24h / projects / skills / TZ / week / smoke")
+    print("  checklist: GET /api/checklist   health: GET /api/health")
     httpd.serve_forever()

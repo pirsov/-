@@ -246,5 +246,5 @@ def start_24h(
     )
 
 
-def stop_24h() -> Dict[str, Any]:
-    return run_hub.stop_24h()
+def stop_24h(**kwargs: Any) -> Dict[str, Any]:
+    return run_hub.stop_24h(**kwargs)

@@ -84,7 +84,9 @@ def clear_waiting_human() -> None:
                 _state["mode"] = None
 
 
-def stop_24h() -> Dict[str, Any]:
+def stop_24h(*, join_timeout: float = 5.0) -> Dict[str, Any]:
+    """Signal stop and join the 24h thread so log files close (Windows temp cleanup)."""
+    global _loop_thread
     _stop_event.set()
     with _lock:
         _state["stop_requested"] = True
@@ -97,11 +99,17 @@ def stop_24h() -> Dict[str, Any]:
             _os.kill(int(pid), signal.SIGTERM)
         except Exception:
             pass
+    # A16/Windows: wait until loop exits so loop24-*.log handle is released
+    t = _loop_thread
+    if t is not None and t.is_alive():
+        t.join(timeout=max(0.5, float(join_timeout)))
     with _lock:
         if _state.get("status") in {"looping", "running", "waiting_human"}:
             _state["status"] = "idle"
             _state["mode"] = None
             _state["ended_at"] = datetime.now(timezone.utc).isoformat()
+        if t is not None and not t.is_alive():
+            _loop_thread = None
     return {"ok": True, **status()}
 
 

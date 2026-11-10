@@ -232,8 +232,13 @@ class TestApiHub24h(unittest.TestCase):
                 out = api_hub.start_24h(root, sleep=1.0, max_cycles=1, week_max_steps=1)
                 self.assertTrue(out["ok"])
                 self.assertIn(out.get("status"), {"looping", "done", "idle", "waiting_human"})
-                stopped = api_hub.stop_24h()
+                # join_timeout closes loop24 log before TemporaryDirectory cleanup (WinError 32)
+                stopped = api_hub.stop_24h(join_timeout=8.0)
                 self.assertTrue(stopped["ok"])
+                # ensure thread gone before leaving `with` (Windows file lock)
+                t = getattr(run_hub, "_loop_thread", None)
+                if t is not None and t.is_alive():
+                    t.join(timeout=5.0)
 
 
 class TestRunHubWaiting(unittest.TestCase):

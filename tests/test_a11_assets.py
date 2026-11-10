@@ -99,6 +99,27 @@ class TestAssetHub(unittest.TestCase):
             self.assertTrue(line.startswith("Available 3D assets:"))
             self.assertIn("Apple", line)
 
+    def test_place_meshes_fruits_inventory(self):
+        """Repo place_meshes.json lists Fruits_Inventory models for the Gate."""
+        from forge import asset_hub
+
+        place = ROOT / "assets" / "catalog" / "place_meshes.json"
+        self.assertTrue(place.is_file())
+        data = json.loads(place.read_text(encoding="utf-8"))
+        self.assertEqual(data.get("folder"), "Fruits_Inventory")
+        ids = {m["id"] for m in data.get("meshes") or []}
+        for must in ("Banana", "Orange", "Mango", "DragonFruit", "Strawberry", "VoxelApple"):
+            self.assertIn(must, ids)
+        cat = asset_hub.scan_models(ROOT)
+        for must in ("Orange", "DragonFruit", "Watermelon"):
+            self.assertIn(must, cat["ids"])
+        ok, unknown, _ = asset_hub.gate_assets(
+            ROOT,
+            {"proposed_assets": ["Orange", "DragonFruit"]},
+            catalog=cat,
+        )
+        self.assertTrue(ok, unknown)
+
 
 if __name__ == "__main__":
     unittest.main()
