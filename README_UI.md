@@ -51,8 +51,9 @@ python -u run.py --ui
 | `POST` | `/api/answer` | HITL: `{ "answer": "Q1=A" }` или `{ "answers": {"Q1":"A"} }`. Verify: `{ "channel":"verify", "plugin":"game1.hud", "verdict":"y" }` |
 | `POST` | `/api/start_24h` | `{ "sleep": 30, "max_cycles": 48, "week_max_steps": 5 }` → фоновый `loop_24h` |
 | `POST` | `/api/stop_24h` | `{}` → стоп цикла + SIGTERM дочернего `--week` при наличии |
-| `GET` | `/api/status_snapshot` | плагины closed/verified, очередь, `hitl_pack`, `run`, флаг `waiting_human` |
-| `GET` | `/api/status` | прежний статус UI + поле `snapshot` (то же обогащение) |
+| `GET` | `/api/status_snapshot` | плагины closed/verified, очередь, `hitl_pack`, `run`, `waiting_human`, **`current_task`** |
+| `GET` | `/api/status` | прежний статус UI + `snapshot` + **`current_task`** |
+| `GET` | `/api/logs?lines=80` | хвост лога агента (`.forge/ui_run/*.log`) — 50–100 строк для панели «Лог» |
 | `GET` | `/api/files` | дерево `src/` + `projects/<active>/src` → `{ files: ["src/...luau", ...] }` |
 | `GET` | `/api/file?path=` | текст файла (только под разрешёнными src-корнями; `..` → 400) |
 

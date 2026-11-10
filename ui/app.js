@@ -39,6 +39,7 @@ function toast(msg) {
 
 let pollTimer = null;
 let snapPollTimer = null;
+let logPollTimer = null;
 let runStartedAt = null;
 let timerTick = null;
 let smokeQs = [];
@@ -53,6 +54,9 @@ let filesPollTimer = null;
 let lastFilePath = "";
 let knownFilePaths = [];
 let loop24Active = false;
+let lastLogText = "";
+let lastHitlAskShown = "";
+let lastCurrentTask = "";
 
 function isLoop24Active(run, snap) {
   const st = (run && run.status) || "";
@@ -239,13 +243,15 @@ async function refresh() {
     applyProgress(s.progress);
     if (!document.querySelector(".panel.focus")) setFocus(s.progress.stage || 1, { scroll: false });
     if (s.run) renderRun(s.run);
+    if (s.current_task != null) setCurrentTask(s.current_task);
     if (s.snapshot) renderAgentSnap(s.snapshot);
-    else if (s.hitl_pack || s.waiting_human != null) {
+    else if (s.hitl_pack || s.waiting_human != null || s.current_task != null) {
       renderAgentSnap({
         waiting_human: s.waiting_human,
         hitl_pack: s.hitl_pack,
         plugins_closed: s.plugins_closed,
         queue_pending: s.queue_pending,
+        current_task: s.current_task,
         run: s.run,
       });
     }
@@ -1005,11 +1011,44 @@ el("hitl-other") && (el("hitl-other").onkeydown = async (ev) => {
   await sendHitlAnswer(qid, "other", note);
 });
 
+function setCurrentTask(label) {
+  const node = el("current-task");
+  if (!node) return;
+  const text = (label || "").trim();
+  lastCurrentTask = text;
+  if (!text) {
+    node.textContent = "задача —";
+    node.classList.add("is-empty");
+    return;
+  }
+  node.textContent = text;
+  node.classList.remove("is-empty");
+}
+
+function setLoopWaiting(waiting) {
+  const progress = el("loop-progress");
+  if (progress) progress.classList.toggle("waiting", !!waiting);
+}
+
+function maybeShowHitlInChat(pack) {
+  if (!pack || !pack.questions) return;
+  const q = (pack.questions || [])[0] || {};
+  const ask = String(q.ask || q.topic || "").trim();
+  if (!ask || ask === lastHitlAskShown) return;
+  lastHitlAskShown = ask;
+  const qid = q.id ? ` (${q.id})` : "";
+  chatAppend("agent", ask + qid);
+}
+
 function renderAgentSnap(snap) {
   if (!snap) return;
   const run = snap.run || {};
   const st = run.status || (snap.waiting_human ? "waiting_human" : "idle");
+  const waiting = !!(snap.waiting_human || st === "waiting_human");
   setAgentPill(st);
+  setLoopWaiting(waiting);
+  if (snap.current_task != null) setCurrentTask(snap.current_task);
+  else if (run.current_task != null) setCurrentTask(run.current_task);
   const closed = Number(snap.plugins_closed || 0);
   const pending = Number(snap.queue_pending || 0);
   const total = Math.max(closed + pending, 1);
@@ -1023,7 +1062,12 @@ function renderAgentSnap(snap) {
   }
   const active24 = isLoop24Active(run, snap);
   syncStartStopButton(active24);
-  if (snap.waiting_human && snap.hitl_pack) renderHitlPack(snap.hitl_pack);
+  if (waiting && snap.hitl_pack) {
+    renderHitlPack(snap.hitl_pack);
+    maybeShowHitlInChat(snap.hitl_pack);
+  } else if (!waiting) {
+    lastHitlAskShown = "";
+  }
   if (st === "looping" || st === "waiting_human" || st === "running") {
     startSnapPoll();
     startFilesPoll();
@@ -1031,6 +1075,32 @@ function renderAgentSnap(snap) {
     stopSnapPoll();
     if (!active24) stopFilesPoll();
   }
+}
+
+async function refreshLogs() {
+  const box = el("run-log");
+  if (!box) return;
+  const j = await api("/api/logs?lines=100");
+  const text = j.text || (j.lines || []).join("\n");
+  if (text === lastLogText) return;
+  lastLogText = text;
+  const autoEl = el("log-autoscroll");
+  const auto = !autoEl || autoEl.checked;
+  const atBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 80;
+  box.textContent = text || "";
+  if (auto || atBottom) box.scrollTop = box.scrollHeight;
+}
+
+function startLogPoll() {
+  if (logPollTimer) return;
+  refreshLogs().catch(() => {});
+  logPollTimer = setInterval(() => {
+    refreshLogs().catch(() => {});
+  }, 2000);
+}
+
+function stopLogPoll() {
+  if (logPollTimer) { clearInterval(logPollTimer); logPollTimer = null; }
 }
 
 function startSnapPoll() {
@@ -1055,6 +1125,9 @@ function startStatusPoll() {
       if (el("ollama-status")) setChip("ollama-status", !!ol.ok, `Ollama: OK (${ol.count || 0})`, "Ollama: down");
       if (s.progress) applyProgress(s.progress);
       if (s.run) renderRun(s.run);
+      if (s.current_task != null && !(s.snapshot && s.snapshot.current_task != null)) {
+        setCurrentTask(s.current_task);
+      }
       if (s.snapshot) renderAgentSnap(s.snapshot);
       else if (s.run) {
         renderAgentSnap({
@@ -1062,6 +1135,7 @@ function startStatusPoll() {
           hitl_pack: s.hitl_pack,
           plugins_closed: s.plugins_closed,
           queue_pending: s.queue_pending,
+          current_task: s.current_task,
           run: s.run,
         });
       }
@@ -1095,11 +1169,14 @@ el("chat-form").onsubmit = async (ev) => {
     if (j.goal) chatAppend("sys", "цель: " + j.goal);
     if (j.status === "waiting_human") {
       chatAppend("agent", j.message || "Нужен ответ A/B/C");
-      if (j.hitl_pack) renderHitlPack(j.hitl_pack);
-      else if (j.verify_plugin) {
+      if (j.hitl_pack) {
+        renderHitlPack(j.hitl_pack);
+        maybeShowHitlInChat(j.hitl_pack);
+      } else if (j.verify_plugin) {
         chatAppend("agent", `Проверь плагин ${j.verify_plugin}`);
       }
       setAgentPill("waiting_human");
+      setLoopWaiting(true);
       startSnapPoll();
     } else {
       chatAppend("agent", j.message || ("готово · " + (j.plan_action || "ready")));
@@ -1164,6 +1241,7 @@ refresh().then(async () => {
   if (lastProgress) setFocus(lastProgress.stage || 1, { scroll: false });
   loadFiles({ autoOpen: true }).catch(() => {});
   startStatusPoll();
+  startLogPoll();
   // After reload: if smoke already done, put answers back into panel 5
   const flags = (lastProgress && lastProgress.flags) || {};
   if (flags.smoke_done || (lastProgress && lastProgress.issue_count > 0)) {
