@@ -143,10 +143,24 @@ python -u run.py --doctor
 
 Пока Ollama down, pipeline уходит в **stub** и **не закрывает** задачи как done — это защита, не баг.
 
+### Сброс стейта (новая игра / застрял Smoke 48/48)
+
+```powershell
+# Windows — чистый лист для game2 (очередь, pulse, UI-циклы, пустой TZ)
+python -u run.py --reset-state --project game2
+
+# только runtime workspace (без scaffold проекта)
+python -u run.py --reset-state
+```
+
+Сбрасывает `task_queue`, `pulse.cycle`, UI progress и счётчики 24h (`loop_cycle`/`loop_max`), пишет пустой `PROJECT_TZ.md`. С `--project` не трогает другие `projects/*`.
+
+**DeepSeek:** без `DEEPSEEK_API_KEY` генерация TZ **не** подставляет старый horror-coins шаблон — будет явная ошибка. Задай ключ и повтори.
+
 ### Перезапуск цикла с места падения
 
 1. Не трогай уже `[x]` в `PROJECT_TZ.md` — week берёт следующие `[ ]`
-2. `state.json` хранит `task_queue` / `done` — не удаляй без нужды
+2. `state.json` хранит `task_queue` / `done` — не удаляй без нужды (для чистого листа см. `--reset-state` выше)
 3. Снова: `python -u run.py --ui` → **Старт 24h** (или CLI `python -u run.py --week`)
 4. Если застрял один таск: посмотри `logs/*-prompt.txt` / `*-response.txt`, поправь TZ вручную или ответь HITL
 

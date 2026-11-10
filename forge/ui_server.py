@@ -290,14 +290,28 @@ class Handler(BaseHTTPRequestHandler):
                     if meta.get("skills_compact"):
                         compact = list(meta["skills_compact"])
                 files = [str(p.relative_to(ROOT)) for p in (ROOT / "projects" / pid).rglob("*.luau")]
-                if not deepseek.available():
-                    tz = deepseek.horror_coins_tz_fallback(project_id=pid, goal=goal)
-                else:
+                try:
                     tz = deepseek.generate_project_tz(
                         project_id=pid, goal=goal, compact_skills=compact, existing_files=files
                     )
+                except Exception as e:
+                    # Missing DEEPSEEK_API_KEY (or bad TZ) → clear error, never stale horror-coins TZ
+                    from . import llm as llm_mod
+
+                    code = 401 if isinstance(e, llm_mod.AuthError) else 502
+                    self._json(
+                        code,
+                        {
+                            "ok": False,
+                            "error": str(e),
+                            "error_type": type(e).__name__,
+                            "hint": "Set DEEPSEEK_API_KEY and retry TZ generation",
+                        },
+                    )
+                    return
                 n_tasks = deepseek.count_tz_tasks(tz)
                 out = ROOT / "projects" / pid / "PROJECT_TZ.generated.md"
+                out.parent.mkdir(parents=True, exist_ok=True)
                 out.write_text(tz, encoding="utf-8")
                 (ROOT / "PROJECT_TZ.md").write_text(tz, encoding="utf-8")
                 (ROOT / "projects" / pid / "PROJECT_TZ.md").write_text(tz, encoding="utf-8")
