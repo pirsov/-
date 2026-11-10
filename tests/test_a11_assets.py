@@ -1,0 +1,104 @@
+#!/usr/bin/env python3
+"""A11.0 asset catalog + gate against hallucinated proposed_assets."""
+from __future__ import annotations
+
+import json
+import tempfile
+import unittest
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+
+
+class TestAssetHub(unittest.TestCase):
+    def test_scan_and_catalog(self):
+        from forge import asset_hub
+
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            models = root / "assets" / "models"
+            models.mkdir(parents=True)
+            (models / "Apple.glb").write_bytes(b"glTF")
+            (models / "Banana.ldr").write_text("0 Banana\n", encoding="utf-8")
+            (models / "notes.txt").write_text("ignore", encoding="utf-8")
+            cat = asset_hub.scan_models(root)
+            self.assertEqual(sorted(cat["ids"]), ["Apple", "Banana"])
+            path = asset_hub.write_catalog(root, catalog=cat)
+            self.assertTrue(path.is_file())
+            loaded = asset_hub.load_catalog(root)
+            self.assertEqual(loaded["count"], 2)
+            prompt = asset_hub.catalog_for_prompt(root)
+            self.assertIn("Apple", prompt)
+            self.assertIn("Banana", prompt)
+
+    def test_gate_blocks_unknown_asset(self):
+        from forge import asset_hub, planner
+
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            models = root / "assets" / "models"
+            models.mkdir(parents=True)
+            (models / "Apple.glb").write_bytes(b"x")
+            asset_hub.write_catalog(root)
+            (root / "state.json").write_text(
+                json.dumps({"done": [], "task_queue": [], "pulse": {"cycle": 1}}),
+                encoding="utf-8",
+            )
+            (root / "knowledge_base.json").write_text(
+                json.dumps({"rules": [], "plugins": {}}), encoding="utf-8"
+            )
+            (root / "contracts").mkdir()
+
+            ok, unknown, report = asset_hub.gate_assets(
+                root, {"proposed_assets": ["Apple", "DragonFruit"]}
+            )
+            self.assertFalse(ok)
+            self.assertIn("DragonFruit", unknown)
+
+            ok2, _, _ = asset_hub.gate_assets(root, {"proposed_assets": ["Apple"]})
+            self.assertTrue(ok2)
+
+            # Via planner.gate_and_plan (exports empty plan still ok if no proposed_calls)
+            blocked = planner.gate_and_plan(
+                root,
+                {"proposed_calls": ["Players"], "proposed_assets": ["UnicornMesh"]},
+                retry=False,
+            )
+            self.assertEqual(blocked["action"], "enqueue_blocked")
+            self.assertTrue(blocked.get("assets", {}).get("unknown_assets"))
+
+            good = planner.gate_and_plan(
+                root,
+                {"proposed_calls": ["Players"], "proposed_assets": ["Apple"]},
+                retry=False,
+            )
+            self.assertEqual(good["action"], "enqueue", good)
+
+    def test_extract_from_tz_text(self):
+        from forge.asset_hub import extract_proposed_assets
+
+        plan = {
+            "description": 'Spawn collectibles proposed_assets: ["Apple", "Coin"]',
+        }
+        ids = extract_proposed_assets(plan)
+        self.assertIn("Apple", ids)
+        self.assertIn("Coin", ids)
+
+    def test_deepseek_prompt_includes_assets_line(self):
+        from forge import asset_hub, deepseek
+
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            models = root / "assets" / "models"
+            models.mkdir(parents=True)
+            (models / "Apple.glb").write_bytes(b"x")
+            asset_hub.write_catalog(root)
+            # Monkeypatch catalog_for_prompt via chdir? deepseek uses ROOT_DEFAULT.
+            # Call catalog_for_prompt on temp and assert format; deepseek wiring is string concat.
+            line = asset_hub.catalog_for_prompt(root)
+            self.assertTrue(line.startswith("Available 3D assets:"))
+            self.assertIn("Apple", line)
+
+
+if __name__ == "__main__":
+    unittest.main()

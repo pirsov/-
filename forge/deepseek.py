@@ -196,6 +196,12 @@ def generate_project_tz(
     existing_files: List[str],
 ) -> str:
     """DeepSeek drafts PROJECT_TZ.md as checkbox tasks only (for --week)."""
+    try:
+        from . import asset_hub
+
+        assets_line = asset_hub.catalog_for_prompt()
+    except Exception:
+        assets_line = "Available 3D assets: (catalog unavailable)."
     system = (
         "You write ONLY a Quality Forge PROJECT_TZ.md task list. "
         "EVERY actionable line MUST match exactly:\n"
@@ -215,9 +221,13 @@ def generate_project_tz(
         "- Keep each description under 180 chars so Ollama 4k ctx fits\n"
         "- Include: HUD player:GetAttribute; Coins Destroy+UpdateLeaderboard; "
         "Checkpoints; Void; Puzzles; Effects sounds; LevelConfig Luau id=\n"
+        "- When spawning collectibles, ONLY use asset ids from the Available 3D assets list "
+        "(never invent Apple/Banana/Coin if missing). Mention proposed_assets in task text.\n"
+        f"- {assets_line}\n"
     )
     prompt = (
         f"Project: {project_id}\nGoal:\n{goal}\n\n"
+        f"{assets_line}\n\n"
         f"Compact skills:\n- " + "\n- ".join(compact_skills or ["forge-player-attrs"]) + "\n"
         f"Existing files:\n- " + "\n- ".join(existing_files[:40] or ["(empty)"]) + "\n"
         "Return the PROJECT_TZ.md now."
@@ -390,16 +400,24 @@ def improve_goal(
     hints = pick_skill_hints(raw_goal, compact_ids)
     russian = _looks_russian(raw_goal)
 
+    try:
+        from . import asset_hub
+
+        assets_line = asset_hub.catalog_for_prompt()
+    except Exception:
+        assets_line = "Available 3D assets: (none)."
     system = (
         "You improve Roblox game goals for Quality Forge. "
         "Return ONLY the improved goal text (no markdown fences). "
         "Keep user intent. Make it concrete for a local coding agent. "
         "Russian if input is Russian else English. 500-900 chars. "
         "Include systems (HUD/Coins/CP/BestTime/Spawn/Void) and a Contract line. "
+        "If the goal mentions 3D props/fruits, name ONLY assets from the catalog. "
         "End with: Skills needed: id1, id2, id3"
     )
     prompt = (
         f"Project {project_id}. Raw goal:\n{raw_goal}\n\n"
+        f"{assets_line}\n"
         "Rewrite so the agent knows genre + systems + hard rules "
         "(Player attrs not Character; remotes whitelist "
         "Checkpoint,CheckpointReached,UpdateLeaderboard,CoinCollected). "
@@ -577,15 +595,23 @@ def ask_hitl_pack(
     from .planner_schema import normalize_hitl_pack, parse_json_object, validate_hitl_pack
 
     topics = ", ".join(open_topics or []) or "gameplay priority"
+    try:
+        from . import asset_hub
+
+        assets_line = asset_hub.catalog_for_prompt()
+    except Exception:
+        assets_line = "Available 3D assets: (none)."
     system = (
         "Return ONLY valid JSON for kind=hitl_pack. "
         "questions: 1 or 2 items. Each question MUST have id, ask, "
         "options exactly [{key:A,label},{key:B,label},{key:C,label}], "
         "other:{key:other,label:Другое,allows_text:true}, default_if_timeout A|B|C. "
-        "No open-ended questions. Prefer Russian ask/labels."
+        "No open-ended questions. Prefer Russian ask/labels. "
+        "If asking about props/collectibles, options may reference catalog asset ids only."
     )
     prompt = (
         f"Cycle {cycle}. Focus: {focus or 'agent core'}. Topics: {topics}. "
+        f"{assets_line} "
         "Ask the human what to do next with A/B/C/Другое only."
     )
     if not available():

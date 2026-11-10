@@ -262,6 +262,15 @@ def build_prompt(
     except Exception:
         skills_block = ""
 
+    # A11.0: 3D asset catalog for spawn/collectible tasks
+    assets_block = ""
+    try:
+        from . import asset_hub
+
+        assets_block = "\n=== " + asset_hub.catalog_for_prompt(root, max_chars=400) + " ===\n"
+    except Exception:
+        assets_block = ""
+
     retry_note = ""
     if attempt > 1:
         retry_note = (
@@ -597,7 +606,7 @@ Follow AGENTS.md. Do the task for real — do not reply NOTE-only when a FILE is
 
 === Existing project files (relevant) ===
 {files}
-{skills_block}{feedback}{qa_template}{remotes_template}{checkpoints_template}{effects_template}{generator_template}{coins_template}{levelconfig_template}{hud_template}{leaderboard_template}{void_template}{puzzles_template}
+{skills_block}{assets_block}{feedback}{qa_template}{remotes_template}{checkpoints_template}{effects_template}{generator_template}{coins_template}{levelconfig_template}{hud_template}{leaderboard_template}{void_template}{puzzles_template}
 === YOUR TASK ===
 {task.raw.strip()}
 

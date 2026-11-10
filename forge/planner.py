@@ -140,10 +140,24 @@ def gate_and_plan(
     """
     Hallucination gate. If blocked and retry, ask DeepSeek once with repair prompt
     (only if API available); else return blocked (do not enqueue generation).
+    A11: also blocks unknown proposed_assets vs assets/catalog.
     """
+    from . import asset_hub
+
     ok, unknown, report = contract_index.gate_plan(root, plan)
     if ok:
-        return {"action": "enqueue", "plan": plan, "gate": report}
+        a_ok, a_unknown, a_report = asset_hub.gate_assets(root, plan)
+        if not a_ok:
+            msg = a_report.get("message") or f"blocked assets: {a_unknown}"
+            print(msg)
+            return {
+                "action": "enqueue_blocked",
+                "unknown": a_unknown,
+                "gate": report,
+                "assets": a_report,
+                "hint": "add .glb/.ldr to assets/models/ or drop invented proposed_assets",
+            }
+        return {"action": "enqueue", "plan": plan, "gate": report, "assets": a_report}
     msg = report.get("message") or f"blocked: {unknown}"
     print(msg)
     if retry and deepseek.available():
@@ -153,7 +167,8 @@ def gate_and_plan(
             raw = deepseek.chat(
                 json.dumps(plan, ensure_ascii=False)[:4000] + "\n\n" + repair,
                 system=(
-                    "Return ONLY JSON plan with proposed_calls array using allowed exports only."
+                    "Return ONLY JSON plan with proposed_calls array using allowed exports only. "
+                    + asset_hub.catalog_for_prompt(root)
                 ),
                 max_tokens=800,
                 temperature=0.1,
@@ -163,7 +178,23 @@ def gate_and_plan(
             revised = parse_json_object(raw) or {}
             ok2, unknown2, report2 = contract_index.gate_plan(root, revised)
             if ok2:
-                return {"action": "enqueue", "plan": revised, "gate": report2, "repaired": True}
+                a_ok2, a_unknown2, a_report2 = asset_hub.gate_assets(root, revised)
+                if not a_ok2:
+                    print(a_report2.get("message") or f"blocked assets: {a_unknown2}")
+                    return {
+                        "action": "enqueue_blocked",
+                        "unknown": a_unknown2,
+                        "gate": report2,
+                        "assets": a_report2,
+                        "hint": "add models or fix proposed_assets",
+                    }
+                return {
+                    "action": "enqueue",
+                    "plan": revised,
+                    "gate": report2,
+                    "assets": a_report2,
+                    "repaired": True,
+                }
             print(report2.get("message") or f"blocked again: {unknown2}")
             return {
                 "action": "enqueue_blocked",

@@ -1098,6 +1098,11 @@ def main(argv: Optional[List[str]] = None) -> int:
         action="store_true",
         help="A7.2: list plugin skeleton archetypes from skeletons/registry.json",
     )
+    parser.add_argument(
+        "--scan-assets",
+        action="store_true",
+        help="A11.0: scan assets/models/ → assets/catalog/assets.json and print ids",
+    )
     parser.add_argument("--ui", action="store_true", help="Open control UI (projects/skills/DeepSeek/smoke)")
     parser.add_argument("--ui-port", type=int, default=8787, help="UI port (default 8787)")
     parser.add_argument("--project", type=str, default=None, help="Activate projects/<id> into live src+TZ")
@@ -1155,6 +1160,17 @@ def main(argv: Optional[List[str]] = None) -> int:
         print(skeletons_hub.catalog_for_prompt(root))
         for a in skeletons_hub.list_archetypes(root):
             print(f"  {a['id']} latest={a['latest']} versions={a['versions']}")
+        return 0
+
+    if args.scan_assets:
+        from . import asset_hub
+
+        path = asset_hub.write_catalog(root)
+        cat = asset_hub.load_catalog(root)
+        print(asset_hub.catalog_for_prompt(root))
+        print(f"wrote {path} count={cat.get('count')}")
+        for a in cat.get("assets") or []:
+            print(f"  {a.get('id')}  {a.get('rel')}  {a.get('bytes')}b")
         return 0
 
     if args.ask_pack or args.plan_next:

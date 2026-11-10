@@ -1,0 +1,16 @@
+{
+  "cycle": "A11.0",
+  "title": "Asset Integration — 3D catalog for Planner/Gate",
+  "ok": true,
+  "components": {
+    "forge/asset_hub.py": "scan models → catalog JSON + gate proposed_assets",
+    "assets/models/": "drop .glb/.ldr here",
+    "assets/catalog/assets.json": "machine-readable catalog",
+    "deepseek.py": "catalog injected into TZ / HITL / improve_goal prompts",
+    "planner.gate_and_plan": "blocks unknown proposed_assets",
+    "prompts.build_prompt": "=== Available 3D assets === for week agents",
+    "CLI": "python -u run.py --scan-assets"
+  },
+  "tests": "82 OK",
+  "guide": "START_24H.md §0.1"
+}
