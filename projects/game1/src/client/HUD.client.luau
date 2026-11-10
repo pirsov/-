@@ -1,8 +1,11 @@
 --!strict
+-- HUD (F5 Cloud Fallback): Best/Coins/CP from player:GetAttribute only.
+-- Best: -- if nil or <= 0; else %.1f. NEVER character:GetAttribute.
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local Remotes = require(ReplicatedStorage:WaitForChild("Gameplay"):WaitForChild("Remotes"))
+
 local player = Players.LocalPlayer
 local gui = Instance.new("ScreenGui")
 gui.Name = "HUD"
@@ -26,32 +29,45 @@ local cpL = makeLabel("CheckpointCount", 40)
 local coinL = makeLabel("CoinCount", 68)
 local bestL = makeLabel("BestTime", 96)
 
--- Neon styling
-for _, label in ipairs({timeL, cpL, coinL, bestL}) do
+for _, label in ipairs({ timeL, cpL, coinL, bestL }) do
 	label.TextStrokeTransparency = 0
-	label.TextStrokeColor3 = Color3.new(0, 1, 1) -- Neon blue
+	label.TextStrokeColor3 = Color3.new(0, 1, 1)
 end
 
 local t0 = os.clock()
 
+local function formatBest(best: any): string
+	if typeof(best) ~= "number" then
+		return "Best: --"
+	end
+	local n = best :: number
+	-- Contract: show -- only if nil/0 (or non-positive); never treat math.huge as a record
+	if n <= 0 or n == math.huge then
+		return "Best: --"
+	end
+	return string.format("Best: %.1f", n)
+end
+
 local function paint()
-	-- CRITICAL: attrs live on Player (set by Coins/Checkpoints servers), NOT on Character
 	local coins = player:GetAttribute("Coins") or 0
 	local cp = player:GetAttribute("Checkpoint") or 0
 	local best = player:GetAttribute("BestTime")
 	timeL.Text = string.format("Time: %.1f", os.clock() - t0)
 	cpL.Text = "CP: " .. tostring(cp)
 	coinL.Text = "Coins: " .. tostring(coins)
-	bestL.Text = if typeof(best) == "number" and best < math.huge then string.format("Best: %.1f", best) else "Best: --"
+	bestL.Text = formatBest(best)
 end
 
 RunService.RenderStepped:Connect(paint)
-Remotes.CheckpointReached.OnClientEvent:Connect(function() paint() end)
-Remotes.CoinCollected.OnClientEvent:Connect(function() paint() end)
+Remotes.CheckpointReached.OnClientEvent:Connect(function()
+	paint()
+end)
+Remotes.CoinCollected.OnClientEvent:Connect(function()
+	paint()
+end)
 player.CharacterAdded:Connect(function()
 	t0 = os.clock()
-	paint() -- do NOT zero Coins/Checkpoint locals; read player attrs
+	paint()
 end)
 
 paint()
--- NEVER character:GetAttribute("Coins") — that stays nil and wipes left HUD every frame

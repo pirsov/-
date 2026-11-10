@@ -1,0 +1,24 @@
+{
+  "plugin": "game1.generator",
+  "closed_at": "2026-11-10T07:07:03.415698+00:00",
+  "cycle": 2,
+  "task": "C2.F4",
+  "path": "src/server/Level/Generator.server.luau",
+  "validator": "PASS",
+  "repair_attempts": 0,
+  "mode": "cloud_fallback",
+  "contract_snapshot": {
+    "name": "game1.generator",
+    "purpose": "Light map: Path, SpawnLocation class, Checkpoints/Coins folders",
+    "exports": [
+      "Instance.new(\"SpawnLocation\")",
+      "destroy Baseplate",
+      "async spawn poll budget 60s non-blocking",
+      "LevelConfig 3 short sections"
+    ],
+    "forbidden": [
+      "Part renamed \"SpawnLocation\"",
+      "heavy 5-section map"
+    ]
+  }
+}

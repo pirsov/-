@@ -1,73 +1,73 @@
 --!strict
+-- PlayerData: attrs on Player only. BestTime = float seconds (0 = none).
+-- Cloud Fallback rewrite (F3). Studio only — no DataStore.
 local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
 
-local function loadPlayerData(player: Player): { Score: number, Checkpoint: number, Coins: number, BestTime: number }
-    local data = {
-        Score = 0,
-        Checkpoint = 0,
-        Coins = 0,
-        BestTime = math.huge
-    }
-
-    -- Simulate loading from DataStore in Studio
-    if game:GetService("RunService"):IsStudio() then
-        local attributes = player:GetAttributes()
-        if attributes.Score then
-            data.Score = attributes.Score
-        end
-        if attributes.Checkpoint then
-            data.Checkpoint = attributes.Checkpoint
-        end
-        if attributes.Coins then
-            data.Coins = attributes.Coins
-        end
-        if attributes.BestTime then
-            data.BestTime = attributes.BestTime
-        end
-    end
-
-    return data
+local function get_best_time(player: Player): number
+	local v = player:GetAttribute("BestTime")
+	if typeof(v) ~= "number" then
+		return 0
+	end
+	return v :: number
 end
 
-local function savePlayerData(player: Player, data: { Score: number, Checkpoint: number, Coins: number, BestTime: number })
-    -- Simulate saving to DataStore in Studio
-    if game:GetService("RunService"):IsStudio() then
-        player:SetAttribute("Score", data.Score)
-        player:SetAttribute("Checkpoint", data.Checkpoint)
-        player:SetAttribute("Coins", data.Coins)
-        player:SetAttribute("BestTime", data.BestTime)
-    end
+-- Only write when new is a positive finish time better than current (or first record).
+local function set_best_time(player: Player, val: number)
+	if typeof(val) ~= "number" or val <= 0 then
+		return
+	end
+	local current = get_best_time(player)
+	if current == 0 or val < current then
+		player:SetAttribute("BestTime", val)
+	end
+end
+
+local function initAttrs(player: Player)
+	if player:GetAttribute("Score") == nil then
+		player:SetAttribute("Score", 0)
+	end
+	if player:GetAttribute("Checkpoint") == nil then
+		player:SetAttribute("Checkpoint", 0)
+	end
+	if player:GetAttribute("Coins") == nil then
+		player:SetAttribute("Coins", 0)
+	end
+	-- BestTime default 0 (NOT math.huge) so HUD shows Best: --
+	local best = player:GetAttribute("BestTime")
+	if typeof(best) ~= "number" or (best :: number) < 0 or (best :: number) == math.huge then
+		player:SetAttribute("BestTime", 0)
+	end
 end
 
 local function onPlayerAdded(player: Player)
-    local data = loadPlayerData(player)
-    player:SetAttribute("Score", data.Score)
-    player:SetAttribute("Checkpoint", data.Checkpoint)
-    player:SetAttribute("Coins", data.Coins or 0) -- Ensure Coins is initialized
-    player:SetAttribute("BestTime", data.BestTime)
-end
-
-local function onCharacterAdded(character: Model)
-    local player = Players:GetPlayerFromCharacter(character)
-    if player then
-        local coins = player:GetAttribute("Coins") or 0
-        player:SetAttribute("Coins", coins) -- Ensure Coins are not wiped
-    end
+	if not RunService:IsStudio() then
+		-- Live DataStore path deferred; Studio contract only for now
+		initAttrs(player)
+		return
+	end
+	initAttrs(player)
 end
 
 local function onPlayerRemoving(player: Player)
-    local data = {
-        Score = player:GetAttribute("Score") or 0,
-        Checkpoint = player:GetAttribute("Checkpoint") or 0,
-        Coins = player:GetAttribute("Coins") or 0,
-        BestTime = player:GetAttribute("BestTime") or math.huge
-    }
-    savePlayerData(player, data)
+	if not RunService:IsStudio() then
+		return
+	end
+	local started = player:GetAttribute("RunStartedAt")
+	if typeof(started) == "number" then
+		local elapsed = os.clock() - (started :: number)
+		set_best_time(player, elapsed)
+	end
+	-- Persist attrs already live on Player in Studio
+	player:SetAttribute("Score", player:GetAttribute("Score") or 0)
+	player:SetAttribute("Checkpoint", player:GetAttribute("Checkpoint") or 0)
+	player:SetAttribute("Coins", player:GetAttribute("Coins") or 0)
+	player:SetAttribute("BestTime", get_best_time(player))
 end
 
 Players.PlayerAdded:Connect(onPlayerAdded)
 Players.PlayerRemoving:Connect(onPlayerRemoving)
 
 for _, player in ipairs(Players:GetPlayers()) do
-    player.CharacterAdded:Connect(onCharacterAdded)
+	task.defer(onPlayerAdded, player)
 end

@@ -21,6 +21,9 @@ local function hookPart(part: BasePart)
 		local current = plr:GetAttribute("Checkpoint") or 0
 		if typeof(current) ~= "number" then current = 0 end
 		if idx > (current :: number) then
+			if plr:GetAttribute("RunStartedAt") == nil then
+				plr:SetAttribute("RunStartedAt", os.clock())
+			end
 			plr:SetAttribute("Checkpoint", idx)
 			plr:SetAttribute("Score", idx * 100)
 			Remotes.CheckpointReached:FireClient(plr, idx)

@@ -1,26 +1,18 @@
-# LAST_UPDATE: 2026-11-10 07:02:14
-# Q1 answered: BestTime = float seconds; set only if new < current; NOT tied to Last CP alone
-# Q2 answered: join poll budget 60s async OK
-# Cursor does NOT write Luau. Run on machine with Ollama:
-#   $env:FORGE_BACKEND='ollama'; python -u run.py --week --sleep 0 --max 2 --hitl y
+# LAST_UPDATE: Cloud Fallback closed F3+F4+F5 (validator PASS). Sync to Desktop when Ollama returns.
+#   git pull; python -u run.py --project game1; python -u run.py --eval
 
 ## LEGEND
 - [ ] pending | [x] done | @human = Studio y/n
 
-## DONE (keep)
-- [x] T* / prior weeks | @integrator
-- [x] inventory state.json cycle0 | @human
+## DONE
+- [x] T* prior | @integrator
+- [x] F1 | Checkpoints no CoinsCollected | @gameplay_programmer | -> src/server/Gameplay/Checkpoints.server.luau
+- [x] F2 | Coins whitelist remotes | @gameplay_programmer | -> src/server/Gameplay/Coins.server.luau
+- [x] F3 | PlayerData BestTime float 0; set_best_time if new<current; RunStartedAt on leave | @gameplay_programmer | -> src/server/Data/PlayerData.server.luau
+- [x] F4 | Generator SpawnLocation + light map + 60s async spawn poll | @gameplay_programmer | -> src/server/Level/Generator.server.luau
+- [x] F5 | HUD Best -- if nil/0; player:GetAttribute only | @client_programmer | -> src/client/HUD.client.luau
 
-## AGENT F — cycle 1 batch (ONE system first: Checkpoints)
-- [x] F1 | REWRITE Checkpoints: Touched SetAttribute Checkpoint+Score on Player; FireClient CheckpointReached only; CanTouch true; teleport+Died; set RunStartedAt=os.clock if nil; NEVER Remotes.CoinsCollected; NEVER destroy Coins folder; attrs only on Player | @gameplay_programmer | -> src/server/Gameplay/Checkpoints.server.luau
-  - DONE 2026-11-10 07:02:08 | validator PASS on activated game1 snapshot (no CoinsCollected); Ollama unavailable on cloud VM — Windows can re-run --week F1 if live src still dirty
-- [x] F2 | REWRITE Coins: CanTouch; coin:Destroy; plr:SetAttribute Coins; FireClient CoinCollected; FireAllClients UpdateLeaderboard name:coins | @gameplay_programmer | -> src/server/Gameplay/Coins.server.luau
-  - DONE 2026-11-10 07:02:14 | validator PASS Coins whitelist remotes after activate
-
-## QUEUED (cycle 2 — do not start until F1+F2 closed)
-- [ ] F3 | REWRITE PlayerData: BestTime float seconds init 0; helpers set_best_time only if new>0 and (BestTime==0 or new<BestTime); get via GetAttribute; on PlayerRemoving elapsed=os.clock-RunStartedAt then set_best_time; Studio only | @gameplay_programmer | -> src/server/Data/PlayerData.server.luau
-- [ ] F4 | REWRITE Generator lighter map; Instance.new("SpawnLocation"); Path Checkpoints Coins; destroy Baseplate; join poll budget 60s async no hang | @gameplay_programmer | -> src/server/Level/Generator.server.luau
-- [ ] F5 | REWRITE HUD Best+Coins+Checkpoint via player:GetAttribute; Best -- only if nil/0 else %.1f; NEVER character:GetAttribute | @client_programmer | -> src/client/HUD.client.luau
-
-## HUMAN GATES
-- [ ] H11 | Studio smoke: no CoinsCollected; Best float; spawn poll OK | @human
+## CYCLE 3 — human / pulse
+- [ ] H11 | Studio smoke: Best float after leave/rejoin; spawn ready; no CoinsCollected | @human
+- [ ] H12 | Final: python -u run.py --eval | @human
+- [ ] E2E | promote compact + open_questions pack | @human

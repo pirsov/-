@@ -1,7 +1,6 @@
+-- Lighter map for faster Studio join (F4 / Q2: 60s poll budget, target << that)
 return {
-	{ id = 1, gap = 50, coins = 5 },
-	{ id = 2, gap = 70, coins = 5 },
-	{ id = 3, gap = 90, coins = 5 },
-	{ id = 4, gap = 110, coins = 5 },
-	{ id = 5, gap = 130, coins = 8 },
+	{ id = 1, gap = 40, coins = 3 },
+	{ id = 2, gap = 45, coins = 3 },
+	{ id = 3, gap = 50, coins = 4 },
 }

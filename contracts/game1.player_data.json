@@ -1,0 +1,25 @@
+{
+  "plugin": "game1.player_data",
+  "closed_at": "2026-11-10T07:07:03.415698+00:00",
+  "cycle": 1,
+  "task": "C1.F3",
+  "path": "src/server/Data/PlayerData.server.luau",
+  "validator": "PASS",
+  "repair_attempts": 0,
+  "mode": "cloud_fallback",
+  "contract_snapshot": {
+    "name": "game1.player_data",
+    "purpose": "Player attrs Score/Checkpoint/Coins/BestTime; BestTime float seconds",
+    "exports": [
+      "set_best_time(player, val: float) — only if val>0 and (BestTime==0 or val<BestTime)",
+      "get_best_time(player) -> float",
+      "onPlayerRemoving: elapsed = os.clock()-RunStartedAt then set_best_time",
+      "init BestTime=0 (never math.huge)"
+    ],
+    "forbidden": [
+      "math.huge BestTime init",
+      "character attrs",
+      "blocking DataStore in Studio"
+    ]
+  }
+}
