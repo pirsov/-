@@ -12,6 +12,137 @@ from .planner_schema import validate_hitl_pack
 ROOT_DEFAULT = Path(__file__).resolve().parents[1]
 
 
+def _short_title(title: str, *, limit: int = 40) -> str:
+    text = " ".join(str(title or "").split())
+    if not text:
+        return ""
+    text = text.split("—")[0].split(",")[0].strip()
+    if len(text) > limit:
+        return text[: max(1, limit - 1)] + "…"
+    return text
+
+
+def _format_task_label(task_id: Any, title: Any = "") -> Optional[str]:
+    tid = str(task_id or "").strip()
+    short = _short_title(str(title or ""))
+    if tid and short:
+        return f"{tid}: {short}"
+    if tid:
+        return tid
+    if short:
+        return short
+    return None
+
+
+def derive_current_task(
+    root: Optional[Path] = None,
+    *,
+    state: Optional[Dict[str, Any]] = None,
+    run: Optional[Dict[str, Any]] = None,
+) -> Optional[str]:
+    """Human-readable current work item, e.g. 'T2: DataStore'."""
+    root = root or ROOT_DEFAULT
+    state = state if isinstance(state, dict) else state_hub.load_state(root)
+    run = run if isinstance(run, dict) else run_hub.status()
+    queue = [t for t in (state.get("task_queue") or []) if isinstance(t, dict)]
+
+    def _title_for(tid: str) -> str:
+        for t in queue:
+            if str(t.get("id") or "") == tid:
+                return str(t.get("title") or t.get("note") or "")
+        return ""
+
+    for t in queue:
+        if t.get("status") == "in_progress":
+            label = _format_task_label(t.get("id"), t.get("title") or t.get("note"))
+            if label:
+                return label
+
+    hb_path = root / ".forge" / "state" / "heartbeat.json"
+    if hb_path.is_file():
+        try:
+            hb = json.loads(hb_path.read_text(encoding="utf-8"))
+        except Exception:
+            hb = None
+        if isinstance(hb, dict) and hb.get("task"):
+            tid = str(hb.get("task"))
+            label = _format_task_label(tid, _title_for(tid) or hb.get("status") or "")
+            if label:
+                return label
+
+    report = run.get("report") if isinstance(run.get("report"), dict) else {}
+    started = list(report.get("started_tasks") or [])
+    if started:
+        last = started[-1]
+        if isinstance(last, dict):
+            tid = str(last.get("id") or "")
+            label = _format_task_label(tid, _title_for(tid) or last.get("owner") or "")
+        else:
+            label = _format_task_label(last, _title_for(str(last)))
+        if label:
+            return label
+
+    for t in queue:
+        if t.get("status") in {"ready", "failed", None}:
+            label = _format_task_label(t.get("id"), t.get("title") or t.get("note"))
+            if label:
+                return label
+
+    if run.get("status") == "waiting_human":
+        detail = run.get("waiting_detail") if isinstance(run.get("waiting_detail"), dict) else {}
+        plugin = detail.get("plugin")
+        if plugin:
+            return f"HITL: {plugin}"
+        reason = run.get("waiting_reason") or "HITL"
+        return f"HITL: {reason}"
+
+    if run.get("status") in {"looping", "running"}:
+        cycle = run.get("loop_cycle")
+        loop_max = run.get("loop_max")
+        if cycle is not None:
+            return f"цикл {cycle}/{loop_max or '?'}"
+    return None
+
+
+def agent_logs(root: Optional[Path] = None, *, lines: int = 80) -> Dict[str, Any]:
+    """Tail of run_hub agent log for the Live Log panel (last 50–100 lines)."""
+    root = root or ROOT_DEFAULT
+    try:
+        n = int(lines)
+    except (TypeError, ValueError):
+        n = 80
+    n = max(1, min(n, 200))
+    text = run_hub.full_log(root)
+    run = run_hub.status()
+    log_path = run.get("log_path")
+    if not text:
+        # Fall back to newest loop/week log under .forge/ui_run
+        run_dir = root / ".forge" / "ui_run"
+        if run_dir.is_dir():
+            candidates = sorted(
+                list(run_dir.glob("loop24-*.log")) + list(run_dir.glob("*.log")),
+                key=lambda p: p.stat().st_mtime,
+                reverse=True,
+            )
+            for cand in candidates:
+                try:
+                    text = cand.read_text(encoding="utf-8", errors="replace")
+                    log_path = str(cand)
+                    break
+                except Exception:
+                    continue
+    all_lines = text.splitlines() if text else []
+    tail = all_lines[-n:] if all_lines else []
+    return {
+        "ok": True,
+        "lines": tail,
+        "text": "\n".join(tail),
+        "count": len(tail),
+        "total_lines": len(all_lines),
+        "log_path": log_path,
+    }
+
+
 def status_snapshot(root: Optional[Path] = None) -> Dict[str, Any]:
     """Enriched status for progress bars / 24h panel."""
     root = root or ROOT_DEFAULT
@@ -26,6 +157,7 @@ def status_snapshot(root: Optional[Path] = None) -> Dict[str, Any]:
     pulse = state.get("pulse") or {}
     run = run_hub.status()
     pack = state.get("pending_hitl_pack")
+    current_task = derive_current_task(root, state=state, run=run)
     return {
         "ok": True,
         "pulse_cycle": pulse.get("cycle"),
@@ -46,6 +178,7 @@ def status_snapshot(root: Optional[Path] = None) -> Dict[str, Any]:
         "knowledge_rules": len(kb.get("rules") or []),
         "run": run,
         "waiting_human": run.get("status") == "waiting_human",
+        "current_task": current_task,
     }
 
 

@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css" />
-  <link rel="stylesheet" href="/styles.css" />
+  <link rel="stylesheet" href="/styles.css?v=a18.1" />
 </head>
 <body>
   <div id="toast" class="toast" hidden></div>
@@ -43,7 +43,8 @@
           <span id="agent-status" class="run-pill idle"><i class="dot"></i><span class="run-label">idle</span></span>
         </div>
         <nav id="stage-rail" class="stage-rail" aria-label="Этапы"></nav>
-        <div class="loop-progress" aria-hidden="true">
+        <div id="current-task" class="current-task" aria-live="polite">задача —</div>
+        <div id="loop-progress" class="loop-progress" aria-hidden="true">
           <div id="loop-bar" class="loop-bar" style="--pct:0%"></div>
         </div>
         <div class="loop-meta">
@@ -238,11 +239,11 @@
 
   <footer class="foot">
     <span>python -u run.py --ui</span>
-    <span>Quality Forge · A18 dashboard</span>
+    <span>Quality Forge · A18.1 dashboard</span>
   </footer>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/lua.min.js"></script>
-  <script src="/app.js"></script>
+  <script src="/app.js?v=a18.1"></script>
 </body>
 </html>

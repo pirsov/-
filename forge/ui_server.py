@@ -117,11 +117,20 @@ class Handler(BaseHTTPRequestHandler):
                     "hitl_pack": snap.get("hitl_pack"),
                     "plugins_closed": snap.get("plugins_closed"),
                     "queue_pending": snap.get("queue_pending"),
+                    "current_task": snap.get("current_task"),
                 },
             )
             return
         if path == "/api/status_snapshot":
             self._json(200, api_hub.status_snapshot(ROOT))
+            return
+        if path == "/api/logs":
+            # A18.1 — live agent log tail for Log panel
+            try:
+                n = int((qs.get("lines") or ["80"])[0] or 80)
+            except (TypeError, ValueError):
+                n = 80
+            self._json(200, api_hub.agent_logs(ROOT, lines=n))
             return
         if path == "/api/raw":
             self._json(200, {"raw": skills_hub.list_raw(ROOT)})
@@ -444,6 +453,10 @@ class Handler(BaseHTTPRequestHandler):
             self.send_response(200)
             self.send_header("Content-Type", ctype)
             self.send_header("Content-Length", str(len(raw)))
+            # A18.1 — avoid sticky brown-theme cache; ?v= on links is the primary bust
+            if path.suffix.lower() in {".css", ".js", ".html"}:
+                self.send_header("Cache-Control", "no-cache, must-revalidate")
+                self.send_header("Pragma", "no-cache")
             self.end_headers()
             self.wfile.write(raw)
         except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
