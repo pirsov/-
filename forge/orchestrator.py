@@ -1141,6 +1141,152 @@ class Orchestrator:
         return StepResult(ok=False, task_id=task.task_id, reason="failed")
 
 
+def _active_project_id(root: Path) -> str:
+    active = root / ".forge" / "active_project.json"
+    if active.is_file():
+        try:
+            data = json.loads(active.read_text(encoding="utf-8"))
+            pid = str((data or {}).get("id") or "").strip()
+            if pid:
+                return pid
+        except (json.JSONDecodeError, OSError, TypeError):
+            pass
+    return "game1"
+
+
+def summarize_done_tasks(tz_text: str) -> str:
+    """Compact summary of checkbox lines for Live Ops DeepSeek prompt."""
+    lines: List[str] = []
+    for line in (tz_text or "").splitlines():
+        if re.match(r"^\s*- \[[ xX-]\] ", line):
+            lines.append(line.strip())
+    # Prefer done/failed first, then pending (usually empty when Live Ops fires)
+    done = [ln for ln in lines if re.match(r"^- \[[xX-]\] ", ln)]
+    pending = [ln for ln in lines if ln.startswith("- [ ] ")]
+    parts = done[-40:] + pending[:20]
+    return "\n".join(parts) if parts else "(no checkbox tasks yet)"
+
+
+def live_ops_goal(root: Path, project_id: str) -> str:
+    """Best-effort goal text for Live Ops generation."""
+    meta_p = root / "projects" / project_id / "meta.json"
+    if meta_p.is_file():
+        try:
+            meta = json.loads(meta_p.read_text(encoding="utf-8"))
+            for key in ("skills_auto_goal", "title", "notes", "name"):
+                val = str((meta or {}).get(key) or "").strip()
+                if val:
+                    return val[:900]
+        except (json.JSONDecodeError, OSError, TypeError):
+            pass
+    tz_p = root / "PROJECT_TZ.md"
+    if tz_p.is_file():
+        for line in tz_p.read_text(encoding="utf-8").splitlines()[:8]:
+            if line.lower().startswith("# goal:"):
+                return line.split(":", 1)[-1].strip()[:900]
+            if line.startswith("# LAST_UPDATE:"):
+                return line.replace("# LAST_UPDATE:", "", 1).strip()[:900]
+    return f"Polish and extend playable Roblox project {project_id}"
+
+
+def list_existing_luau(root: Path) -> List[str]:
+    src = root / "src"
+    if not src.is_dir():
+        return []
+    return [str(p.relative_to(root)).replace("\\", "/") for p in sorted(src.rglob("*.luau"))]
+
+
+def append_tz_tasks_before_human(root: Path, task_lines: List[str]) -> int:
+    """Insert new AGENT checkbox lines before ## HUMAN (or append to AGENT)."""
+    tz_path = root / "PROJECT_TZ.md"
+    if not tz_path.is_file():
+        return 0
+    text = tz_path.read_text(encoding="utf-8")
+    lines = text.splitlines()
+    # Existing ids — skip accidental duplicates on append
+    existing_ids = {
+        m.group(1)
+        for m in re.finditer(
+            r"(?m)^\s*- \[[ xX-]\] ((?:[PW]\d+(?:\.\d+)*(?:\.[a-z])?)|(?:[ABHZGFRT]\d+[a-z]?))\b",
+            text,
+        )
+    }
+    existing_descs = {
+        re.sub(r"\s+", " ", m.group(1).strip().lower())[:120]
+        for m in re.finditer(
+            r"(?m)^\s*- \[[ xX-]\] [A-Za-z0-9.]+\s*\|\s*(.+?)\s*\|\s*@",
+            text,
+        )
+    }
+    fresh: List[str] = []
+    for raw in task_lines:
+        line = raw.strip()
+        if not line.startswith("- [ ] "):
+            continue
+        m = re.match(r"^- \[ \] ([A-Za-z0-9.]+)\s*\|\s*(.+?)\s*\|\s*@", line)
+        if not m:
+            continue
+        tid, desc = m.group(1), re.sub(r"\s+", " ", m.group(2).strip().lower())[:120]
+        if tid in existing_ids or desc in existing_descs:
+            continue
+        fresh.append(line)
+        existing_ids.add(tid)
+        existing_descs.add(desc)
+    if not fresh:
+        return 0
+
+    insert_at: Optional[int] = None
+    for i, ln in enumerate(lines):
+        if re.match(r"^##\s+HUMAN\b", ln, re.I):
+            insert_at = i
+            break
+    block = fresh[:]
+    if insert_at is None:
+        # ensure AGENT section exists
+        agent_at = None
+        for i, ln in enumerate(lines):
+            if re.match(r"^##\s+AGENT\b", ln, re.I):
+                agent_at = i
+                break
+        if agent_at is None:
+            lines.extend(["", "## AGENT", *block])
+        else:
+            lines.extend(["", *block])
+    else:
+        # blank line before HUMAN if needed
+        prefix = lines[:insert_at]
+        while prefix and prefix[-1].strip() == "":
+            prefix.pop()
+        lines = prefix + ["", *block, ""] + lines[insert_at:]
+
+    tz_path.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
+    return len(fresh)
+
+
+def try_live_ops_more_tasks(root: Path) -> int:
+    """Generate and append more TZ tasks. Returns count appended (0 = empty/dup)."""
+    from . import deepseek
+
+    project_id = _active_project_id(root)
+    tz_text = (
+        (root / "PROJECT_TZ.md").read_text(encoding="utf-8")
+        if (root / "PROJECT_TZ.md").is_file()
+        else ""
+    )
+    goal = live_ops_goal(root, project_id)
+    files = list_existing_luau(root)
+    summary = summarize_done_tasks(tz_text)
+    new_lines = deepseek.generate_more_tasks(
+        project_id,
+        goal,
+        files,
+        summary,
+    )
+    if not new_lines:
+        return 0
+    return append_tz_tasks_before_human(root, new_lines)
+
+
 def run_loop(
     root: Path,
     *,
@@ -1152,6 +1298,7 @@ def run_loop(
     validate_every: int = 0,
     hitl_auto: Optional[str] = None,
     gate_strict: bool = False,
+    week: bool = False,
 ) -> int:
     orch = Orchestrator(
         root,
@@ -1160,12 +1307,43 @@ def run_loop(
         hitl_auto=hitl_auto,
     )
     completed = 0
+    live_ops_fail_streak = 0
     for i in range(max_steps):
         result = orch.invoke_step()
         if not result.ok:
             # Week fail after 3 retries: park failed_repair and keep the 24h/--week cycle going
             if result.reason == "failed_repair":
                 print("   failed_repair - skipping to next queue task (week/24h continues)")
+                if sleep_s > 0 and i + 1 < max_steps:
+                    time.sleep(sleep_s)
+                continue
+            # A20.0 Live Ops: empty queue in --week/24h -> invent more tasks via DeepSeek
+            if result.reason == "no_tasks" and week and not dry_run:
+                try:
+                    n_new = try_live_ops_more_tasks(root)
+                except Exception as e:
+                    n_new = 0
+                    print(f"[Live Ops] generate failed: {type(e).__name__}: {e}")
+                if n_new > 0:
+                    live_ops_fail_streak = 0
+                    print(
+                        f"[Live Ops] Tasks exhausted. Generated {n_new} new tasks. Continuing."
+                    )
+                    write_heartbeat(
+                        root,
+                        {"status": "live_ops", "generated": n_new, "project": _active_project_id(root)},
+                    )
+                    if sleep_s > 0 and i + 1 < max_steps:
+                        time.sleep(sleep_s)
+                    continue
+                live_ops_fail_streak += 1
+                if live_ops_fail_streak >= 3:
+                    print("[Live Ops] DeepSeek could not invent new tasks. Stopping.")
+                    write_heartbeat(root, {"status": "live_ops_stop", "streak": live_ops_fail_streak})
+                    break
+                print(
+                    f"[Live Ops] empty/duplicate batch ({live_ops_fail_streak}/3). Retrying..."
+                )
                 if sleep_s > 0 and i + 1 < max_steps:
                     time.sleep(sleep_s)
                 continue
@@ -1678,6 +1856,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         validate_every=validate_every,
         hitl_auto=hitl_auto,
         gate_strict=bool(getattr(args, "gate_strict", False)),
+        week=week,
     )
     print(f"Completed {completed} step(s).")
     score, notes = quality_score(root)
