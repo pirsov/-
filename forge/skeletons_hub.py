@@ -109,21 +109,39 @@ def load_skeleton_text(
     return text[:budget]
 
 
+def hard_archetype_from_path(path: Path) -> Optional[str]:
+    """
+    A18.1: HARD-map Roblox Script filenames to Script skeletons.
+    *.server.luau → server_script (or datastore_service by name token).
+    *.client.luau → client_ui.
+    Never shared_data / ModuleScript for these extensions.
+    """
+    name = path.name
+    lower = name.lower()
+    if name.endswith(".server.luau"):
+        if any(token in lower for token in ("playersave", "datastore")):
+            return "datastore_service"
+        return "server_script"
+    if name.endswith(".client.luau"):
+        return "client_ui"
+    return None
+
+
 def infer_archetype_from_path(path: Path) -> Optional[str]:
     s = str(path).replace("\\", "/")
     name = path.name
     if name == "Remotes.luau" or "/Gameplay/Remotes" in s:
         return "network_remote"
-    if name.endswith(".client.luau") or "/src/client/" in s:
+    hard = hard_archetype_from_path(path)
+    if hard:
+        return hard
+    if "/src/client/" in s:
         return "client_ui"
     # Persist/save scripts before generic server_script (which forbids DataStore).
-    # Note: legacy PlayerData.server.luau stays server_script via contract pin
-    # (Studio attrs-only); new save plugins use PlayerSave / DataStore in the name
-    # or an explicit datastore_service pin.
     lower = name.lower()
     if any(token in lower for token in ("playersave", "datastore")):
         return "datastore_service"
-    if name.endswith(".server.luau") or "/src/server/" in s:
+    if "/src/server/" in s:
         return "server_script"
     if "/src/shared/" in s or name.endswith("Config.luau"):
         return "shared_data"
@@ -135,6 +153,8 @@ def find_contract_pin(root: Path, path: Path) -> Tuple[Optional[str], Optional[s
     Look up archetype + skeleton_version from contracts matching this file/plugin.
     Prefers exact relative path matches over fuzzy filename hits (A10.2).
     Returns (archetype, version) or (None, None).
+    Score must be > 0 — a bare archetype on an unrelated contract must never win
+    (A18.1: Void.server.luau was wrongly pinned to shared_data/datastore via score=0).
     """
     contracts = root / "contracts"
     if not contracts.is_dir():
@@ -146,7 +166,7 @@ def find_contract_pin(root: Path, path: Path) -> Tuple[Optional[str], Optional[s
         rel = path.as_posix().replace("\\", "/")
 
     best: Tuple[Optional[str], Optional[str]] = (None, None)
-    best_score = -1
+    best_score = 0  # require score > 0 to accept a pin
     for p in contracts.glob("*.json"):
         if p.parent.name == "golden":
             continue
@@ -164,9 +184,14 @@ def find_contract_pin(root: Path, path: Path) -> Tuple[Optional[str], Optional[s
         files = []
         if isinstance(snap, dict):
             files = list(snap.get("files") or [])
+        # Prefer explicit path / files[] — snap.name alone is a label, not a path pin
+        # (A18.1: avoid treating contract_snapshot.name as a file match unless it looks like a path).
         path_field = payload.get("path") or (snap.get("path") if isinstance(snap, dict) else None)
         if path_field:
             files.append(str(path_field))
+        snap_name = snap.get("name") if isinstance(snap, dict) else None
+        if isinstance(snap_name, str) and ("/" in snap_name or snap_name.endswith(".luau")):
+            files.append(snap_name)
 
         score = 0
         for f in files:
@@ -197,6 +222,86 @@ def find_contract_pin(root: Path, path: Path) -> Tuple[Optional[str], Optional[s
             best_score = score
             best = (str(arch), str(ver) if ver else None)
     return best
+
+
+# Script-compatible archetypes (never ModuleScript shared_data for *.server/*.client)
+_SERVER_OK = frozenset({"server_script", "datastore_service"})
+_CLIENT_OK = frozenset({"client_ui"})
+
+
+def resolve_archetype_for_path(
+    path: Path,
+    root: Path,
+    *,
+    archetype: Optional[str] = None,
+    version: Optional[str] = None,
+) -> Tuple[Optional[str], Optional[str]]:
+    """
+    Resolve skeleton archetype with A18.1 extension HARD-map.
+    *.server.luau NEVER validates as shared_data; *.client.luau → client_ui.
+    Explicit datastore_service pins (DonationShop / PlayerSave) still win.
+    """
+    pinned_a, pinned_v = find_contract_pin(root, path)
+    hard = hard_archetype_from_path(path)
+    name = path.name
+
+    if name.endswith(".server.luau"):
+        # Compatible explicit override (tests) or datastore pin / name token
+        if archetype in _SERVER_OK:
+            return str(archetype), version or (
+                pinned_v if pinned_a == archetype else None
+            )
+        if pinned_a == "datastore_service" or hard == "datastore_service":
+            return "datastore_service", version or (
+                pinned_v if pinned_a == "datastore_service" else None
+            )
+        # Force server_script — ignore shared_data / client_ui / network pins
+        return "server_script", version or (
+            pinned_v if pinned_a == "server_script" else None
+        )
+
+    if name.endswith(".client.luau"):
+        if archetype in _CLIENT_OK:
+            return str(archetype), version or pinned_v
+        return "client_ui", version or (pinned_v if pinned_a in _CLIENT_OK else None)
+
+    arch = archetype or pinned_a or infer_archetype_from_path(path)
+    ver = version or pinned_v
+    return arch, ver
+
+
+def is_skeleton_routing_failure(path: Path, errors: List[str]) -> bool:
+    """
+    True when validator failure is a skeleton routing bug (wrong archetype /
+    ModuleScript `return` required on a Script). 7B cannot fix this — park failed_repair.
+    """
+    if not errors:
+        return False
+    name = Path(path).name
+    hard = hard_archetype_from_path(Path(name))
+    joined = "\n".join(str(e) for e in errors)
+    low = joined.lower()
+    if "skeleton mismatch" in low or "wrong skeleton" in low:
+        return True
+    if not (name.endswith(".server.luau") or name.endswith(".client.luau") or hard):
+        return False
+    # ModuleScript contract applied to a Script → wants top-level return
+    if "missing required `return`" in low or "missing required return" in low:
+        return True
+    for e in errors:
+        m = re.search(r"\[skeleton\s+([a-z0-9_]+)@", str(e), re.I)
+        if not m:
+            continue
+        labeled = m.group(1).lower()
+        if labeled == "shared_data":
+            return True
+        if hard == "server_script" and labeled not in _SERVER_OK:
+            return True
+        if hard == "datastore_service" and labeled not in _SERVER_OK:
+            return True
+        if hard == "client_ui" and labeled not in _CLIENT_OK:
+            return True
+    return False
 
 
 def _strip_luau_comments(content: str) -> str:
@@ -250,15 +355,12 @@ def validate_against_skeleton(
     version: Optional[str] = None,
 ) -> List[str]:
     """
-    Pin-by-contract: use contract's skeleton_version when present;
-    else infer archetype from path and registry latest.
+    Pin-by-contract + A18.1 extension HARD-map.
+    *.server.luau → server_script (never shared_data); *.client.luau → client_ui.
     """
-    arch = archetype
-    ver = version
-    if not arch or not ver:
-        pinned_a, pinned_v = find_contract_pin(root, path)
-        arch = arch or pinned_a or infer_archetype_from_path(path)
-        ver = ver or pinned_v
+    arch, ver = resolve_archetype_for_path(
+        path, root, archetype=archetype, version=version
+    )
     if not arch:
         return []
     # Soft-skip when this root has no skeletons registry (unit fixtures)

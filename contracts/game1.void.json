@@ -6,6 +6,13 @@
     "purpose": "Y < -20 → LoadCharacter",
     "exports": [
       "heartbeat/void loop"
+    ],
+    "archetype": "server_script",
+    "skeleton_version": "v1",
+    "files": [
+      "src/server/Gameplay/Void.server.luau"
     ]
-  }
+  },
+  "archetype": "server_script",
+  "skeleton_version": "v1"
 }

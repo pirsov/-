@@ -915,6 +915,51 @@ class Orchestrator:
             if written and not all_valid:
                 repair_draft = rejected_for_repair or repair_draft
                 last_validator_fails = list(err_msgs)
+                # A18.1: skeleton routing bugs (wrong archetype / ModuleScript return on
+                # *.server.luau) cannot be fixed by 7B — park failed_repair immediately.
+                try:
+                    from . import skeletons_hub as _skel
+
+                    routing_fail = False
+                    for rel in written:
+                        if _skel.is_skeleton_routing_failure(Path(rel), err_msgs):
+                            routing_fail = True
+                            break
+                    if routing_fail and WEEK_MODE.get("disable_micro_split", True):
+                        note = (
+                            "skeleton routing mismatch — not sent to 7B repair; "
+                            "marked failed_repair"
+                        )
+                        mark_tz_failed_repair(self.root, task.task_id, note)
+                        state_hub.record_failed_repair(
+                            self.root,
+                            task.task_id,
+                            note=note,
+                            target_path=task.target_path or "",
+                            validator_fails=last_validator_fails,
+                        )
+                        print(
+                            "   SKELETON ROUTING FAIL — skip 7B repair → failed_repair"
+                        )
+                        for i, msg in enumerate(err_msgs, 1):
+                            print(f"      {i}. {msg}")
+                        write_heartbeat(
+                            self.root,
+                            {
+                                "status": "failed_repair",
+                                "task": task.task_id,
+                                "continue": True,
+                                "skeleton_routing": True,
+                            },
+                        )
+                        return StepResult(
+                            ok=False,
+                            task_id=task.task_id,
+                            reason="failed_repair",
+                            note="skeleton routing → failed_repair",
+                        )
+                except Exception as e:
+                    print(f"   warn: skeleton routing check skipped: {e}")
                 validator_feedback = (
                     "REPAIR your previous draft (do not start over).\n"
                     + format_validator_checklist(err_msgs)
