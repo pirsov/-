@@ -9,11 +9,18 @@ from typing import List, Optional
 
 class WriteMode(str, Enum):
     CREATE = "create"  # write full file (overwrite ok for rewrite tasks)
-    APPEND = "append"  # always append if file exists
+    APPEND = "append"  # DEPRECATED A27 — coerced to REWRITE (caused duplicate local functions)
     REWRITE = "rewrite"  # full replace
     DOCS = "docs"  # markdown section append/write
     REVIEW = "review"  # may produce report without code
     UNKNOWN = "unknown"
+
+
+def coerce_append_to_rewrite(mode: WriteMode) -> WriteMode:
+    """A27: APPEND is disabled — always full-file REWRITE (14B/4096 can rewrite whole file)."""
+    if mode == WriteMode.APPEND:
+        return WriteMode.REWRITE
+    return mode
 
 
 @dataclass
@@ -42,8 +49,10 @@ _TASK_RE = re.compile(
 
 def detect_mode(description: str) -> WriteMode:
     d = description.lower()
+    # A27: APPEND word still recognized in TZ text, but coerced to REWRITE immediately.
+    # APPEND made 14B re-paste whole files → duplicate `local function` declarations.
     if re.search(r"\bappend\b", d):
-        return WriteMode.APPEND
+        return WriteMode.REWRITE
     if re.search(r"\brewrite\b|\bfrom scratch\b|\bwith exactly\b", d):
         return WriteMode.REWRITE
     # DeepSeek often verbs without the word REWRITE — still full-file edits
@@ -80,7 +89,10 @@ def parse_task_line(line: str) -> Optional[Task]:
         am = re.search(rf"{_ARROW}\s*([^\s|#]+)(?:#([^\s|]+))?", rest)
         if am:
             target, section = am.group(1), am.group(2)
-        mode = detect_mode(desc)
+        mode = coerce_append_to_rewrite(detect_mode(desc))
+        # Section anchors used to force APPEND — A27: full-file REWRITE instead.
+        if section and mode in {WriteMode.UNKNOWN, WriteMode.CREATE}:
+            mode = WriteMode.REWRITE
         return Task(
             raw=line,
             task_id=task_id,
@@ -88,7 +100,8 @@ def parse_task_line(line: str) -> Optional[Task]:
             mode=mode,
             target_path=target,
             section=section,
-            requires_file=bool(target) or mode in {WriteMode.CREATE, WriteMode.APPEND, WriteMode.REWRITE},
+            requires_file=bool(target)
+            or mode in {WriteMode.CREATE, WriteMode.REWRITE, WriteMode.DOCS},
             description=desc,
         )
 
@@ -105,17 +118,16 @@ def parse_task_line(line: str) -> Optional[Task]:
             # strip trailing parenthetical notes
             target = re.split(r"\s+\(", target, 1)[0].strip()
 
-    mode = detect_mode(desc)
-    if section:
-        mode = WriteMode.APPEND if mode == WriteMode.UNKNOWN else mode
-        if mode == WriteMode.CREATE:
-            mode = WriteMode.APPEND
+    mode = coerce_append_to_rewrite(detect_mode(desc))
+    # A27: section/#anchors no longer force APPEND — REWRITE the whole file.
+    if section and mode in {WriteMode.UNKNOWN, WriteMode.CREATE}:
+        mode = WriteMode.REWRITE
 
-    # Require <FILE> when a concrete path is given, or CREATE/APPEND (must produce a file).
+    # Require <FILE> when a concrete path is given, or CREATE/REWRITE/DOCS.
     # REWRITE/Fix without → path may emit 0..N files (e.g. "no HIGH bugs" = NOTE only).
     requires = bool(target) or mode in {
         WriteMode.CREATE,
-        WriteMode.APPEND,
+        WriteMode.REWRITE,
         WriteMode.DOCS,
     }
     # Explicit no-op / note-only tasks (even with → path for reference)

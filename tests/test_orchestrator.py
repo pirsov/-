@@ -16,11 +16,12 @@ ROOT = Path(__file__).resolve().parent.parent
 
 
 class TestTaskParser(unittest.TestCase):
-    def test_append_mode_detected(self):
+    def test_append_mode_coerced_to_rewrite(self):
+        # A27: APPEND killed — TZ text may still say APPEND, mode must be REWRITE.
         line = '- [ ] P20.14 | APPEND: local timer = ... | @refactorer | → src/client/HUD.client.luau'
         t = parse_task_line(line)
         assert t is not None
-        self.assertEqual(t.mode, WriteMode.APPEND)
+        self.assertEqual(t.mode, WriteMode.REWRITE)
         self.assertEqual(t.target_path, "src/client/HUD.client.luau")
         self.assertTrue(t.requires_file)
 
@@ -72,8 +73,9 @@ class TestTaskParser(unittest.TestCase):
         self.assertEqual(t.task_id, "Z1")
 
 
-class TestAppendNeverOverwrites(unittest.TestCase):
-    def test_append_preserves_prefix(self):
+class TestAppendBecomesFullRewrite(unittest.TestCase):
+    def test_append_task_overwrites_with_full_content(self):
+        # A27: even if Task.mode is APPEND, apply_file_ops full-rewrites (no byte-append).
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
             path = root / "src/client/HUD.client.luau"
@@ -90,12 +92,17 @@ class TestAppendNeverOverwrites(unittest.TestCase):
                 target_path="src/client/HUD.client.luau",
                 requires_file=True,
             )
-            ops = [FileOp(path="src/client/HUD.client.luau", content="local timer = 2", mode=WriteMode.APPEND)]
+            ops = [
+                FileOp(
+                    path="src/client/HUD.client.luau",
+                    content="--!strict\nlocal timer = 2\n",
+                    mode=WriteMode.APPEND,
+                )
+            ]
             apply_file_ops(root, ops, task)
             text = path.read_text(encoding="utf-8")
-            self.assertIn("local screen = 1", text)
             self.assertIn("local timer = 2", text)
-            self.assertTrue(text.index("screen") < text.index("timer"))
+            self.assertNotIn("local screen = 1", text)
 
 
 class TestDoneRequiresFile(unittest.TestCase):
