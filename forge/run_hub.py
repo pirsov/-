@@ -16,14 +16,23 @@ ROOT_DEFAULT = Path(__file__).resolve().parents[1]
 
 _lock = threading.Lock()
 _state: Dict[str, Any] = {
-    "status": "idle",  # idle|running|done|error
+    "status": "idle",  # idle|running|done|error|waiting_human|looping
     "started_at": None,
     "ended_at": None,
     "exit_code": None,
     "pid": None,
     "log_path": None,
     "report": {},
+    "mode": None,  # week|loop_24h
+    "waiting_reason": None,
+    "waiting_detail": None,
+    "loop_cycle": 0,
+    "loop_max": 0,
+    "stop_requested": False,
 }
+
+_stop_event = threading.Event()
+_loop_thread: Optional[threading.Thread] = None
 
 
 def _run_dir(root: Path) -> Path:
@@ -40,9 +49,189 @@ def status() -> Dict[str, Any]:
     if log_path and Path(log_path).exists():
         text = Path(log_path).read_text(encoding="utf-8", errors="replace")
         log_tail = text[-12000:]
-        st["report"] = _parse_report(text)
+        # don't clobber waiting_human report with empty parse during wait
+        if st.get("status") not in {"waiting_human"}:
+            st["report"] = _parse_report(text) if text.strip() else st.get("report") or {}
     st["log_tail"] = log_tail
+    st["stop_requested"] = _stop_event.is_set()
     return st
+
+
+def set_waiting_human(*, reason: str = "hitl", detail: Optional[Dict[str, Any]] = None) -> None:
+    """Pause autonomous work until /api/answer — no CPU burn."""
+    with _lock:
+        _state.update(
+            {
+                "status": "waiting_human",
+                "waiting_reason": reason,
+                "waiting_detail": detail or {},
+                "ended_at": None,
+            }
+        )
+
+
+def clear_waiting_human() -> None:
+    with _lock:
+        if _state.get("status") == "waiting_human":
+            # return to idle unless a loop thread is still marked looping
+            mode = _state.get("mode")
+            _state["waiting_reason"] = None
+            _state["waiting_detail"] = None
+            if mode == "loop_24h" and not _stop_event.is_set():
+                _state["status"] = "looping"
+            else:
+                _state["status"] = "idle"
+                _state["mode"] = None
+
+
+def stop_24h() -> Dict[str, Any]:
+    _stop_event.set()
+    with _lock:
+        _state["stop_requested"] = True
+        pid = _state.get("pid")
+    if pid:
+        try:
+            import os as _os
+            import signal
+
+            _os.kill(int(pid), signal.SIGTERM)
+        except Exception:
+            pass
+    with _lock:
+        if _state.get("status") in {"looping", "running", "waiting_human"}:
+            _state["status"] = "idle"
+            _state["mode"] = None
+            _state["ended_at"] = datetime.now(timezone.utc).isoformat()
+    return {"ok": True, **status()}
+
+
+def start_24h(
+    root: Optional[Path] = None,
+    *,
+    sleep: float = 30.0,
+    max_cycles: int = 48,
+    week_max_steps: int = 5,
+) -> Dict[str, Any]:
+    """
+    Autonomous loop: plan_next → if waiting_human park; else run short --week batch.
+    Does not spin CPU while waiting_human.
+    """
+    root = root or ROOT_DEFAULT
+    global _loop_thread
+    with _lock:
+        if _state.get("status") in {"running", "looping"}:
+            return {"ok": False, "error": "already running", **status()}
+        if _state.get("status") == "waiting_human" and _state.get("mode") == "loop_24h":
+            return {"ok": False, "error": "already waiting_human in 24h mode", **status()}
+
+    _stop_event.clear()
+    run_dir = _run_dir(root)
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+    log_path = run_dir / f"loop24-{stamp}.log"
+
+    def _loop() -> None:
+        cycle = 0
+        with log_path.open("w", encoding="utf-8") as logf:
+            logf.write(f"# 24h loop start {stamp} max_cycles={max_cycles}\n")
+            logf.flush()
+            while not _stop_event.is_set() and cycle < max_cycles:
+                cycle += 1
+                with _lock:
+                    _state.update(
+                        {
+                            "status": "looping",
+                            "mode": "loop_24h",
+                            "loop_cycle": cycle,
+                            "loop_max": max_cycles,
+                            "log_path": str(log_path),
+                            "started_at": _state.get("started_at")
+                            or datetime.now(timezone.utc).isoformat(),
+                        }
+                    )
+                logf.write(f"\n## cycle {cycle}/{max_cycles}\n")
+                logf.flush()
+                try:
+                    from . import planner as planner_hub
+
+                    # If human must answer — park without subprocess
+                    st = status()
+                    if st.get("status") == "waiting_human":
+                        logf.write("waiting_human — parked (no CPU)\n")
+                        logf.flush()
+                        # sleep in slices so stop_event is responsive
+                        for _ in range(max(1, int(sleep))):
+                            if _stop_event.is_set():
+                                break
+                            if status().get("status") != "waiting_human":
+                                break
+                            time.sleep(1)
+                        continue
+
+                    plan = planner_hub.plan_next(root)
+                    logf.write(f"plan_next action={plan.get('action')}\n")
+                    logf.flush()
+                    if plan.get("action") in {"ask_hitl", "verify_plugin"}:
+                        set_waiting_human(
+                            reason=str(plan.get("action")),
+                            detail={k: plan.get(k) for k in ("plugin", "hint") if plan.get(k)},
+                        )
+                        logf.write("→ waiting_human\n")
+                        logf.flush()
+                        continue
+
+                    # Short week burst
+                    with _lock:
+                        if _state.get("status") == "waiting_human":
+                            continue
+                    burst = start_week(root, sleep=0.0, hitl="y", max_steps=week_max_steps)
+                    logf.write(f"week burst: {json.dumps({k: burst.get(k) for k in ('ok','status','pid')})}\n")
+                    logf.flush()
+                    # wait until week finishes or stop
+                    while status().get("status") == "running" and not _stop_event.is_set():
+                        time.sleep(1.0)
+                    # pacing between cycles
+                    for _ in range(max(1, int(sleep))):
+                        if _stop_event.is_set():
+                            break
+                        if status().get("status") == "waiting_human":
+                            break
+                        time.sleep(1)
+                except Exception as e:
+                    logf.write(f"loop error: {type(e).__name__}: {e}\n")
+                    logf.flush()
+                    time.sleep(min(5.0, float(sleep) or 5.0))
+
+            with _lock:
+                _state.update(
+                    {
+                        "status": "done" if not _stop_event.is_set() else "idle",
+                        "mode": None,
+                        "ended_at": datetime.now(timezone.utc).isoformat(),
+                        "pid": None,
+                    }
+                )
+            logf.write("\n# 24h loop end\n")
+            logf.flush()
+
+    with _lock:
+        _state.update(
+            {
+                "status": "looping",
+                "mode": "loop_24h",
+                "started_at": datetime.now(timezone.utc).isoformat(),
+                "ended_at": None,
+                "exit_code": None,
+                "log_path": str(log_path),
+                "loop_cycle": 0,
+                "loop_max": max_cycles,
+                "stop_requested": False,
+                "report": {"phase": "loop_24h"},
+            }
+        )
+    _loop_thread = threading.Thread(target=_loop, name="forge-24h", daemon=True)
+    _loop_thread.start()
+    time.sleep(0.1)
+    return {"ok": True, **status()}
 
 
 def full_log(root: Optional[Path] = None) -> str:
@@ -102,8 +291,11 @@ def start_week(
 ) -> Dict[str, Any]:
     root = root or ROOT_DEFAULT
     with _lock:
-        if _state.get("status") == "running":
+        if _state.get("status") in {"running", "looping"}:
             return {"ok": False, "error": "already running", **status()}
+        # week start clears waiting only if not part of loop park — explicit start is OK
+        if _state.get("status") == "waiting_human" and _state.get("mode") == "loop_24h":
+            return {"ok": False, "error": "waiting_human — answer via /api/answer first", **status()}
 
     run_dir = _run_dir(root)
     stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")

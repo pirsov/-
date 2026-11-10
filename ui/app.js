@@ -38,6 +38,7 @@ function toast(msg) {
 }
 
 let pollTimer = null;
+let snapPollTimer = null;
 let runStartedAt = null;
 let timerTick = null;
 let smokeQs = [];
@@ -46,6 +47,8 @@ let smokeAnswers = {};
 let lastFileContent = "";
 let focusStage = 1;
 let lastProgress = null;
+let pendingHitl = null;
+let selectedHitl = {};
 
 function formatTimer(ms) {
   const s = Math.max(0, Math.floor(ms / 1000));
@@ -181,6 +184,16 @@ async function refresh() {
     applyProgress(s.progress);
     if (!document.querySelector(".panel.focus")) setFocus(s.progress.stage || 1, { scroll: false });
     if (s.run) renderRun(s.run);
+    if (s.snapshot) renderAgentSnap(s.snapshot);
+    else if (s.hitl_pack || s.waiting_human != null) {
+      renderAgentSnap({
+        waiting_human: s.waiting_human,
+        hitl_pack: s.hitl_pack,
+        plugins_closed: s.plugins_closed,
+        queue_pending: s.queue_pending,
+        run: s.run,
+      });
+    }
   } catch (e) {
     setChip("ds-status", false, "", "Сервер: offline");
     setChip("ollama-status", false, "", "—");
@@ -725,6 +738,193 @@ el("btn-fix-done").onclick = async () => {
     if (j.progress) applyProgress(j.progress);
     toast("Фиксы отмечены готовыми");
   } catch (e) { toast(String(e.message || e)); }
+};
+
+function chatAppend(role, text) {
+  const box = el("chat-log");
+  if (!box) return;
+  const line = document.createElement("div");
+  line.className = "chat-line " + role;
+  line.textContent = text;
+  box.appendChild(line);
+  box.scrollTop = box.scrollHeight;
+}
+
+function setAgentPill(status) {
+  const pill = el("agent-status");
+  if (!pill) return;
+  const st = status || "idle";
+  pill.className = "run-pill " + st;
+  pill.querySelector(".run-label").textContent = st;
+}
+
+function renderHitlPack(pack) {
+  pendingHitl = pack && pack.questions ? pack : null;
+  selectedHitl = {};
+  const box = el("hitl-box");
+  const ask = el("hitl-ask");
+  const opts = el("hitl-options");
+  const otherWrap = el("hitl-other-wrap");
+  if (!box) return;
+  if (!pendingHitl) {
+    box.hidden = true;
+    return;
+  }
+  const q = (pendingHitl.questions || [])[0] || {};
+  const qid = String(q.id || "Q1");
+  ask.textContent = (q.ask || q.topic || "Вопрос агента") + (qid ? ` (${qid})` : "");
+  opts.innerHTML = "";
+  ["A", "B", "C"].forEach((key) => {
+    const opt = (q.options || []).find(o => String(o.key || "").toUpperCase() === key);
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "btn";
+    btn.textContent = opt && opt.label ? `${key}. ${opt.label}` : key;
+    btn.onclick = () => sendHitlAnswer(qid, key);
+    opts.appendChild(btn);
+  });
+  const otherBtn = document.createElement("button");
+  otherBtn.type = "button";
+  otherBtn.className = "btn ghost";
+  otherBtn.textContent = "Другое";
+  otherBtn.onclick = () => {
+    otherWrap.hidden = false;
+    el("hitl-other").focus();
+    otherWrap.dataset.qid = qid;
+  };
+  opts.appendChild(otherBtn);
+  otherWrap.hidden = true;
+  el("hitl-other").value = "";
+  box.hidden = false;
+}
+
+async function sendHitlAnswer(qid, key, note) {
+  try {
+    chatAppend("user", `${qid}=${key}` + (note ? ` · ${note}` : ""));
+    const body = note
+      ? { answers: { [qid]: "other" }, note }
+      : { answer: `${qid}=${key}` };
+    const j = await api("/api/answer", { method: "POST", body: JSON.stringify(body) });
+    el("hitl-box").hidden = true;
+    if (j.status === "waiting_human" && j.hitl_pack) {
+      chatAppend("agent", "Нужно уточнение");
+      renderHitlPack(j.hitl_pack);
+    } else {
+      chatAppend("agent", "Ответ принят — агент продолжает");
+      pendingHitl = null;
+    }
+    if (j.snapshot) renderAgentSnap(j.snapshot);
+    toast("Ответ отправлен");
+  } catch (e) {
+    toast(String(e.message || e));
+  }
+}
+
+el("hitl-other") && (el("hitl-other").onkeydown = async (ev) => {
+  if (ev.key !== "Enter") return;
+  ev.preventDefault();
+  const qid = el("hitl-other-wrap").dataset.qid || "Q1";
+  const note = el("hitl-other").value.trim();
+  if (!note) { toast("Напиши уточнение"); return; }
+  await sendHitlAnswer(qid, "other", note);
+});
+
+function renderAgentSnap(snap) {
+  if (!snap) return;
+  const run = snap.run || {};
+  const st = run.status || (snap.waiting_human ? "waiting_human" : "idle");
+  setAgentPill(st);
+  const closed = Number(snap.plugins_closed || 0);
+  const pending = Number(snap.queue_pending || 0);
+  const total = Math.max(closed + pending, 1);
+  const pct = Math.round((closed / total) * 100);
+  const bar = el("loop-bar");
+  if (bar) bar.style.setProperty("--pct", pct + "%");
+  const stats = el("loop-stats");
+  if (stats) {
+    const cycle = run.loop_cycle != null ? ` · цикл ${run.loop_cycle}/${run.loop_max || "?"}` : "";
+    stats.textContent = `плагины ${closed} · очередь ${pending}${cycle}`;
+  }
+  const stopBtn = el("btn-stop-24h");
+  if (stopBtn) stopBtn.hidden = !(st === "looping" || run.mode === "loop_24h");
+  if (snap.waiting_human && snap.hitl_pack) renderHitlPack(snap.hitl_pack);
+  if (st === "looping" || st === "waiting_human" || st === "running") startSnapPoll();
+  else if (st === "idle" || st === "done" || st === "error") stopSnapPoll();
+}
+
+function startSnapPoll() {
+  if (snapPollTimer) return;
+  snapPollTimer = setInterval(async () => {
+    try {
+      const s = await api("/api/status_snapshot");
+      renderAgentSnap(s);
+    } catch (_) { /* ignore */ }
+  }, 2000);
+}
+function stopSnapPoll() {
+  if (snapPollTimer) { clearInterval(snapPollTimer); snapPollTimer = null; }
+}
+
+el("chat-form").onsubmit = async (ev) => {
+  ev.preventDefault();
+  const input = el("chat-input");
+  const msg = (input.value || "").trim();
+  if (!msg) return;
+  input.value = "";
+  chatAppend("user", msg);
+  el("btn-chat").disabled = true;
+  try {
+    const j = await api("/api/chat", {
+      method: "POST",
+      body: JSON.stringify({ message: msg, project: "game1" }),
+    });
+    if (j.goal) chatAppend("sys", "цель: " + j.goal);
+    if (j.status === "waiting_human") {
+      chatAppend("agent", j.message || "Нужен ответ A/B/C");
+      if (j.hitl_pack) renderHitlPack(j.hitl_pack);
+      else if (j.verify_plugin) {
+        chatAppend("agent", `Проверь плагин ${j.verify_plugin}`);
+      }
+      setAgentPill("waiting_human");
+      startSnapPoll();
+    } else {
+      chatAppend("agent", j.message || ("готово · " + (j.plan_action || "ready")));
+      if (j.snapshot) renderAgentSnap(j.snapshot);
+    }
+    if (j.tz_tasks) chatAppend("sys", `TZ draft: ${j.tz_tasks} задач`);
+  } catch (e) {
+    chatAppend("sys", String(e.message || e));
+    toast(String(e.message || e));
+  } finally {
+    el("btn-chat").disabled = false;
+  }
+};
+
+el("btn-start-24h").onclick = async () => {
+  try {
+    const j = await api("/api/start_24h", {
+      method: "POST",
+      body: JSON.stringify({ sleep: 5, max_cycles: 48, week_max_steps: 5 }),
+    });
+    chatAppend("sys", "24h loop started");
+    renderAgentSnap({ run: j, plugins_closed: 0, queue_pending: 0, waiting_human: j.status === "waiting_human" });
+    startSnapPoll();
+    toast("24h запущен");
+  } catch (e) {
+    toast(String(e.message || e));
+  }
+};
+
+el("btn-stop-24h").onclick = async () => {
+  try {
+    const j = await api("/api/stop_24h", { method: "POST", body: "{}" });
+    chatAppend("sys", "24h stopped");
+    renderAgentSnap({ run: j, waiting_human: false });
+    stopSnapPoll();
+    toast("24h остановлен");
+  } catch (e) {
+    toast(String(e.message || e));
+  }
 };
 
 refresh().then(async () => {

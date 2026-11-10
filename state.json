@@ -356,6 +356,13 @@
       "status": "closed",
       "type": "infra",
       "closed_at": "2026-11-10T08:06:26.665028+00:00"
+    },
+    {
+      "id": "A9.0",
+      "title": "UI Integration api_hub + waiting_human + 24h",
+      "status": "closed",
+      "type": "infra",
+      "closed_at": "2026-11-10T08:40:00+00:00"
     }
   ],
   "open_questions": [
@@ -380,8 +387,8 @@
     "next_compact_at_cycle": 5,
     "next_metrics_at_cycle": 8,
     "e2e_at": "2026-11-10T07:13:42.087643+00:00",
-    "status": "a8_0_e2e_pass",
-    "focus": "graceful_degradation + state_compaction",
+    "status": "a9_0_ui_pass",
+    "focus": "ui_api_hub + waiting_human + loop_24h",
     "last_compact_cycle": 6,
     "last_compact_at": "2026-11-10T07:28:51.769663+00:00"
   },
@@ -540,5 +547,21 @@
     "hallucination_demo_blocked": true,
     "artifact": "artifacts/a8_e2e/DonationUI.client.luau",
     "gate_builtins_note": "LocalPlayer/Players added to BUILTIN_EXPORTS; player:Method keeps Method token"
+  },
+  "a9_ui": {
+    "cycle": "A9.0",
+    "api_hub": ["chat", "answer", "start_24h", "stop_24h", "status_snapshot"],
+    "ui_routes": ["/api/chat", "/api/answer", "/api/start_24h", "/api/stop_24h", "/api/status_snapshot"],
+    "run_hub": ["waiting_human", "loop_24h"],
+    "server": "ThreadingHTTPServer",
+    "tests": "56 OK",
+    "ui": "agent-dock chat + A/B/C/Other + Start 24h"
+  },
+  "a9_1": {
+    "cycle": "A9.1",
+    "readme": "README_UI.md",
+    "next_plan": "docs/A10_PLAN.md",
+    "next_title": "A10.0 DataStore & Networking Archetypes",
+    "absorbs": ["A7.3 datastore_service → A10.1"]
   }
 }

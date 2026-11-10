@@ -11,7 +11,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 
-from . import deepseek, fix_hub, progress_hub, projects_hub, run_hub, skills_hub
+from . import api_hub, deepseek, fix_hub, progress_hub, projects_hub, run_hub, skills_hub
 
 ROOT = Path(__file__).resolve().parents[1]
 UI_DIR = ROOT / "ui"
@@ -96,6 +96,7 @@ class Handler(BaseHTTPRequestHandler):
             self._json(200, progress_hub.snapshot(ROOT, smoke_loaded=smoke_loaded))
             return
         if path == "/api/status":
+            snap = api_hub.status_snapshot(ROOT)
             self._json(
                 200,
                 {
@@ -106,8 +107,16 @@ class Handler(BaseHTTPRequestHandler):
                     "run": run_hub.status(),
                     "progress": progress_hub.snapshot(ROOT),
                     "health": health_snapshot(),
+                    "snapshot": snap,
+                    "waiting_human": snap.get("waiting_human"),
+                    "hitl_pack": snap.get("hitl_pack"),
+                    "plugins_closed": snap.get("plugins_closed"),
+                    "queue_pending": snap.get("queue_pending"),
                 },
             )
+            return
+        if path == "/api/status_snapshot":
+            self._json(200, api_hub.status_snapshot(ROOT))
             return
         if path == "/api/raw":
             self._json(200, {"raw": skills_hub.list_raw(ROOT)})
@@ -311,6 +320,43 @@ class Handler(BaseHTTPRequestHandler):
                 )
                 self._json(200 if result.get("ok") else 409, result)
                 return
+            if path == "/api/chat":
+                result = api_hub.chat(
+                    ROOT,
+                    message=str(body.get("message") or body.get("text") or ""),
+                    project_id=str(body.get("project") or "game1"),
+                    auto_tz=bool(body.get("auto_tz", True)),
+                )
+                self._json(200 if result.get("ok") else 400, result)
+                return
+            if path == "/api/answer":
+                answers = body.get("answers")
+                if not isinstance(answers, dict):
+                    answers = None
+                result = api_hub.answer(
+                    ROOT,
+                    answers=answers,
+                    note=str(body.get("note") or ""),
+                    channel=str(body.get("channel") or "hitl"),
+                    plugin=str(body.get("plugin") or ""),
+                    verdict=str(body.get("verdict") or ""),
+                    answer_str=str(body.get("answer") or body.get("answer_str") or ""),
+                )
+                self._json(200 if result.get("ok") else 400, result)
+                return
+            if path == "/api/start_24h":
+                result = api_hub.start_24h(
+                    ROOT,
+                    sleep=float(body.get("sleep") if body.get("sleep") is not None else 30),
+                    max_cycles=int(body.get("max_cycles") or 48),
+                    week_max_steps=int(body.get("week_max_steps") or 5),
+                )
+                self._json(200 if result.get("ok") else 409, result)
+                return
+            if path == "/api/stop_24h":
+                result = api_hub.stop_24h()
+                self._json(200, result)
+                return
             if path == "/api/smoke/submit":
                 pid = body.get("project") or "game1"
                 # Only promote compact skills that exist locally (Desktop may miss some).
@@ -373,5 +419,5 @@ class Handler(BaseHTTPRequestHandler):
 def serve(host: str = "127.0.0.1", port: int = 8787) -> None:
     httpd = ThreadingHTTPServer((host, port), Handler)
     print(f"Quality Forge UI http://{host}:{port}")
-    print("  projects / skills / TZ / week run / smoke")
+    print("  chat / HITL / 24h / projects / skills / TZ / week / smoke")
     httpd.serve_forever()

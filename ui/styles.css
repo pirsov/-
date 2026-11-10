@@ -398,6 +398,90 @@ code { color: var(--amber); font-family: var(--font-mono); font-size: 0.85em; }
 .modal-card h3 { margin: 0 0 0.5rem; font-family: var(--font-ui); }
 .modal-card p { color: var(--muted); margin: 0 0 1rem; }
 
+.agent-dock {
+  position: relative;
+  z-index: 2;
+  max-width: 1100px;
+  margin: 0.85rem auto 0;
+  padding: 0.85rem clamp(1rem, 3vw, 2rem) 1rem;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--amber);
+  background: color-mix(in srgb, var(--coal-2) 92%, var(--amber));
+}
+.agent-dock-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.55rem;
+}
+.agent-dock-head h2 {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: 1.05rem;
+  letter-spacing: 0.04em;
+}
+.chat-log {
+  min-height: 4.5rem;
+  max-height: 14rem;
+  overflow: auto;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid var(--line);
+  background: var(--coal-1);
+  font-size: 0.9rem;
+  margin-bottom: 0.55rem;
+}
+.chat-line { margin: 0.35rem 0; }
+.chat-line.user { color: var(--amber-hot); }
+.chat-line.agent { color: var(--ink); }
+.chat-line.sys { color: var(--muted); font-size: 0.82rem; }
+.hitl-box {
+  margin: 0.4rem 0 0.65rem;
+  padding: 0.55rem 0.65rem;
+  border: 1px dashed color-mix(in srgb, var(--amber) 45%, var(--line));
+  background: color-mix(in srgb, var(--coal-1) 80%, var(--amber));
+}
+.hitl-ask { margin: 0 0 0.5rem; font-family: var(--font-ui); font-weight: 600; }
+.hitl-options .btn.active {
+  border-color: var(--amber);
+  color: var(--amber-hot);
+}
+.chat-form {
+  display: flex;
+  gap: 0.55rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.55rem;
+}
+.chat-form input {
+  flex: 1 1 14rem;
+  min-width: 0;
+  font-family: var(--font-body);
+  font-size: 0.95rem;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--line);
+  background: var(--coal-1);
+  color: var(--ink);
+}
+.agent-actions { align-items: center; }
+.loop-progress {
+  flex: 1 1 8rem;
+  min-width: 6rem;
+  height: 0.45rem;
+  background: var(--coal-3);
+  border: 1px solid var(--line);
+  overflow: hidden;
+}
+.loop-bar {
+  height: 100%;
+  width: var(--pct, 0%);
+  background: linear-gradient(90deg, var(--copper), var(--amber));
+  transition: width 400ms var(--ease);
+}
+.run-pill.waiting_human { border-color: var(--copper); color: var(--copper); }
+.run-pill.waiting_human .dot { background: var(--copper); animation: pulse 1.4s ease-in-out infinite; }
+.run-pill.looping { border-color: var(--amber); color: var(--amber-hot); }
+.run-pill.looping .dot { background: var(--amber-hot); animation: pulse 1s ease-in-out infinite; }
+
 @media (max-width: 760px) {
   .panel.focus { transform: none; }
   .stage-dot .lbl-full { display: none; }
@@ -405,4 +489,5 @@ code { color: var(--amber); font-family: var(--font-mono); font-size: 0.85em; }
   .stage-dot.current .lbl-full { display: inline; }
   .stage-dot.current .lbl-short { display: none; }
   .next-bar .btn { width: 100%; margin: 0; }
+  .chat-form .btn { width: 100%; }
 }
