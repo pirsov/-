@@ -261,6 +261,121 @@ def generate_project_tz(
     return out
 
 
+_TASK_LINE_RE = re.compile(
+    r"(?m)^\s*- \[ \] ((?:[PW]\d+(?:\.\d+)*(?:\.[a-z])?)|(?:[ABHZGFRT]\d+[a-z]?))\s*\|.+$"
+)
+
+
+def next_tz_task_number(done_tasks_summary: str, existing_files: Optional[List[str]] = None) -> int:
+    """Next T# after highest T/F/R/P/G/A agent id seen in summary text."""
+    nums = [int(n) for n in re.findall(r"(?i)\b[TFRPGA]\s*(\d+)\b", done_tasks_summary or "")]
+    if existing_files:
+        # unused; kept for API symmetry with callers that pass both
+        pass
+    return (max(nums) + 1) if nums else 13
+
+
+def extract_tz_task_lines(text: str) -> List[str]:
+    """Pull PROJECT_TZ checkbox agent lines from model output."""
+    out: List[str] = []
+    for line in (text or "").splitlines():
+        s = line.strip()
+        if not s.startswith("- [ ] "):
+            continue
+        if _TASK_LINE_RE.match(s) or re.match(r"^- \[ \] [A-Z]?\d+", s):
+            # Prefer AGENT tasks (T/F/R/P/G/A); skip bare H* human gates
+            m = re.match(r"^- \[ \] ([A-Z]?\d+[a-z]?)", s)
+            if m and m.group(1).upper().startswith("H"):
+                continue
+            out.append(s)
+    return out
+
+
+def generate_more_tasks(
+    project_id: str,
+    goal: str,
+    existing_files: List[str],
+    done_tasks_summary: str,
+) -> List[str]:
+    """Ask DeepSeek for 3-5 NEW polish/sound/opt/feature tasks (Live Ops).
+
+    Returns PROJECT_TZ checkbox lines with IDs continuing (T13, T14...).
+    Empty list when unavailable / invalid / too few unique tasks.
+    """
+    start_n = next_tz_task_number(done_tasks_summary)
+    id_hint = ", ".join(f"T{start_n + i}" for i in range(5))
+    try:
+        from . import asset_hub
+
+        assets_line = asset_hub.catalog_for_prompt()
+    except Exception:
+        assets_line = "Available 3D assets: (catalog unavailable)."
+
+    system = (
+        "You extend a Quality Forge PROJECT_TZ.md AGENT task list for Live Ops. "
+        "Return ONLY 3 to 5 new checkbox lines (no headers, no HUMAN, no fences). "
+        "EVERY line MUST match exactly:\n"
+        "- [ ] T13 | REWRITE ... | @gameplay_programmer | -> src/path/File.luau\n"
+        "Rules:\n"
+        "- ASCII arrow -> only (never unicode)\n"
+        "- ALWAYS start description with REWRITE or APPEND or CREATE\n"
+        "- Focus polish / sound / optimization / small feature gaps — NOT redo of done work\n"
+        "- HUD / Effects / Leaderboard => @client_programmer\n"
+        "- LevelConfig / Generator / Coins / Checkpoints / Void / Puzzles => @gameplay_programmer\n"
+        "- Keep each description under 180 chars\n"
+        f"- Use NEW ids starting at T{start_n} (suggested: {id_hint})\n"
+        "- Do NOT repeat done task ids or near-duplicate descriptions\n"
+        f"- {assets_line}\n"
+    )
+    prompt = (
+        f"Project: {project_id}\nGoal:\n{(goal or '')[:900]}\n\n"
+        f"Done / existing tasks summary:\n{(done_tasks_summary or '(none)')[:3500]}\n\n"
+        f"Existing files:\n- " + "\n- ".join((existing_files or [])[:40] or ["(empty)"]) + "\n\n"
+        f"{assets_line}\n"
+        f"Invent 3-5 NEW AGENT tasks with ids from T{start_n} upward."
+    )
+    if not available():
+        return []
+    try:
+        raw = chat(prompt, system=system, max_tokens=1200, temperature=0.35)
+    except Exception:
+        return []
+    raw = (raw or "").strip()
+    if raw.startswith("```"):
+        raw = re.sub(r"^```(?:markdown|md)?\n?", "", raw)
+        raw = re.sub(r"\n?```$", "", raw)
+    lines = extract_tz_task_lines(raw)
+    # Drop lines that reuse ids already in the summary
+    known_ids = {
+        m.group(1)
+        for m in re.finditer(
+            r"(?m)^\s*- \[[ xX-]\] ((?:[PW]\d+(?:\.\d+)*(?:\.[a-z])?)|(?:[ABHZGFRT]\d+[a-z]?))\b",
+            done_tasks_summary or "",
+        )
+    }
+    # also catch bare id mentions like "T3 done"
+    known_ids |= set(re.findall(r"\b([TFRPGA]\d+[a-z]?)\b", done_tasks_summary or ""))
+    fresh: List[str] = []
+    seen_desc: set = set()
+    for line in lines:
+        m = re.match(r"^- \[ \] ([A-Za-z0-9.]+)\s*\|\s*(.+?)\s*\|\s*@", line)
+        if not m:
+            continue
+        tid, desc = m.group(1), m.group(2).strip().lower()
+        if tid in known_ids:
+            continue
+        # near-duplicate: same normalized description
+        norm = re.sub(r"\s+", " ", desc)[:120]
+        if norm in seen_desc:
+            continue
+        seen_desc.add(norm)
+        fresh.append(line)
+        known_ids.add(tid)
+    if len(fresh) < 3:
+        return []
+    return fresh[:5]
+
+
 def horror_coins_tz_fallback(*, project_id: str, goal: str) -> str:
     """Legacy fixture TZ for unit tests only — not used when API key is missing."""
     return f"""# LAST_UPDATE: {project_id} horror coins obstacle
