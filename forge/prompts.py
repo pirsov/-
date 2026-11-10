@@ -249,18 +249,52 @@ def mode_instructions(task: Task, *, file_exists: bool = False, prefer_diff: boo
     return "WRITE MODE = NORMAL. Return complete file content for each <FILE>."
 
 
-def format_validator_checklist(fails: Sequence[str]) -> str:
-    """Numbered checklist for 7B repair — model must fix every bullet, nothing else."""
+# A22.0: 7B panics on 3+ validator errors — feed one step at a time.
+FIRST_ERROR_ONLY_INSTRUCTION = (
+    "Fix ONLY the first error in the list. Ignore the rest for now."
+)
+
+
+def repair_errors_for_7b(fails: Sequence[str]) -> List[str]:
+    """Return the error list to feed 7B repair.
+
+    When more than one validator fail is present, return ONLY the first so the
+    repair model works one step at a time (later errors stay for later attempts).
+    """
     items = [str(f).strip() for f in (fails or []) if str(f).strip()]
+    if len(items) > 1:
+        return items[:1]
+    return items
+
+
+def format_validator_checklist(fails: Sequence[str], *, first_only: bool = False) -> str:
+    """Numbered checklist for 7B repair — model must fix every bullet, nothing else.
+
+    When first_only=True and multiple fails exist, only the first error is listed
+    and FIRST_ERROR_ONLY_INSTRUCTION is appended (A22.0 multi-error step split).
+    """
+    raw = [str(f).strip() for f in (fails or []) if str(f).strip()]
+    deferred = 0
+    if first_only and len(raw) > 1:
+        deferred = len(raw) - 1
+        items = raw[:1]
+    else:
+        items = list(raw)
     if not items:
         items = ["(no structured validator_fails — re-read last VALIDATOR FAIL lines)"]
     lines = [f"{i}. {msg}" for i, msg in enumerate(items, 1)]
-    return (
+    body = (
         "REPAIR CHECKLIST (validator_fails) — fix EVERY bullet, in order:\n"
         + "\n".join(lines)
         + "\nRules: surgical PATCH only; do not rewrite architecture; "
         "after edits the file must satisfy ALL bullets above."
     )
+    if deferred:
+        body += (
+            f"\n{FIRST_ERROR_ONLY_INSTRUCTION}"
+            f"\n(Deferred {deferred} other validator error(s) for later repair steps.)"
+        )
+    return body
 
 
 def build_prompt(
@@ -787,12 +821,15 @@ Never use .Left. Prefer workspace.Puzzles folder.
         )
         qa_template = _short_tmpl(qa_template, "BUGS/SUGGESTIONS/TEST CASES/SCORE sections.") if qa_template else ""
 
-    # HARD CAPS - repeated mistakes from 14B Generator/HUD (A19.0)
+    # HARD CAPS - repeated mistakes from 14B Generator/HUD/Checkpoints (A19.0 / A22.0)
     hard_caps = """HARD CAPS (NEVER violate - validator CRITICAL FAIL):
 - NEVER use character:GetAttribute("Coins"). ALWAYS use player:GetAttribute("Coins").
 - NEVER use Remotes.CoinsCollected. The remote is exactly Remotes.CoinCollected.
 - NEVER destroy Coins in Checkpoints.server.luau. Coins must only be destroyed in Coins.server.luau.
-- Spawn MUST be created with Instance.new("SpawnLocation"). NEVER use Instance.new("Part") and rename it to SpawnLocation."""
+- Spawn MUST be created with Instance.new("SpawnLocation"). NEVER use Instance.new("Part") and rename it to SpawnLocation.
+- NEVER use BreakJoints. Use Humanoid.Health = 0 if you need to kill, but prefer not to kill at all.
+- Checkpoints: SetAttribute("Checkpoint", idx) where idx is a number (tonumber(match)), NEVER a Part/Instance.
+- Checkpoints.server.luau MUST NOT use DataStoreService. DataStore is ONLY for datastore_service archetype."""
 
     if local_ollama:
         strict_rules = f"""STRICT (ctx<=2k):

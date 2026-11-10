@@ -31,11 +31,13 @@ from .prompts import (
     AGENT_MODELS,
     ESCALATION,
     FALLBACK_ANY,
+    FIRST_ERROR_ONLY_INSTRUCTION,
     OPENROUTER_CFG,
     SPACEBUNNY_CFG,
     WEEK_MODE,
     build_prompt,
     format_validator_checklist,
+    repair_errors_for_7b,
 )
 from .task_parser import Task, WriteMode, find_pending_tasks, parse_task_line
 from .validator import validate_file, validate_project_integrity
@@ -961,19 +963,35 @@ class Orchestrator:
                         )
                 except Exception as e:
                     print(f"   warn: skeleton routing check skipped: {e}")
+                # A22.0: 7B panics on 3+ errors — feed ONLY the first fail this attempt.
+                repair_errs = repair_errors_for_7b(err_msgs)
+                checklist = format_validator_checklist(err_msgs, first_only=True)
                 validator_feedback = (
                     "REPAIR your previous draft (do not start over).\n"
-                    + format_validator_checklist(err_msgs)
+                    + checklist
                     + "\nKeep the rest of the file identical."
                     "\nFILE path must be the real target path, never relative/path.ext."
                     "\n*.server.luau must NOT use top-level return. Use GetService(\"Players\")."
                     '\nCheckpoints: include Humanoid.Died / LoadCharacter and '
                     'FindFirstChild("Checkpoint"..idx) when those bullets appear above.'
                 )
+                if len(err_msgs) > 1 and FIRST_ERROR_ONLY_INSTRUCTION not in checklist:
+                    validator_feedback += f"\n{FIRST_ERROR_ONLY_INSTRUCTION}"
                 print("   VALIDATOR REJECTED - next attempt is repair-only", flush=True)
+                if len(err_msgs) > 1:
+                    print(
+                        f"   repair step 1/{len(err_msgs)} "
+                        f"(feeding first error only to 7B): {repair_errs[0]}",
+                        flush=True,
+                    )
                 print("   repair checklist:")
-                for i, msg in enumerate(err_msgs, 1):
+                for i, msg in enumerate(repair_errs, 1):
                     print(f"      {i}. {msg}")
+                if len(err_msgs) > 1:
+                    print(
+                        f"   deferred {len(err_msgs) - 1} other error(s) for later steps",
+                        flush=True,
+                    )
                 continue
 
             if task.requires_file and not written:
