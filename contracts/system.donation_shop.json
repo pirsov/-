@@ -1,0 +1,32 @@
+{
+  "plugin": "system.donation_shop",
+  "purpose": "Full-stack donate: UI → DonateRequest → server DataStore + CoinSync",
+  "contract_snapshot": {
+    "name": "system.donation_shop",
+    "purpose": "UI button fires DonateRequest; server pcall save; CoinSync refresh",
+    "exports": [
+      "DonateRequest",
+      "CoinSync",
+      "SaveAck",
+      "FireServer",
+      "FireClient",
+      "OnServerEvent",
+      "OnClientEvent",
+      "DataStoreService",
+      "GetDataStore",
+      "GetAsync",
+      "SetAsync",
+      "get_player_coins"
+    ],
+    "forbidden": [
+      "RunStartedAt",
+      "Remotes.CoinsCollected",
+      "DataStoreService on client"
+    ],
+    "files": [
+      "artifacts/a10_4_e2e/Remotes.luau",
+      "artifacts/a10_4_e2e/DonationShop.server.luau",
+      "artifacts/a10_4_e2e/DonationShop.client.luau"
+    ]
+  }
+}

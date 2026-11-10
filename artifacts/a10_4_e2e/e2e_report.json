@@ -1,0 +1,25 @@
+{
+  "cycle": "A10.4",
+  "plugin": "system.donation_shop",
+  "planner_split_gates": {
+    "A10.4.R": "enqueue",
+    "A10.4.S": "enqueue",
+    "A10.4.C": "enqueue"
+  },
+  "validator": {
+    "Remotes.luau": true,
+    "DonationShop.server.luau": true,
+    "DonationShop.client.luau": true
+  },
+  "bundle_chars": {
+    "network_remote": 1415,
+    "datastore_service": 1267,
+    "client_ui": 1063
+  },
+  "stack": [
+    "network_remote@v1.1",
+    "datastore_service@v1",
+    "client_ui@v1.1"
+  ],
+  "ok": true
+}

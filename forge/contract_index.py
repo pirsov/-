@@ -56,6 +56,7 @@ BUILTIN_EXPORTS = {
     "RemoteEvent",
     "RemoteFunction",
     "ReplicatedStorage",
+    "FireServer",
 }
 
 # Never legal on client_ui / *.client.luau plans — even if listed as server exports
@@ -249,10 +250,14 @@ def gate_plan(
                 if not isinstance(snap, dict):
                     snap = payload
                 for f in snap.get("forbidden") or snap.get("forbid") or []:
-                    if isinstance(f, str) and f.strip():
-                        # Normalize Remotes.X tokens
-                        forbids.add(f.strip())
-                        forbids.add(_normalize_export_token(f.strip()))
+                    if not isinstance(f, str) or not f.strip():
+                        continue
+                    raw = f.strip()
+                    forbids.add(raw)
+                    # Only normalize identifier-like forbids (Remotes.X / CamelCase),
+                    # never phrases like "DataStoreService on client" → bare DataStoreService
+                    if re.match(r"^[A-Za-z_][A-Za-z0-9_\.]*$", raw):
+                        forbids.add(_normalize_export_token(raw))
     # also allow plugin short names as non-calls
     proposed = extract_proposed_calls(plan)
     unknown: List[str] = []

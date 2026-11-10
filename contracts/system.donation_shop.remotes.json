@@ -1,0 +1,13 @@
+{
+  "plugin": "system.donation_shop.remotes",
+  "archetype": "network_remote",
+  "skeleton_version": "v1.1",
+  "contract_snapshot": {
+    "name": "system.donation_shop.remotes",
+    "exports": ["getOrCreate", "DonateRequest", "CoinSync", "SaveAck", "CoinCollected", "CheckpointReached"],
+    "forbidden": ["DataStoreService", "LocalPlayer", "FireServer", "RunStartedAt", "GetAsync"],
+    "archetype": "network_remote",
+    "skeleton_version": "v1.1",
+    "files": ["artifacts/a10_4_e2e/Remotes.luau"]
+  }
+}
