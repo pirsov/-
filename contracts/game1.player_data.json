@@ -8,7 +8,8 @@
       "set_best_time(player, val: float) — only if val>0 and (BestTime==0 or val<BestTime)",
       "get_best_time(player) -> float",
       "onPlayerRemoving: elapsed = os.clock()-RunStartedAt then set_best_time",
-      "init BestTime=0 (never math.huge)"
+      "init BestTime=0 (never math.huge)",
+      "get_player_coins(player) -> number  -- Player:GetAttribute(\"Coins\")"
     ],
     "forbidden": [
       "math.huge BestTime init",

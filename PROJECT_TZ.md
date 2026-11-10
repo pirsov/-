@@ -1,18 +1,16 @@
-# LAST_UPDATE: A7.2 CLOSED — plugin skeleton archetypes. game1 frozen. Tests 47 OK.
-# CLI: --archetypes-list | bundle_for_14b(archetype=...) | pin skeleton_version in contracts/
+# LAST_UPDATE: A8.0 E2E PASS — system.donation_ui via client_ui@v1. game1 frozen. Tests 47 OK.
+# Artifact: artifacts/a8_e2e/DonationUI.client.luau
 
 ## AGENT CORE DONE
-- [x] A6.1–A6.3 | degrade, compact, HITL rules | @integrator
-- [x] A7.1 | DeepSeek planner packs + halluc gate + cards | @integrator
-- [x] A7.2 | skeletons registry + META pin-by-contract | @integrator
+- [x] A6.* degrade/compact/HITL rules
+- [x] A7.1 planner + halluc gate + cards
+- [x] A7.2 skeleton archetypes pin-by-contract
+- [x] A8.0 E2E donation_ui (Planner→Gate→bundle→validator)
 
-## SKELETONS v1
-- server_script | client_ui | shared_data | network_remote
-
-## FROZEN
-- game1 gameplay polish deferred
-- A7.1b UI A/B/C deferred
+## DEFERRED
+- A7.3 datastore_service
+- A7.1b UI A/B/C
+- game1 polish
 
 ## NEXT
-- [ ] H13 | Desktop ollama + --archetypes-list smoke | @human
-- [ ] A7.3 | optional datastore_service archetype when needed | @integrator
+- [ ] H13 | Desktop pull + optional Studio peek at DonationUI artifact | @human

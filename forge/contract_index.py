@@ -6,7 +6,7 @@ import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
 
-# Always-allowed Remotes / builtins (not every contract repeats them)
+# Always-allowed Remotes / Roblox builtins (not every contract repeats them)
 BUILTIN_EXPORTS = {
     "Checkpoint",
     "CheckpointReached",
@@ -15,8 +15,26 @@ BUILTIN_EXPORTS = {
     "getOrCreate",
     "SetAttribute",
     "GetAttribute",
+    "GetAttributeChangedSignal",
     "FireClient",
     "FireAllClients",
+    # Engine services / player APIs — not plugin exports, but legal in plans
+    "Players",
+    "LocalPlayer",
+    "PlayerGui",
+    "Workspace",
+    "ReplicatedStorage",
+    "RunService",
+    "TweenService",
+    "SoundService",
+    "ScreenGui",
+    "TextLabel",
+    "TextButton",
+    "Instance",
+    "UDim2",
+    "Color3",
+    "WaitForChild",
+    "FindFirstChild",
 }
 
 
@@ -33,13 +51,21 @@ def _normalize_export_token(s: str) -> str:
     t = (s or "").strip()
     # drop after dash comment
     t = re.split(r"\s+[—\-–]\s+", t, maxsplit=1)[0].strip()
+    # player:GetBestTime → GetBestTime (method after colon)
+    m_method = re.match(r"^[A-Za-z_][A-Za-z0-9_]*:([A-Za-z_][A-Za-z0-9_]*)", t)
+    if m_method:
+        return m_method.group(1)
     # function name before (
     m = re.match(r"^([A-Za-z_][A-Za-z0-9_:]*)", t)
     if m:
         name = m.group(1)
-        # Attr:Type → Attr
+        # Attr:Type → Attr (lowercase type annotation style)
         if ":" in name and not name.startswith(":"):
-            name = name.split(":", 1)[0]
+            left, right = name.split(":", 1)
+            if right and right[0].islower():
+                return left
+            if right:
+                return right
         return name
     return t
 

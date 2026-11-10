@@ -1,0 +1,13 @@
+{
+  "cycle": "A8.0",
+  "plugin": "system.donation_ui",
+  "archetype": "client_ui@v1",
+  "gate_action": "enqueue",
+  "gate_ok": true,
+  "bundle_chars": 734,
+  "validator_ok": true,
+  "negative_datastore_blocked": true,
+  "hallucination_demo_blocked": true,
+  "artifact": "artifacts/a8_e2e/DonationUI.client.luau",
+  "gate_builtins_note": "LocalPlayer/Players added to BUILTIN_EXPORTS; player:Method keeps Method token"
+}
