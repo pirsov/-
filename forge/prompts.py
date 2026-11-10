@@ -207,6 +207,20 @@ def mode_instructions(task: Task, *, file_exists: bool = False, prefer_diff: boo
     return "WRITE MODE = NORMAL. Return complete file content for each <FILE>."
 
 
+def format_validator_checklist(fails: Sequence[str]) -> str:
+    """Numbered checklist for 7B repair — model must fix every bullet, nothing else."""
+    items = [str(f).strip() for f in (fails or []) if str(f).strip()]
+    if not items:
+        items = ["(no structured validator_fails — re-read last VALIDATOR FAIL lines)"]
+    lines = [f"{i}. {msg}" for i, msg in enumerate(items, 1)]
+    return (
+        "REPAIR CHECKLIST (validator_fails) — fix EVERY bullet, in order:\n"
+        + "\n".join(lines)
+        + "\nRules: surgical PATCH only; do not rewrite architecture; "
+        "after edits the file must satisfy ALL bullets above."
+    )
+
+
 def build_prompt(
     root: Path,
     owner: str,
@@ -234,10 +248,12 @@ def build_prompt(
         feedback = f"\n=== VALIDATOR FEEDBACK (fix ONLY these issues) ===\n{validator_feedback}\n"
     if repair_draft:
         feedback += (
-            "\n=== REPAIR MODE (A15 PATCH) ===\n"
+            "\n=== REPAIR MODE (A15 PATCH / 7B) ===\n"
             "Below is YOUR previous draft (almost done). Do NOT rewrite from scratch.\n"
-            "Change the minimum lines needed to fix the validator errors "
-            "(e.g. one wrong Roblox API call, a missing Name=\"Path\", Checkpoint_ → Checkpoint..id).\n"
+            "Work the REPAIR CHECKLIST bullet-by-bullet "
+            "(e.g. add Humanoid.Died + LoadCharacter; "
+            'FindFirstChild("Checkpoint"..idx) for teleport; '
+            "Checkpoint_ → Checkpoint..id).\n"
             "Prefer SEARCH/REPLACE blocks against this draft; full file only if required.\n"
             f"{repair_draft}\n"
         )

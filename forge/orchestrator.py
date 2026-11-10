@@ -35,6 +35,7 @@ from .prompts import (
     SPACEBUNNY_CFG,
     WEEK_MODE,
     build_prompt,
+    format_validator_checklist,
 )
 from .task_parser import Task, WriteMode, find_pending_tasks, parse_task_line
 from .validator import validate_file, validate_project_integrity
@@ -272,6 +273,20 @@ def mark_tz_done(root: Path, task_id: str, note: str) -> None:
         out[0] = f"# LAST_UPDATE: {now_human()}"
     else:
         out.insert(0, f"# LAST_UPDATE: {now_human()}")
+    tz_path.write_text("\n".join(out) + "\n", encoding="utf-8")
+
+
+def mark_tz_failed_repair(root: Path, task_id: str, note: str) -> None:
+    """Park a failed week task as [-] so find_pending_tasks skips it and the loop continues."""
+    tz_path = root / "PROJECT_TZ.md"
+    lines = tz_path.read_text(encoding="utf-8").splitlines()
+    out: List[str] = []
+    for line in lines:
+        if re.match(rf"^- \[ \] {re.escape(task_id)} ", line):
+            out.append(re.sub(r"^- \[ \]", "- [-]", line))
+            out.append(f"  - FAILED_REPAIR {now_human()} | {note}")
+        else:
+            out.append(line)
     tz_path.write_text("\n".join(out) + "\n", encoding="utf-8")
 
 
@@ -733,6 +748,7 @@ class Orchestrator:
         max_attempts = 3
         validator_feedback = None
         repair_draft: Optional[str] = None  # last rejected model body — fix in place, don't restart
+        last_validator_fails: List[str] = []
         stamp = now_stamp()
         logs = self.root / "logs"
 
@@ -854,15 +870,20 @@ class Orchestrator:
 
             if written and not all_valid:
                 repair_draft = rejected_for_repair or repair_draft
+                last_validator_fails = list(err_msgs)
                 validator_feedback = (
                     "REPAIR your previous draft (do not start over).\n"
-                    "Fix ONLY these validator errors:\n- "
-                    + "\n- ".join(err_msgs)
+                    + format_validator_checklist(err_msgs)
                     + "\nKeep the rest of the file identical."
                     "\nFILE path must be the real target path, never relative/path.ext."
                     "\n*.server.luau must NOT use top-level return. Use GetService(\"Players\")."
+                    '\nCheckpoints: include Humanoid.Died / LoadCharacter and '
+                    'FindFirstChild("Checkpoint"..idx) when those bullets appear above.'
                 )
                 print("   VALIDATOR REJECTED — next attempt is repair-only")
+                print("   repair checklist:")
+                for i, msg in enumerate(err_msgs, 1):
+                    print(f"      {i}. {msg}")
                 continue
 
             if task.requires_file and not written:
@@ -951,8 +972,31 @@ class Orchestrator:
                 print(f"   keep-check FAIL [{rel}]: {'; '.join(errs)}")
                 break
         if checked and kept_ok:
-            # Do NOT mark TZ done — seed keep is recovery, not task completion.
-            # (Old bug: "KEPT" marked A1 done while <DONE>A1</DONE> was ignored by parser.)
+            # Week mode: park as failed_repair and continue queue (do not stop 24h/--week).
+            if WEEK_MODE.get("disable_micro_split", True):
+                note = (
+                    "model output not applied; seed kept; marked failed_repair — continue next task"
+                )
+                mark_tz_failed_repair(self.root, task.task_id, note)
+                state_hub.record_failed_repair(
+                    self.root,
+                    task.task_id,
+                    note=note,
+                    target_path=task.target_path or "",
+                    validator_fails=last_validator_fails,
+                )
+                print(f"   KEPT seed → failed_repair (continuing): {', '.join(checked)}")
+                write_heartbeat(
+                    self.root,
+                    {"status": "failed_repair", "task": task.task_id, "continue": True},
+                )
+                return StepResult(
+                    ok=False,
+                    task_id=task.task_id,
+                    reason="failed_repair",
+                    note="kept seed → failed_repair",
+                )
+            # Non-week: leave pending for manual re-run
             add_tz_note(
                 self.root,
                 task.task_id,
@@ -973,17 +1017,35 @@ class Orchestrator:
             print("   SEEDED docs/QA_REPORT.md and marked done")
             return StepResult(ok=True, task_id=task.task_id, note="seeded QA", files=[task.target_path])
 
-        # Week mode: never micro-split; leave task pending so a forge/model fix can retry
+        # Week mode: never micro-split; park failed_repair and CONTINUE to next queue task
         if WEEK_MODE.get("disable_micro_split", True):
-            add_tz_note(
+            note = (
+                "week mode: failed after retries — open_questions+failed_repair; continue next task"
+            )
+            mark_tz_failed_repair(self.root, task.task_id, note)
+            state_hub.record_failed_repair(
                 self.root,
                 task.task_id,
-                "RETRY",
-                "week mode: model failed; task left [ ] — re-run --week after fix",
+                note=note,
+                target_path=task.target_path or "",
+                validator_fails=last_validator_fails,
             )
-            print("   FAILED (week mode) — task left pending; stopping loop")
-            write_heartbeat(self.root, {"status": "retry", "task": task.task_id})
-            return StepResult(ok=False, task_id=task.task_id, reason="retry", note="pending retry")
+            print("   FAILED (week mode) — marked failed_repair; continuing to next task")
+            write_heartbeat(
+                self.root,
+                {
+                    "status": "failed_repair",
+                    "task": task.task_id,
+                    "continue": True,
+                    "validator_fails": last_validator_fails[:12],
+                },
+            )
+            return StepResult(
+                ok=False,
+                task_id=task.task_id,
+                reason="failed_repair",
+                note="failed_repair continue",
+            )
 
         add_tz_note(self.root, task.task_id, "FAILED", "see logs — fix prompt or model")
         write_heartbeat(self.root, {"status": "failed", "task": task.task_id})
@@ -1012,6 +1074,12 @@ def run_loop(
     for i in range(max_steps):
         result = orch.invoke_step()
         if not result.ok:
+            # Week fail after 3 retries: park failed_repair and keep the 24h/--week cycle going
+            if result.reason == "failed_repair":
+                print("   failed_repair — skipping to next queue task (week/24h continues)")
+                if sleep_s > 0 and i + 1 < max_steps:
+                    time.sleep(sleep_s)
+                continue
             if result.reason in {"no_tasks", "human", "failed", "auth", "retry", "stub"}:
                 if result.reason == "retry":
                     print("   Stopping so you can fix model/parser and re-run --week (task left pending).")
@@ -1078,6 +1146,14 @@ def main(argv: Optional[List[str]] = None) -> int:
         help=(
             "Clear task queue, reset pulse/UI cycles (unstick Smoke 48/48), "
             "write empty TZ; scope with --project <id> (e.g. game2)"
+        ),
+    )
+    parser.add_argument(
+        "--clear-queue",
+        action="store_true",
+        help=(
+            "Clear pending tasks in state.json (task_queue + partial) only — "
+            "keeps pulse/done/TZ; use before a new game/donate run when stuck on old checkpoints"
         ),
     )
     parser.add_argument(
@@ -1192,6 +1268,12 @@ def main(argv: Optional[List[str]] = None) -> int:
             print(f"  project={args.project} → empty TZ + activated; other projects untouched")
         else:
             print("  workspace runtime cleared (pass --project <id> to scaffold a new game)")
+        return 0
+
+    if args.clear_queue:
+        report = state_hub.clear_queue(root)
+        print(f"clear_queue: {json.dumps(report, ensure_ascii=False)}")
+        print("  task_queue/partial cleared — pulse/done/TZ kept; ready for new game or --week")
         return 0
 
     if args.rules_list:

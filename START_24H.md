@@ -155,6 +155,20 @@ python -u run.py --doctor
 
 Пока Ollama down, pipeline уходит в **stub** и **не закрывает** задачи как done — это защита, не баг.
 
+### Очистить только очередь (новая игра / donate без полного reset)
+
+Если `state.json` держит старые checkpoint-таски и мешает старту новой игры:
+
+```powershell
+# Windows — сбросить только pending в state.json (task_queue + partial)
+python -u run.py --clear-queue
+# затем снова week / 24h
+python -u run.py --week
+# или: python -u run.py --ui  →  Старт 24h
+```
+
+`--clear-queue` **не** трогает pulse / done / TZ / HITL — в отличие от `--reset-state`.
+
 ### Сброс стейта (новая игра / застрял Smoke 48/48)
 
 ```powershell
@@ -168,6 +182,8 @@ python -u run.py --reset-state
 Сбрасывает `task_queue`, `pulse.cycle`, UI progress и счётчики 24h (`loop_cycle`/`loop_max`), пишет пустой `PROJECT_TZ.md`. С `--project` не трогает другие `projects/*`. Без `--project` ещё чистит game.* из `done[]` (старый `verify_plugin` больше не всплывает).
 
 **DeepSeek:** без `DEEPSEEK_API_KEY` генерация TZ **не** подставляет старый horror-coins шаблон — будет явная ошибка. Задай ключ и повтори.
+
+**Week / 3 фейла:** после 3 неудачных попыток таск помечается `failed_repair` (`[-]` в TZ + `open_questions`), цикл **не** останавливается — идёт к следующей задаче очереди.
 
 ### Перезапуск цикла с места падения
 

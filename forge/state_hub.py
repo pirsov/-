@@ -194,17 +194,77 @@ def record_task_status(
     if found is None:
         found = {"id": task_id}
         queue.append(found)
-    found["status"] = status  # in_progress | failed | ready — never closed via stub
+    found["status"] = status  # in_progress | failed | failed_repair | ready — never closed via stub
     found["updated_at"] = now_iso()
     if note:
         found["note"] = note
     if backend:
         found["backend"] = backend
-    if status == "failed":
+    if status in {"failed", "failed_repair"}:
         found["closed"] = False
         found.pop("plugin_closed", None)
     data.setdefault("knowledge_ref", "knowledge_base.json")
     save_state(root, data)
+
+
+def record_failed_repair(
+    root: Path,
+    task_id: str,
+    *,
+    note: str = "",
+    target_path: str = "",
+    validator_fails: Optional[List[str]] = None,
+) -> Dict[str, Any]:
+    """Mark task failed_repair in queue + append/upsert open_questions entry."""
+    fails = [str(f).strip() for f in (validator_fails or []) if str(f).strip()]
+    record_task_status(
+        root,
+        task_id,
+        status="failed_repair",
+        note=note or "week mode: failed after retries — skipped, continue queue",
+    )
+    data = load_state(root)
+    oq: List[Dict[str, Any]] = data.setdefault("open_questions", [])
+    qid = f"failed_repair:{task_id}"
+    entry = {
+        "id": qid,
+        "task_id": task_id,
+        "status": "failed_repair",
+        "topic": "week_repair",
+        "ask": note or f"Task {task_id} failed after 3 attempts — needs human/repair TZ",
+        "target_path": target_path or "",
+        "validator_fails": fails,
+        "updated_at": now_iso(),
+    }
+    replaced = False
+    for i, q in enumerate(oq):
+        if isinstance(q, dict) and (q.get("id") == qid or q.get("task_id") == task_id and q.get("status") == "failed_repair"):
+            oq[i] = entry
+            replaced = True
+            break
+    if not replaced:
+        oq.append(entry)
+    data["open_questions"] = oq
+    save_state(root, data)
+    return entry
+
+
+def clear_queue(root: Path) -> Dict[str, Any]:
+    """Clear pending task_queue (and partial[]) so a new game/donate run can start."""
+    data = load_state(root)
+    queue = data.get("task_queue") or []
+    partial = data.get("partial") or []
+    cleared = len(queue) if isinstance(queue, list) else 0
+    cleared_partial = len(partial) if isinstance(partial, list) else 0
+    data["task_queue"] = []
+    data["partial"] = []
+    save_state(root, data)
+    return {
+        "ok": True,
+        "cleared": cleared,
+        "cleared_partial": cleared_partial,
+        "queue_len": 0,
+    }
 
 
 def link_knowledge_base(root: Path, kb_name: str = "knowledge_base.json") -> None:
