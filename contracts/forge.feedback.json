@@ -1,0 +1,17 @@
+{
+  "plugin": "forge.feedback",
+  "contract_snapshot": {
+    "name": "forge.feedback",
+    "purpose": "HITL feedback loop learning JSON validator rules",
+    "exports": [
+      "submit_verdict(root, plugin, y|n, note)",
+      "on_yes \u2192 closed_verified + contracts/golden/",
+      "on_no \u2192 broken_by_user + draft/active rule",
+      "FORGE_RULES_AUTO dry-run on matched src files",
+      "validator.apply_rules_to_file via knowledge_base.json"
+    ],
+    "forbidden": [
+      "LLM writes raw Python into validator"
+    ]
+  }
+}

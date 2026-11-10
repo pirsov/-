@@ -1056,6 +1056,21 @@ def main(argv: Optional[List[str]] = None) -> int:
         action="store_true",
         help="Compact state.json contract snapshots into contracts/ and exit",
     )
+    parser.add_argument(
+        "--feedback",
+        choices=["y", "n", "yes", "no"],
+        default=None,
+        help="A6.3 HITL verdict for --plugin (y=closed_verified+golden, n=broken_by_user+rule)",
+    )
+    parser.add_argument("--plugin", type=str, default=None, help="Plugin id for --feedback (e.g. game1.hud)")
+    parser.add_argument("--note", type=str, default="", help="Human comment for --feedback")
+    parser.add_argument("--rules-list", action="store_true", help="List knowledge_base.json rules and exit")
+    parser.add_argument(
+        "--rules-activate",
+        type=str,
+        default=None,
+        help="Activate draft rule id after dry-run (e.g. R001)",
+    )
     parser.add_argument("--ui", action="store_true", help="Open control UI (projects/skills/DeepSeek/smoke)")
     parser.add_argument("--ui-port", type=int, default=8787, help="UI port (default 8787)")
     parser.add_argument("--project", type=str, default=None, help="Activate projects/<id> into live src+TZ")
@@ -1080,6 +1095,30 @@ def main(argv: Optional[List[str]] = None) -> int:
     if args.compact_state:
         report = state_hub.compact_state(root, force=True)
         print(f"compact_state: {json.dumps(report, ensure_ascii=False)}")
+        return 0
+
+    if args.rules_list:
+        from . import feedback as feedback_hub
+
+        for r in feedback_hub.list_rules(root):
+            print(f"  {r.get('id')}  status={r.get('status')}  plugin={r.get('plugin')}  {str(r.get('human_comment') or '')[:80]}")
+        return 0
+
+    if args.rules_activate:
+        from . import feedback as feedback_hub
+
+        report = feedback_hub.activate_rule(root, args.rules_activate)
+        print(json.dumps(report, ensure_ascii=False, indent=2))
+        return 0 if report.get("ok") else 1
+
+    if args.feedback is not None:
+        from . import feedback as feedback_hub
+
+        if not args.plugin:
+            print("ERROR: --feedback requires --plugin <id>")
+            return 1
+        report = feedback_hub.submit_verdict(root, args.plugin, args.feedback, note=args.note or "")
+        print(json.dumps(report, ensure_ascii=False, indent=2, default=str))
         return 0
 
     if args.ui:

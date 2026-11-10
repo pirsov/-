@@ -175,7 +175,7 @@
     },
     {
       "plugin": "game1.hud",
-      "status": "done",
+      "status": "closed_verified",
       "closed_cycle": 2,
       "tests": [
         "validator validate_file PASS",
@@ -183,7 +183,10 @@
       ],
       "via": "cloud_fallback generator+repairer roles (Cursor); Ollama offline",
       "contract_ref": "contracts/game1.hud.json",
-      "contract_summary": "Left HUD Time/CP/Coins/Best from player attrs"
+      "contract_summary": "Left HUD Time/CP/Coins/Best from player attrs",
+      "hitl_at": "2026-11-10T07:34:21.476120+00:00",
+      "golden_ref": "contracts/golden/game1.hud.json",
+      "note": "CLI smoke yes"
     },
     {
       "plugin": "game1.checkpoints_i011",
@@ -257,6 +260,19 @@
       "contract_ref": "contracts/forge.state_hub.json",
       "contract_summary": "compact_state every 5 cycles; contract_ref in state.json",
       "via": "A6.2"
+    },
+    {
+      "plugin": "forge.feedback",
+      "status": "done",
+      "closed_cycle": 6,
+      "tests": [
+        "test_yes_closed_verified_and_golden",
+        "test_no_creates_draft_or_active_rule",
+        "test_auto_stays_draft_when_dry_run_red"
+      ],
+      "contract_ref": "contracts/forge.feedback.json",
+      "contract_summary": "HITL y/n → golden / JSON validator rules",
+      "via": "A6.3"
     }
   ],
   "partial": [],
@@ -286,6 +302,13 @@
       "idea": "A002",
       "deps": [],
       "closed_at": "2026-11-10T07:28:51.795947+00:00"
+    },
+    {
+      "id": "A6.3",
+      "title": "HITL feedback loop",
+      "status": "closed",
+      "type": "infra",
+      "closed_at": "2026-11-10T07:34:44.436825+00:00"
     }
   ],
   "open_questions": [
@@ -310,7 +333,7 @@
     "next_compact_at_cycle": 5,
     "next_metrics_at_cycle": 8,
     "e2e_at": "2026-11-10T07:13:42.087643+00:00",
-    "status": "a6_closed",
+    "status": "a6_3_closed",
     "focus": "graceful_degradation + state_compaction",
     "last_compact_cycle": 6,
     "last_compact_at": "2026-11-10T07:28:51.769663+00:00"
@@ -359,17 +382,17 @@
   "stats_snapshot": {
     "plugins_closed_done": 23,
     "task_queue": {
-      "closed": 2
+      "closed": 3
     },
     "ideas_by_status": {
       "deferred": 5,
       "infra_backlog": 1,
       "proposed": 1,
-      "shipped": 8
+      "shipped": 9
     },
     "pulse_cycle": 6,
     "mode": "agent_core",
-    "tests": 33
+    "tests": 36
   },
   "e2e": {
     "H11": "PASS",
@@ -455,10 +478,12 @@
     "every_n": 5
   },
   "cycle6_report": {
-    "at": "2026-11-10T07:28:51.795947+00:00",
+    "at": "2026-11-10T07:34:44.436825+00:00",
     "A6.1": "PASS — resolve_runtime_backend + stub never closed",
     "A6.2": "PASS — state_hub.compact_state + --compact-state",
     "tests": "33 OK",
-    "next": "DeepSeek planner redesign when Ollama returns"
-  }
+    "next": "A7.1 DeepSeek planner redesign when Ollama returns",
+    "A6.3": "PASS — feedback.py + CLI + 36 tests"
+  },
+  "knowledge_ref": "knowledge_base.json"
 }

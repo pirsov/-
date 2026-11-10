@@ -185,6 +185,13 @@ def record_task_status(
     if status == "failed":
         found["closed"] = False
         found.pop("plugin_closed", None)
+    data.setdefault("knowledge_ref", "knowledge_base.json")
+    save_state(root, data)
+
+
+def link_knowledge_base(root: Path, kb_name: str = "knowledge_base.json") -> None:
+    data = load_state(root)
+    data["knowledge_ref"] = kb_name
     save_state(root, data)
 
 

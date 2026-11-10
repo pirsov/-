@@ -1,0 +1,17 @@
+{
+  "plugin": "game1.hud",
+  "golden_at": "2026-11-10T07:34:21.475768+00:00",
+  "contract_snapshot": {
+    "name": "game1.hud",
+    "purpose": "Left HUD Time/CP/Coins/Best from player attrs",
+    "exports": [
+      "player:GetAttribute BestTime/Coins/Checkpoint",
+      "Best: -- if nil or <=0; else Best: %.1f",
+      "CheckpointReached + CoinCollected OnClientEvent"
+    ],
+    "forbidden": [
+      "character:GetAttribute",
+      "Best shows 0.0 as record"
+    ]
+  }
+}

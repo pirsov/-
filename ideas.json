@@ -193,6 +193,19 @@
       ],
       "status": "shipped",
       "reason": "A6.1/A6.2 implemented + tests OK"
+    },
+    {
+      "id": "A003",
+      "title": "HITL feedback → JSON validator rules",
+      "one_liner": "y→closed_verified+golden; n→draft/active JSON rules via FORGE_RULES_AUTO",
+      "type": "infra",
+      "cost": "M",
+      "needs": [
+        "forge.validator",
+        "forge.orchestrator_core"
+      ],
+      "status": "shipped",
+      "reason": "A6.3 implemented"
     }
   ],
   "pulse": {

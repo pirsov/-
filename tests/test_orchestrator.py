@@ -656,5 +656,139 @@ class TestStateCompaction(unittest.TestCase):
             self.assertIn("demo purpose", entry.get("contract_summary", ""))
 
 
+class TestFeedbackHitl(unittest.TestCase):
+    def test_yes_closed_verified_and_golden(self):
+        import json
+        import os
+        from forge import feedback
+
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            (root / "contracts").mkdir()
+            (root / "contracts" / "game1.hud.json").write_text(
+                json.dumps(
+                    {
+                        "plugin": "game1.hud",
+                        "contract_snapshot": {"name": "game1.hud", "purpose": "HUD attrs"},
+                    }
+                ),
+                encoding="utf-8",
+            )
+            (root / "state.json").write_text(
+                json.dumps({"pulse": {"cycle": 1}, "done": [{"plugin": "game1.hud", "status": "done"}]}),
+                encoding="utf-8",
+            )
+            old = os.environ.get("FORGE_RULES_AUTO")
+            try:
+                os.environ["FORGE_RULES_AUTO"] = "1"
+                report = feedback.submit_verdict(root, "game1.hud", "y", note="HUD ok in Studio")
+            finally:
+                if old is None:
+                    os.environ.pop("FORGE_RULES_AUTO", None)
+                else:
+                    os.environ["FORGE_RULES_AUTO"] = old
+            self.assertEqual(report["status"], "closed_verified")
+            self.assertTrue(str(report.get("golden_ref", "")).startswith("contracts/golden/"))
+            self.assertTrue((root / report["golden_ref"]).is_file())
+            kb = feedback.load_knowledge(root)
+            self.assertEqual(kb["plugins"]["game1.hud"]["status"], "closed_verified")
+            state = json.loads((root / "state.json").read_text(encoding="utf-8"))
+            hud = next(d for d in state["done"] if d["plugin"] == "game1.hud")
+            self.assertEqual(hud["status"], "closed_verified")
+
+    def test_no_creates_draft_or_active_rule(self):
+        import json
+        import os
+        from forge import feedback
+        from forge.validator import validate_file
+
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            (root / "state.json").write_text(
+                json.dumps({"pulse": {"cycle": 1}, "done": [], "task_queue": []}),
+                encoding="utf-8",
+            )
+            # Luau without CoinsCollected — forbid rule should dry-run green → active
+            src = root / "src" / "server" / "Gameplay"
+            src.mkdir(parents=True)
+            (src / "Checkpoints.server.luau").write_text(
+                "--!strict\n"
+                "local Remotes = {}\n"
+                "Remotes.CheckpointReached = true\n"
+                'part.Touched:Connect(function() end)\n'
+                "hum.Died:Connect(function() end)\n"
+                'plr:SetAttribute("Checkpoint", idx)\n'
+                'folder:FindFirstChild("Checkpoint" .. tostring(idx))\n'
+                "FireClient(plr, idx)\n",
+                encoding="utf-8",
+            )
+            old = os.environ.get("FORGE_RULES_AUTO")
+            try:
+                os.environ["FORGE_RULES_AUTO"] = "1"
+                report = feedback.submit_verdict(
+                    root,
+                    "game1.checkpoints",
+                    "n",
+                    note="CoinsCollected still appears somehow",
+                    files=["Checkpoints.server.luau"],
+                )
+            finally:
+                if old is None:
+                    os.environ.pop("FORGE_RULES_AUTO", None)
+                else:
+                    os.environ["FORGE_RULES_AUTO"] = old
+            self.assertEqual(report["status"], "broken_by_user")
+            rule = report["rule"]
+            self.assertTrue(str(rule.get("id", "")).startswith("R"))
+            self.assertIn(rule.get("status"), {"draft", "active"})
+            kb = feedback.load_knowledge(root)
+            self.assertEqual(len(kb["rules"]), 1)
+            self.assertEqual(kb["plugins"]["game1.checkpoints"]["status"], "broken_by_user")
+
+            # If auto-activated, injecting CoinsCollected must fail validator
+            if rule.get("status") == "active":
+                bad = src / "Checkpoints.server.luau"
+                bad.write_text(
+                    bad.read_text(encoding="utf-8") + "\nRemotes.CoinsCollected:FireClient(plr)\n",
+                    encoding="utf-8",
+                )
+                ok, errs = validate_file(bad, root=root)
+                self.assertFalse(ok)
+                self.assertTrue(any("R" in e or "CoinsCollected" in e or "HITL" in e for e in errs), errs)
+
+    def test_auto_stays_draft_when_dry_run_red(self):
+        import json
+        import os
+        from forge import feedback
+
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            (root / "state.json").write_text(json.dumps({"done": [], "task_queue": []}), encoding="utf-8")
+            src = root / "src" / "server" / "Data"
+            src.mkdir(parents=True)
+            # Good tree already zeros BestTime — BestTime HITL forbid will fire → draft
+            (src / "PlayerData.server.luau").write_text(
+                '--!strict\nplayer:SetAttribute("BestTime", 0)\n',
+                encoding="utf-8",
+            )
+            old = os.environ.get("FORGE_RULES_AUTO")
+            try:
+                os.environ["FORGE_RULES_AUTO"] = "1"
+                report = feedback.submit_verdict(
+                    root,
+                    "game1.player_data",
+                    "n",
+                    note="BestTime сбрасывается в 0 после смерти",
+                    files=["PlayerData.server.luau"],
+                )
+            finally:
+                if old is None:
+                    os.environ.pop("FORGE_RULES_AUTO", None)
+                else:
+                    os.environ["FORGE_RULES_AUTO"] = old
+            self.assertEqual(report["rule"]["status"], "draft")
+            self.assertFalse(report["auto"].get("activated"))
+
+
 if __name__ == "__main__":
     unittest.main()

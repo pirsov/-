@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "rules": [],
+  "plugins": {
+    "game1.hud": {
+      "status": "closed_verified",
+      "updated_at": "2026-11-10T07:34:21.475879+00:00",
+      "golden_ref": "contracts/golden/game1.hud.json",
+      "note": "CLI smoke yes"
+    }
+  },
+  "updated_at": "2026-11-10T07:34:21.475881+00:00"
+}

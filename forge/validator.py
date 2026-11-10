@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 
 
 _STUB_MARKERS = (
@@ -16,7 +16,21 @@ _STUB_MARKERS = (
 )
 
 
-def validate_file(path: Path) -> Tuple[bool, List[str]]:
+def _find_forge_root(path: Path) -> Optional[Path]:
+    """Walk parents for knowledge_base.json / state.json / PROJECT_TZ.md."""
+    cur = path.resolve()
+    if cur.is_file():
+        cur = cur.parent
+    for _ in range(12):
+        if (cur / "knowledge_base.json").is_file() or (cur / "state.json").is_file() or (cur / "PROJECT_TZ.md").is_file():
+            return cur
+        if cur.parent == cur:
+            break
+        cur = cur.parent
+    return None
+
+
+def validate_file(path: Path, *, root: Optional[Path] = None) -> Tuple[bool, List[str]]:
     errors: List[str] = []
     name = path.name
     try:
@@ -350,6 +364,16 @@ def validate_file(path: Path) -> Tuple[bool, List[str]]:
                     "Checkpoints must not destroy Coins — coin pickup belongs in Coins.server only"
                 )
 
+    # A6.3: active JSON rules from knowledge_base.json (HITL-learned)
+    forge_root = root or _find_forge_root(path)
+    if forge_root is not None:
+        try:
+            from . import feedback as _feedback
+
+            errors.extend(_feedback.apply_rules_to_file(forge_root, path, content))
+        except Exception as e:  # never crash core validator on bad KB
+            errors.append(f"feedback rules error: {type(e).__name__}: {e}")
+
     return len(errors) == 0, errors
 
 
@@ -362,7 +386,7 @@ def validate_project_integrity(root: Path) -> Tuple[bool, List[str]]:
         for need in ("getOrCreate", "CheckpointReached", "return"):
             if need not in text:
                 errors.append(f"Remotes.luau missing '{need}'")
-        ok, errs = validate_file(remotes)
+        ok, errs = validate_file(remotes, root=root)
         if not ok:
             errors.extend(f"Remotes: {e}" for e in errs)
 
@@ -381,7 +405,7 @@ def validate_project_integrity(root: Path) -> Tuple[bool, List[str]]:
         p = root / rel
         if not p.exists():
             continue
-        ok, errs = validate_file(p)
+        ok, errs = validate_file(p, root=root)
         if not ok:
             errors.extend(f"{rel}: {e}" for e in errs)
 
