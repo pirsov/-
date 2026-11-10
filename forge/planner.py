@@ -3,10 +3,24 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from . import contract_index, deepseek, feedback, state_hub
 from .planner_schema import apply_timeout_defaults, validate_hitl_pack
+
+
+def resolve_client_skeleton_for_path(
+    root: Path, path: Path | str
+) -> Tuple[Optional[str], Optional[str]]:
+    """
+    A23.0: planner-facing skeleton routing for client tasks.
+    sound/camera/effects → client_script; buttons/menu/HUD/UI → client_ui.
+    Delegates to skeletons_hub HARD-map (Effects must not get ScreenGui META).
+    """
+    from . import skeletons_hub
+
+    p = Path(path)
+    return skeletons_hub.resolve_archetype_for_path(p, root)
 
 
 def _active_game_prefixes(root: Path) -> List[str]:

@@ -27,6 +27,13 @@ class TestServerLuauHardMap(unittest.TestCase):
         self.assertEqual(hard_archetype_from_path(p), "client_ui")
         self.assertEqual(infer_archetype_from_path(p), "client_ui")
 
+    def test_infer_effects_client_script(self):
+        from forge.skeletons_hub import hard_archetype_from_path, infer_archetype_from_path
+
+        p = Path("src/client/Effects.client.luau")
+        self.assertEqual(hard_archetype_from_path(p), "client_script")
+        self.assertEqual(infer_archetype_from_path(p), "client_script")
+
     def test_void_pin_and_validate_server_script(self):
         from forge.skeletons_hub import (
             find_contract_pin,

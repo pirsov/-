@@ -13,12 +13,12 @@
       "character:GetAttribute",
       "new unverified coin asset (I009 held)"
     ],
-    "archetype": "client_ui",
+    "archetype": "client_script",
     "skeleton_version": "v1",
     "files": [
       "src/client/Effects.client.luau"
     ]
   },
-  "archetype": "client_ui",
+  "archetype": "client_script",
   "skeleton_version": "v1"
 }

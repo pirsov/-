@@ -376,6 +376,7 @@ def build_prompt(
                 draft = draft[: draft_cap // 2] + "\n...(draft mid truncated)...\n" + draft[-draft_cap // 2 :]
         feedback += (
             "\n=== REPAIR MODE (A15 PATCH / 7B) ===\n"
+            f"START YOUR REPLY WITH <DONE>{task.task_id}</DONE>. DO NOT FORGET THE XML TAGS.\n"
             "Below is YOUR previous draft (almost done). Do NOT rewrite from scratch.\n"
             "Work the REPAIR CHECKLIST bullet-by-bullet "
             "(e.g. add Humanoid.Died + LoadCharacter; "
@@ -835,7 +836,7 @@ Never use .Left. Prefer workspace.Puzzles folder.
         strict_rules = f"""STRICT (ctx<=2k):
 - ONLY this task. <DONE>{task.task_id}</DONE> + <FILE> required when -> path.
 - task.wait() not wait(); server/client: no top-level return; ModuleScript: return table.
-- Checkpoint.."id" (no _); Remotes ModuleScript; LevelConfig Luau `=`; coins Destroy+FireClient.
+- Checkpoint.."id" (no _); Remotes ALWAYS ReplicatedStorage:WaitForChild("Gameplay"):WaitForChild("Remotes") never bare Remotes; LevelConfig Luau `=`; coins Destroy+FireClient.
 - Compact code; SEARCH/REPLACE preferred on existing files.
 {hard_caps}"""
         token_econ = "TOKEN ECONOMY: minimal comments; only code for THIS task."
@@ -855,7 +856,7 @@ Never use .Left. Prefer workspace.Puzzles folder.
 - FILE path must be the real target (e.g. {task.target_path or "src/..."}), NEVER relative/path.ext.
 - Generator: CREATE Map/Path/Spawn (Instance.new); never WaitForChild Map first.
 - Generator checkpoint names: "Checkpoint" .. tostring(id) - NEVER "Checkpoint_".
-- Remotes: require Gameplay.Remotes ModuleScript; never return a Folder.
+- Remotes: ALWAYS require via ReplicatedStorage:WaitForChild("Gameplay"):WaitForChild("Remotes") — NEVER bare ReplicatedStorage.Remotes; never return a Folder.
 - LevelConfig: Luau `id = n` only - NEVER JavaScript `id: n`. return array for ipairs.
 - Coins: coin:Destroy(); FireClient(player); FindFirstChild Coins + ChildAdded.
 - HUD: create ScreenGui; player.CharacterAdded - never bare characterAdded.
