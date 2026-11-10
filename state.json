@@ -556,5 +556,12 @@
     "server": "ThreadingHTTPServer",
     "tests": "56 OK",
     "ui": "agent-dock chat + A/B/C/Other + Start 24h"
+  },
+  "a9_1": {
+    "cycle": "A9.1",
+    "readme": "README_UI.md",
+    "next_plan": "docs/A10_PLAN.md",
+    "next_title": "A10.0 DataStore & Networking Archetypes",
+    "absorbs": ["A7.3 datastore_service → A10.1"]
   }
 }

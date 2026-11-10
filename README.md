@@ -18,4 +18,7 @@ Then `@human` H1–H4 with terminal `y`/`n`.
 
 Local fallback without a cloud key: Ollama `qwen2.5-coder:14b-4k`.
 
+**UI (chat / HITL / 24h):** `python -u run.py --ui` → http://127.0.0.1:8787 — см. [README_UI.md](README_UI.md).  
+Next core: [docs/A10_PLAN.md](docs/A10_PLAN.md) (DataStore & Networking).
+
 Details: [docs/WEEK.md](docs/WEEK.md) · [docs/FORGE_CONTRACT.md](docs/FORGE_CONTRACT.md)
