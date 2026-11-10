@@ -70,14 +70,17 @@ function syncStartStopButton(active) {
   const startBtn = el("btn-start-24h");
   const stopBtn = el("btn-stop-24h");
   if (startBtn) {
+    startBtn.classList.add("btn-24h");
     if (loop24Active) {
       startBtn.dataset.mode = "stop";
-      startBtn.textContent = "Остановить (Stop)";
-      startBtn.classList.add("ghost");
+      startBtn.textContent = "Остановить";
+      startBtn.classList.remove("btn-start", "ghost");
+      startBtn.classList.add("btn-stop");
     } else {
       startBtn.dataset.mode = "start";
       startBtn.textContent = "Старт 24h";
-      startBtn.classList.remove("ghost");
+      startBtn.classList.remove("btn-stop", "ghost");
+      startBtn.classList.add("btn-start");
     }
   }
   if (stopBtn) stopBtn.hidden = !loop24Active;
@@ -86,6 +89,8 @@ function syncStartStopButton(active) {
 function highlightCode(text, path) {
   const codeEl = el("file-view-code");
   const pre = el("file-view");
+  const label = el("file-path-label");
+  if (label) label.textContent = path || "выбери файл";
   if (!codeEl) {
     if (pre) pre.textContent = text || "";
     return;
@@ -353,7 +358,7 @@ function startPoll() {
   pollTimer = setInterval(async () => {
     try { renderRun(await api("/api/run/status")); }
     catch (e) { toast(String(e.message || e)); }
-  }, 1500);
+  }, 3000);
 }
 function stopPoll() {
   if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
@@ -372,7 +377,11 @@ async function openCodeFile(path) {
   const file = await api("/api/file?path=" + encodeURIComponent(path));
   lastFileContent = file.content || "";
   highlightCode(lastFileContent, path);
-  el("btn-copy-code").disabled = !lastFileContent;
+  const copyBtn = el("btn-copy-code");
+  if (copyBtn) copyBtn.disabled = !lastFileContent;
+  document.querySelectorAll(".tree-file > button").forEach(b => {
+    b.classList.toggle("active", b.getAttribute("data-path") === path);
+  });
   const list = el("file-list");
   if (list) {
     list.querySelectorAll(".file-btn").forEach(b => {
@@ -381,30 +390,72 @@ async function openCodeFile(path) {
   }
   const sel = el("file-select");
   if (sel && sel.value !== path) sel.value = path;
-  const pathLabel = el("file-path-label");
-  if (pathLabel) pathLabel.textContent = path;
 }
 
-function renderFileExplorer(paths) {
+function escapeHtml(s) {
+  return String(s || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function renderTreeNodes(nodes, depth) {
+  if (!Array.isArray(nodes) || !nodes.length) return "";
+  return nodes.map(node => {
+    if (node.type === "dir") {
+      const open = depth < 2 ? " open" : "";
+      return `<details class="tree-dir"${open}>
+        <summary>${escapeHtml(node.name)}</summary>
+        <div class="tree-kids">${renderTreeNodes(node.children || [], depth + 1)}</div>
+      </details>`;
+    }
+    const path = node.path || "";
+    const active = path === lastFilePath ? " active" : "";
+    return `<div class="tree-file">
+      <button type="button" data-path="${escapeHtml(path)}" class="${active.trim()}" title="${escapeHtml(path)}">${escapeHtml(node.name)}</button>
+    </div>`;
+  }).join("");
+}
+
+function bindFileTreeClicks(rootEl) {
+  if (!rootEl) return;
+  rootEl.querySelectorAll(".tree-file > button").forEach(btn => {
+    btn.onclick = () => {
+      openCodeFile(btn.getAttribute("data-path")).catch(e => toast(String(e.message || e)));
+    };
+  });
+}
+
+function renderFileExplorer(paths, tree) {
   const list = Array.isArray(paths) ? paths.slice() : [];
   knownFilePaths = list;
   const sel = el("file-select");
   const box = el("file-list");
+  const treeEl = el("file-tree");
   if (sel) {
     const prev = lastFilePath || sel.value;
     sel.innerHTML = list.length
-      ? list.map(p => `<option value="${p.replace(/"/g, "&quot;")}">${shortFileLabel(p)}</option>`).join("")
-      : `<option value="">— нет .luau —</option>`;
+      ? list.map(p => `<option value="${escapeHtml(p)}">${escapeHtml(shortFileLabel(p))}</option>`).join("")
+      : `<option value="">— нет файлов —</option>`;
     if (prev && list.includes(prev)) sel.value = prev;
+  }
+  if (treeEl) {
+    if (Array.isArray(tree) && tree.length) treeEl.innerHTML = renderTreeNodes(tree, 0);
+    else if (list.length) {
+      treeEl.innerHTML = list.map(p => {
+        const active = p === lastFilePath ? " active" : "";
+        return `<div class="tree-file"><button type="button" data-path="${escapeHtml(p)}" class="${active.trim()}" title="${escapeHtml(p)}">${escapeHtml(shortFileLabel(p))}</button></div>`;
+      }).join("");
+    } else treeEl.innerHTML = "<p class='muted'>нет файлов — агент ещё не записал код</p>";
+    bindFileTreeClicks(treeEl);
   }
   if (box) {
     box.innerHTML = list.map(p =>
-      `<button type="button" class="btn file-btn${p === lastFilePath ? " active" : ""}" data-path="${p.replace(/"/g, "&quot;")}" title="${p}">${shortFileLabel(p)}</button>`
-    ).join("") || "<p class='muted'>нет .luau — агент ещё не записал код</p>";
+      `<button type="button" class="btn file-btn${p === lastFilePath ? " active" : ""}" data-path="${escapeHtml(p)}" title="${escapeHtml(p)}">${escapeHtml(shortFileLabel(p))}</button>`
+    ).join("") || "<p class='muted'>нет файлов</p>";
     box.querySelectorAll(".file-btn").forEach(btn => {
-      btn.onclick = () => {
-        openCodeFile(btn.getAttribute("data-path")).catch(e => toast(String(e.message || e)));
-      };
+      btn.onclick = () => openCodeFile(btn.getAttribute("data-path")).catch(e => toast(String(e.message || e)));
     });
   }
 }
@@ -412,28 +463,26 @@ function renderFileExplorer(paths) {
 async function loadFiles({ autoOpen = true } = {}) {
   const j = await api("/api/files");
   const files = Array.isArray(j.files) ? j.files : [];
+  const tree = j.tree;
   const prev = lastFilePath;
-  renderFileExplorer(files);
+  renderFileExplorer(files, tree);
   if (!files.length) {
     lastFileContent = "";
     highlightCode("", "");
-    el("btn-copy-code").disabled = true;
+    const copyBtn = el("btn-copy-code");
+    if (copyBtn) copyBtn.disabled = true;
     return files;
   }
   const keep = prev && files.includes(prev) ? prev : files[0];
-  if (autoOpen && (!prev || !files.includes(prev) || !lastFileContent)) {
-    await openCodeFile(keep);
-  } else if (autoOpen && keep !== prev) {
-    await openCodeFile(keep);
-  }
+  if (autoOpen && (!prev || !files.includes(prev) || !lastFileContent)) await openCodeFile(keep);
+  else if (autoOpen && keep !== prev) await openCodeFile(keep);
+  else renderFileExplorer(files, tree);
   return files;
 }
 
 function startFilesPoll() {
   if (filesPollTimer) return;
-  filesPollTimer = setInterval(() => {
-    loadFiles({ autoOpen: false }).catch(() => {});
-  }, 4000);
+  filesPollTimer = setInterval(() => { loadFiles({ autoOpen: false }).catch(() => {}); }, 3000);
 }
 function stopFilesPoll() {
   if (filesPollTimer) { clearInterval(filesPollTimer); filesPollTimer = null; }
@@ -991,8 +1040,41 @@ function startSnapPoll() {
       const s = await api("/api/status_snapshot");
       renderAgentSnap(s);
     } catch (_) { /* ignore */ }
-  }, 2000);
+  }, 3000);
 }
+
+/** Unified 3s status poll — progress, step, Start/Stop (non-blocking). */
+let statusPollTimer = null;
+function startStatusPoll() {
+  if (statusPollTimer) return;
+  statusPollTimer = setInterval(async () => {
+    try {
+      const s = await api("/api/status");
+      if (s.deepseek != null) setChip("ds-status", s.deepseek, "DeepSeek: OK", "DeepSeek: нет ключа");
+      const ol = (s.health && s.health.ollama) || {};
+      if (el("ollama-status")) setChip("ollama-status", !!ol.ok, `Ollama: OK (${ol.count || 0})`, "Ollama: down");
+      if (s.progress) applyProgress(s.progress);
+      if (s.run) renderRun(s.run);
+      if (s.snapshot) renderAgentSnap(s.snapshot);
+      else if (s.run) {
+        renderAgentSnap({
+          waiting_human: s.waiting_human,
+          hitl_pack: s.hitl_pack,
+          plugins_closed: s.plugins_closed,
+          queue_pending: s.queue_pending,
+          run: s.run,
+        });
+      }
+      const st = (s.run && s.run.status) || "";
+      const active = isLoop24Active(s.run, s.snapshot || s);
+      if (st === "running" || st === "looping" || active) {
+        syncStartStopButton(true);
+        startFilesPoll();
+      } else if (!active) syncStartStopButton(false);
+    } catch (_) {}
+  }, 3000);
+}
+
 function stopSnapPoll() {
   if (snapPollTimer) { clearInterval(snapPollTimer); snapPollTimer = null; }
 }
@@ -1081,6 +1163,7 @@ el("btn-stop-24h").onclick = async () => {
 refresh().then(async () => {
   if (lastProgress) setFocus(lastProgress.stage || 1, { scroll: false });
   loadFiles({ autoOpen: true }).catch(() => {});
+  startStatusPoll();
   // After reload: if smoke already done, put answers back into panel 5
   const flags = (lastProgress && lastProgress.flags) || {};
   if (flags.smoke_done || (lastProgress && lastProgress.issue_count > 0)) {
