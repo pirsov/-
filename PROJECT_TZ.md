@@ -1,4 +1,4 @@
-# LAST_UPDATE: Cloud Fallback closed F3+F4+F5 (validator PASS). Sync to Desktop when Ollama returns.
+# LAST_UPDATE: Cycle 3 E2E pulse — open_questions Q1-Q2 issued; awaiting human answers. No code.
 #   git pull; python -u run.py --project game1; python -u run.py --eval
 
 ## LEGEND

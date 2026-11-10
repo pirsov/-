@@ -408,30 +408,43 @@
         "C2.F4",
         "C2.F5"
       ],
-      "status": "ready"
+      "status": "in_progress",
+      "note": "open_questions pack issued; Studio H11 pending human report"
     }
   ],
   "open_questions": [
     {
       "id": "Q1",
-      "topic": "BestTime trigger",
-      "status": "answered",
-      "answer": "BestTime float seconds in PlayerData; set_best_time only if new < current (and >0); NOT tied to Last CP alone; write on leave/finish elapsed",
-      "contract": "set_best_time(val: float), get_best_time() -> float"
+      "topic": "BestTime write moment",
+      "ask": "Когда писать BestTime в рантайме (кроме leave)?",
+      "options": [
+        "A) только PlayerRemoving (как сейчас)",
+        "B) на последнем Checkpoint + leave",
+        "C) на каждом Checkpoint если elapsed лучше текущего Best"
+      ],
+      "default_if_timeout": "A",
+      "related_idea": "I011"
     },
     {
       "id": "Q2",
-      "topic": "spawn load budget",
-      "status": "answered",
-      "answer": "1 minute OK for spawn check; light async polling; do not block main thread",
-      "budget_s": 60
+      "topic": "Death vs run clock",
+      "ask": "Что делать с таймером HUD и RunStartedAt после смерти?",
+      "options": [
+        "A) сбрасывать только HUD Time; RunStartedAt и Best не трогать",
+        "B) сбрасывать RunStartedAt на каждом респавне (новый забег)",
+        "C) паузить RunStartedAt на время ragdoll/respawn"
+      ],
+      "default_if_timeout": "A",
+      "related_idea": "I012"
     }
   ],
   "pulse": {
-    "cycle": 2,
+    "cycle": 3,
     "next_e2e_at_cycle": 4,
     "next_compact_at_cycle": 5,
-    "next_metrics_at_cycle": 8
+    "next_metrics_at_cycle": 8,
+    "e2e_at": "2026-11-10T07:13:42.087643+00:00",
+    "status": "awaiting_human_answers"
   },
   "cycle1_report": {
     "at": "2026-11-10T07:02:36.854490+00:00",
@@ -466,5 +479,35 @@
     },
     "next": "C3.E2E Studio smoke H11 + git pull on Desktop",
     "also": "Checkpoints RunStartedAt set on first CP progress (supports BestTime)"
+  },
+  "cycle3_pulse": {
+    "at": "2026-11-10T07:13:42.087643+00:00",
+    "mode": "pulse_only",
+    "code_writes": 0,
+    "h11": "awaiting Studio smoke report from human",
+    "next": "answer Q1-Q2 pack → cycle 4 from ideas + answers"
+  },
+  "stats_snapshot": {
+    "plugins_closed_done": 17,
+    "partial": 0,
+    "task_queue": {
+      "closed": 5,
+      "in_progress": 1
+    },
+    "ideas_by_status": {
+      "deferred": 1,
+      "proposed": 9,
+      "infra_backlog": 1,
+      "shipped": 2
+    },
+    "proposed_by_type": {
+      "mechanic": 2,
+      "ui": 2,
+      "content": 2,
+      "infra": 1,
+      "polish": 2
+    },
+    "open_questions": 2,
+    "pulse_cycle": 3
   }
 }

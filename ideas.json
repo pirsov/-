@@ -10,8 +10,8 @@
         "game1.checkpoints",
         "game1.player_data"
       ],
-      "status": "ready",
-      "reason": "Q1 answered: float BestTime if new < current"
+      "status": "deferred",
+      "reason": "Q1: BestTime not tied to Last CP; leave/finish only for now"
     },
     {
       "id": "I002",
@@ -85,8 +85,8 @@
         "game1.hud",
         "game1.player_data"
       ],
-      "status": "proposed",
-      "reason": "cycle1"
+      "status": "shipped",
+      "reason": "closed in C2.F5 HUD Best %.1f"
     },
     {
       "id": "I008",
@@ -97,8 +97,90 @@
       "needs": [
         "game1.checkpoints"
       ],
+      "status": "shipped",
+      "reason": "closed in Checkpoints RunStartedAt on first CP"
+    },
+    {
+      "id": "I009",
+      "title": "Coin pickup sound (valid asset)",
+      "one_liner": "Play short Sound on CoinCollected with a known-good rbxassetid",
+      "type": "content",
+      "cost": "S",
+      "needs": [
+        "game1.coins",
+        "game1.hud"
+      ],
       "status": "proposed",
-      "reason": "cycle1"
+      "reason": "cycle3 E2E pulse"
+    },
+    {
+      "id": "I010",
+      "title": "Checkpoint touch VFX pulse",
+      "one_liner": "Brief neon flash/particle on CP part when CheckpointReached fires",
+      "type": "polish",
+      "cost": "S",
+      "needs": [
+        "game1.checkpoints",
+        "game1.effects"
+      ],
+      "status": "proposed",
+      "reason": "cycle3 E2E pulse"
+    },
+    {
+      "id": "I011",
+      "title": "Finish-line BestTime write",
+      "one_liner": "On last Checkpoint index, call set_best_time(elapsed) without waiting for leave",
+      "type": "mechanic",
+      "cost": "S",
+      "needs": [
+        "game1.checkpoints",
+        "game1.player_data"
+      ],
+      "status": "proposed",
+      "reason": "cycle3 E2E pulse — optional mid-run record"
+    },
+    {
+      "id": "I012",
+      "title": "HUD death reset Time only",
+      "one_liner": "On CharacterAdded reset run clock but keep Best/Coins/CP labels stable",
+      "type": "ui",
+      "cost": "S",
+      "needs": [
+        "game1.hud"
+      ],
+      "status": "proposed",
+      "reason": "cycle3 E2E pulse"
+    },
+    {
+      "id": "I013",
+      "title": "Horror fog density preset",
+      "one_liner": "One Atmosphere/FogEnd preset in Generator for horror mood without extra props",
+      "type": "polish",
+      "cost": "S",
+      "needs": [
+        "game1.generator"
+      ],
+      "status": "proposed",
+      "reason": "cycle3 E2E pulse"
     }
-  ]
+  ],
+  "pulse": {
+    "at": "2026-11-10T07:13:42.087643+00:00",
+    "cycle": 3,
+    "batch": "C3.E2E",
+    "added": [
+      "I009",
+      "I010",
+      "I011",
+      "I012",
+      "I013"
+    ],
+    "quotas": {
+      "ui": 1,
+      "mechanic": 1,
+      "content": 1,
+      "polish": 2,
+      "ok": true
+    }
+  }
 }
