@@ -125,6 +125,7 @@ def tokens_to_chars(tokens: int) -> int:
 
 
 # Sections dropped first when over budget (least critical → most critical kept).
+# A29: drop RULES/generic templates before Coins/Remotes so budget=3000 keeps those skeletons.
 _DROP_SECTION_ORDER = (
     "ACTIVE HITL RULES",
     "RULES",
@@ -135,17 +136,18 @@ _DROP_SECTION_ORDER = (
     "Existing project files",
     "PROJECT_TZ.md",
     "QA_REPORT TEMPLATE",
-    "REMOTES TEMPLATE",
     "CHECKPOINTS TEMPLATE",
     "EFFECTS TEMPLATE",
     "GENERATOR RULES",
-    "COINS TEMPLATE",
     "LEVELCONFIG TEMPLATE",
     "HUD TEMPLATE",
     "LEADERBOARD TEMPLATE",
     "VOID RULES",
     "PUZZLES RULES",
     "ASSET",
+    # Keep Coins/Remotes templates as long as possible (Live Ops REWRITE targets)
+    "REMOTES TEMPLATE",
+    "COINS TEMPLATE",
 )
 
 

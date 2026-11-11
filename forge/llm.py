@@ -61,6 +61,27 @@ def _openrouter_key() -> str:
     return _clean_key(os.environ.get("OPENROUTER_API_KEY"))
 
 
+def _cloud_model_default(be: str) -> str:
+    """Optional cloud model names (never used for local Ollama)."""
+    try:
+        from .prompts import OPENROUTER_CFG, SPACEBUNNY_CFG
+    except Exception:
+        OPENROUTER_CFG, SPACEBUNNY_CFG = {}, {}
+    if be == "spacebunny":
+        return str(
+            os.environ.get("SPACE_BUNNY_MODEL")
+            or (SPACEBUNNY_CFG or {}).get("model")
+            or "space-bunny-alpha"
+        )
+    if be == "openrouter":
+        return str(
+            os.environ.get("OPENROUTER_MODEL")
+            or (OPENROUTER_CFG or {}).get("model")
+            or "qwen/qwen-2.5-coder-32b-instruct"
+        )
+    return "qwen2.5-coder:14b-4k"
+
+
 def backend_name() -> str:
     """
     Preferred / configured backend name (legacy).
@@ -255,7 +276,7 @@ def generate(
         return _openai_compat_generate(
             base_url=os.environ.get("SPACE_BUNNY_BASE_URL") or "https://spacebunnymodel.com/api/v1",
             api_key=key,
-            model=model or "space-bunny-alpha",
+            model=model or _cloud_model_default("spacebunny"),
             prompt=prompt,
             temperature=temperature,
             max_tokens=num_predict,
@@ -270,7 +291,7 @@ def generate(
         return _openai_compat_generate(
             base_url=os.environ.get("OPENROUTER_BASE_URL") or "https://openrouter.ai/api/v1",
             api_key=key,
-            model=model or "stealth/space-bunny-alpha",
+            model=model or _cloud_model_default("openrouter"),
             prompt=prompt,
             temperature=temperature,
             max_tokens=num_predict,
@@ -311,7 +332,7 @@ def auth_probe(timeout: int = 20) -> Tuple[bool, str]:
         return ollama_client.ping(), "ollama ping"
     try:
         out = generate(
-            "space-bunny-alpha" if be == "spacebunny" else "stealth/space-bunny-alpha",
+            _cloud_model_default(be),
             "Reply with exactly: PONG",
             num_predict=8,
             temperature=0,
@@ -331,9 +352,9 @@ def list_models() -> List[str]:
     if be == "stub":
         return ["stub"]
     if be == "spacebunny":
-        return ["space-bunny-alpha"]
+        return [_cloud_model_default("spacebunny")]
     if be == "openrouter":
-        return ["stealth/space-bunny-alpha"]
+        return [_cloud_model_default("openrouter")]
     return ollama_client.list_models()
 
 
@@ -342,7 +363,15 @@ def resolve_model(preferred: str, installed: Optional[List[str]] = None, *, allo
     if be == "stub":
         return "stub"
     if be == "spacebunny":
-        return "space-bunny-alpha"
+        return _cloud_model_default("spacebunny")
     if be == "openrouter":
-        return "stealth/space-bunny-alpha"
+        return _cloud_model_default("openrouter")
+    # A29: cloud-style tags must rematch onto installed Ollama tags
+    if ollama_client.looks_like_cloud_tag(preferred):
+        # Prefer 14B coder family when remapping invalid/cloud names
+        return ollama_client.resolve_model(
+            "qwen2.5-coder:14b-4k", installed, allow_any=allow_any
+        ) or ollama_client.resolve_model(
+            preferred or "qwen2.5-coder:14b-4k", installed, allow_any=allow_any
+        )
     return ollama_client.resolve_model(preferred, installed, allow_any=allow_any)

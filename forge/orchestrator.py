@@ -446,18 +446,20 @@ def installed_models(force: bool = False) -> List[str]:
 
 
 def pick_model(owner: str, attempt: int, escalate: bool) -> dict:
-    be = llm.backend_name()
+    # A29: use *runtime* backend (ollama when up), not preferred backend_name().
+    # Otherwise OPENROUTER_API_KEY alone selected cloud tags that Ollama then 404'd.
+    be = llm.active_backend()
     if be == "spacebunny":
         cfg = SPACEBUNNY_CFG or {}
         return {
-            "model": cfg.get("model") or "space-bunny-alpha",
+            "model": cfg.get("model") or llm._cloud_model_default("spacebunny"),  # noqa: SLF001
             "ctx": int(cfg.get("ctx") or 1_000_000),
             "predict": int(cfg.get("predict") or 8192),
         }
     if be == "openrouter":
         cfg = OPENROUTER_CFG or {}
         return {
-            "model": cfg.get("model") or "stealth/space-bunny-alpha",
+            "model": cfg.get("model") or llm._cloud_model_default("openrouter"),  # noqa: SLF001
             "ctx": int(cfg.get("ctx") or 1_000_000),
             "predict": int(cfg.get("predict") or 8192),
         }
@@ -560,7 +562,7 @@ def doctor(root: Path) -> int:
             else:
                 print("  FIX: https://openrouter.ai/keys  (key must start with sk-or-)")
             return 1
-        print(f"  model: {'space-bunny-alpha' if be == 'spacebunny' else 'stealth/space-bunny-alpha'}")
+        print(f"  model: {llm._cloud_model_default(be)}")  # noqa: SLF001
         print("  probing API...")
         ok, msg = llm.auth_probe()
         print(f"  probe: {'OK' if ok else 'FAIL'}")

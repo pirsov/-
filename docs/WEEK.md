@@ -16,7 +16,8 @@ python run.py --doctor    # must print probe: OK
 python run.py --week
 ```
 
-### Backend B — OpenRouter (`stealth/space-bunny-alpha`)
+### Backend B — OpenRouter (optional cloud; local Ollama preferred)
+Default model: `qwen/qwen-2.5-coder-32b-instruct` (override `OPENROUTER_MODEL`). Prefer local tags in `forge/models.json`.
 Key: https://openrouter.ai/keys (must start with `sk-or-v1-…`)
 
 ```powershell
