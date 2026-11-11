@@ -105,7 +105,8 @@ class TestSemanticPrune(unittest.TestCase):
 
 
 class TestPromptDiffMode(unittest.TestCase):
-    def test_rewrite_existing_asks_for_patch(self):
+    def test_rewrite_existing_asks_complete_file_not_patch(self):
+        # A28: Cursor SEARCH/REPLACE markers break files — COMPLETE only.
         from forge.prompts import mode_instructions
         from forge.task_parser import Task, WriteMode
 
@@ -120,8 +121,9 @@ class TestPromptDiffMode(unittest.TestCase):
             section=None,
         )
         text = mode_instructions(task, file_exists=True, prefer_diff=True)
-        self.assertIn("SEARCH", text)
-        self.assertIn("REPLACE", text)
+        self.assertIn("COMPLETE", text)
+        self.assertIn("NEVER use <<<<<<< SEARCH", text)
+        self.assertNotIn("Prefer SEARCH/REPLACE blocks", text)
 
 
 class TestCompact7bFallback(unittest.TestCase):

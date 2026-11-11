@@ -40,6 +40,8 @@ _NEW_BATCH = """
 
 
 def _seed_empty_queue(root: Path) -> None:
+    from forge.orchestrator import EXPECTED_GAME_FILES
+
     (root / "logs").mkdir(parents=True, exist_ok=True)
     (root / ".forge").mkdir(parents=True, exist_ok=True)
     (root / "src" / "client").mkdir(parents=True, exist_ok=True)
@@ -58,7 +60,13 @@ def _seed_empty_queue(root: Path) -> None:
         ),
         encoding="utf-8",
     )
-    (root / "src" / "client" / "HUD.client.luau").write_text("--!strict\n", encoding="utf-8")
+    # A28: polish Live Ops only runs when EXPECTED_GAME_FILES exist — seed them
+    # so these tests still exercise DeepSeek polish (missing-file path is A28).
+    for rel in EXPECTED_GAME_FILES:
+        p = root / rel
+        p.parent.mkdir(parents=True, exist_ok=True)
+        if not p.is_file():
+            p.write_text("--!strict\n-- stub for live ops polish tests\n", encoding="utf-8")
     (root / "PROJECT_TZ.md").write_text(_DONE_TZ, encoding="utf-8")
     (root / "AGENTS.md").write_text("# Agents\n", encoding="utf-8")
     (root / "state.json").write_text(
