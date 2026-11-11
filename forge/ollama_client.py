@@ -78,20 +78,78 @@ def resolve_model(
     lower = {n.lower(): n for n in installed}
     if preferred.lower() in lower:
         return lower[preferred.lower()]
+    def _tie_break(name: str) -> tuple:
+        # Prefer project's installed favorites when family scores tie
+        low = name.lower()
+        pref = 0
+        if low == "qwen2.5-coder:14b-4k":
+            pref = 50
+        elif "14b-4k" in low:
+            pref = 40
+        elif "14b" in low and "coder" in low:
+            pref = 30
+        elif low == "qwen2.5-coder:7b-2k":
+            pref = 25
+        elif "7b-2k" in low:
+            pref = 20
+        elif "coder" in low:
+            pref = 10
+        return (pref, name)
+
     ranked = sorted(
-        (( _family_score(preferred, n), n) for n in installed),
-        key=lambda x: x[0],
+        ((_family_score(preferred, n), n) for n in installed),
+        key=lambda x: (x[0], _tie_break(x[1])),
         reverse=True,
     )
     if ranked and ranked[0][0] >= 40:
         return ranked[0][1]
     if allow_any:
-        # prefer any coder, else first installed
+        # prefer project favorites, else any coder, else first installed
+        favorites = (
+            "qwen2.5-coder:14b-4k",
+            "qwen2.5-coder:7b-2k",
+            "qwen2.5-coder:14b",
+            "qwen2.5-coder:7b",
+        )
+        for fav in favorites:
+            if fav in installed:
+                return fav
         for n in installed:
             if "coder" in n.lower():
                 return n
         return installed[0]
     return None
+
+
+def looks_like_cloud_tag(name: str) -> bool:
+    """OpenRouter-style org/model tags must never be sent to local Ollama."""
+    n = (name or "").strip()
+    if not n:
+        return True
+    if "/" in n:
+        return True
+    low = n.lower()
+    if "space-bunny" in low or low.startswith("stealth"):
+        return True
+    return False
+
+
+def _post_generate(
+    body: Dict[str, Any],
+    *,
+    url: str,
+    timeout: int,
+) -> str:
+    data = json.dumps(body).encode("utf-8")
+    req = urllib.request.Request(
+        url,
+        data=data,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        payload = json.loads(resp.read().decode("utf-8"))
+        return payload.get("response", "") or ""
 
 
 def generate(
@@ -107,6 +165,22 @@ def generate(
 ) -> str:
     # A25: num_ctx capped at MAX_NUM_CTX (4096) so gameplay/client 14B can use 4k.
     # A15: num_predict capped via llm_backends (default 1024 / diff 512).
+    # A29: never send cloud tags to Ollama; on HTTP 404 rematch via /api/tags once.
+    preferred = (model or "").strip() or "qwen2.5-coder:14b-4k"
+    installed: Optional[List[str]] = None
+
+    def _installed() -> List[str]:
+        nonlocal installed
+        if installed is None:
+            installed = list_models()
+        return list(installed or [])
+
+    if looks_like_cloud_tag(preferred):
+        alt = resolve_model("qwen2.5-coder:14b-4k", _installed(), allow_any=True)
+        if alt:
+            print(f"   ollama model remap (cloud/invalid tag): {preferred} -> {alt}", flush=True)
+            preferred = alt
+
     try:
         from . import llm_backends
 
@@ -120,7 +194,7 @@ def generate(
         temperature = float(opts["temperature"])
         num_predict = int(opts["num_predict"])
         # Refuse oversized prompts — Ollama would log `truncating input prompt`
-        is_7b = "7b" in (model or "").lower()
+        is_7b = "7b" in (preferred or "").lower()
         budget = llm_backends.effective_prompt_token_budget(
             is_7b=is_7b,
             num_ctx=num_ctx,
@@ -135,8 +209,9 @@ def generate(
     except Exception:
         num_ctx = min(int(num_ctx), 4096)
         num_predict = min(int(num_predict), 1024)
+
     body: Dict[str, Any] = {
-        "model": model,
+        "model": preferred,
         "prompt": prompt,
         "stream": False,
         "keep_alive": "10m",
@@ -146,29 +221,36 @@ def generate(
             "num_predict": num_predict,
         },
     }
-    data = json.dumps(body).encode("utf-8")
-    req = urllib.request.Request(
-        url,
-        data=data,
-        headers={"Content-Type": "application/json"},
-        method="POST",
-    )
+
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            payload = json.loads(resp.read().decode("utf-8"))
-            return payload.get("response", "") or ""
+        return _post_generate(body, url=url, timeout=timeout)
     except urllib.error.HTTPError as e:
         detail = e.read().decode("utf-8", errors="replace") if e.fp else ""
-        installed = list_models()
-        hint = ""
         if e.code == 404:
+            names = _installed()
+            alt = resolve_model(preferred, names, allow_any=True)
+            if alt and alt != preferred:
+                print(f"   ollama 404 fallback: {preferred} -> {alt} (from tags)", flush=True)
+                body["model"] = alt
+                try:
+                    return _post_generate(body, url=url, timeout=timeout)
+                except urllib.error.HTTPError as e2:
+                    detail2 = e2.read().decode("utf-8", errors="replace") if e2.fp else ""
+                    raise RuntimeError(
+                        f"Ollama API error: HTTP Error {e2.code}: {e2.reason} "
+                        f"(after 404 fallback to '{alt}').\n"
+                        f"Installed: {names or '(none)'}\n{detail2}"
+                    ) from e2
             hint = (
-                f"\nModel '{model}' not found in Ollama (HTTP 404)."
-                f"\nInstalled: {installed or '(none — is ollama running?)'}"
-                f"\nFix: ollama pull {model}"
+                f"\nModel '{preferred}' not found in Ollama (HTTP 404)."
+                f"\nInstalled: {names or '(none — is ollama running?)'}"
+                f"\nFix: ollama pull qwen2.5-coder:14b-4k"
                 f"\n  or edit forge/models.json to match `ollama list`"
             )
-        raise RuntimeError(f"Ollama API error: HTTP Error {e.code}: {e.reason}.{hint}\n{detail}") from e
+            raise RuntimeError(
+                f"Ollama API error: HTTP Error {e.code}: {e.reason}.{hint}\n{detail}"
+            ) from e
+        raise RuntimeError(f"Ollama API error: HTTP Error {e.code}: {e.reason}.\n{detail}") from e
     except urllib.error.URLError as e:
         raise RuntimeError(
             f"Ollama API error: {e}. Is Ollama running? Try: ollama serve"

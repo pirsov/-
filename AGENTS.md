@@ -26,7 +26,8 @@ full or append content per WRITE MODE
 </FILE>
 
 ## Models
-- **Space Bunny** / **OpenRouter**: all roles → space-bunny-alpha (preferred).
+- **Local Ollama (preferred)**: gameplay/client → `qwen2.5-coder:14b-4k` (num_ctx 4096); repair → `qwen2.5-coder:7b-2k`. See `forge/models.json`.
+- **Space Bunny** / **OpenRouter**: optional cloud only when Ollama is down (`FORGE_BACKEND=spacebunny|openrouter`).
 - **Ollama**: design/QA → phi4-mini; code → qwen2.5-coder:14b-4k.
 
 ## Roles

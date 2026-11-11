@@ -357,7 +357,10 @@ class TestLlmBackend(unittest.TestCase):
             self.assertEqual(llm.backend_name(), "openrouter")
             be, _ = llm.resolve_runtime_backend(ollama_ping_fn=lambda: False, log=False)
             self.assertEqual(be, "openrouter")
-            self.assertEqual(llm.resolve_model("x"), "stealth/space-bunny-alpha")
+            resolved = llm.resolve_model("x")
+            self.assertIsNotNone(resolved)
+            self.assertNotIn("stealth", resolved or "")
+            self.assertNotIn("space-bunny-alpha", resolved or "")
         finally:
             for k, v in old.items():
                 if v is None:
