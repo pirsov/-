@@ -471,7 +471,9 @@ def build_prompt(
 
     tz = (root / "PROJECT_TZ.md").read_text(encoding="utf-8")
     if local_ollama:
-        tz_compact = compress_tz_for_prompt(tz, max_chars=700 if is_7b else 900)
+        # A33: keep only last 5 lines of PROJECT_TZ (not full open-task dump).
+        tz_lines = tz.splitlines()
+        tz_compact = "\n".join(tz_lines[-5:]) if tz_lines else ""
     else:
         tz_lines = tz.splitlines()
         compact: List[str] = []
@@ -560,42 +562,52 @@ def build_prompt(
             f"{snap}\n"
         )
 
-    # Compact Roblox skills — A17: trim contracts hard before Ollama
+    # A33: SKILLS_BLOCK only for client tasks (server prompts stay lean ~1500 tok).
     skills_block = ""
-    try:
-        from . import skills_hub
-        from . import token_economy as te
-
-        skill_ids = ["forge-player-attrs", "forge-luau-touch"]
-        active = root / ".forge" / "active_project.json"
-        if active.exists():
-            import json as _json
-
-            pid = (_json.loads(active.read_text(encoding="utf-8")) or {}).get("id")
-            meta_p = root / "projects" / str(pid) / "meta.json"
-            if meta_p.exists():
-                meta = _json.loads(meta_p.read_text(encoding="utf-8"))
-                skill_ids = list(meta.get("skills_compact") or skill_ids)[:3]
-        focus = te.extract_focus_terms(task.raw or "", task.description or "", tz_compact[:800])
-        max_skills = 1 if (local_ollama and is_7b) else (2 if local_ollama else 3)
-        skills_block = skills_hub.bundle_for_14b(
-            root,
-            skill_ids[:max_skills],
-            max_skills=max_skills,
-            card_budget=220 if local_ollama else 350,
-            rules_budget=180 if local_ollama else 400,
-            focus_terms=focus,
-            economy=True,
-            prune=True,
-            skeleton_budget=0,
+    target_norm = (task.target_path or "").replace("\\", "/")
+    is_client_task = owner == "client_programmer" or (
+        bool(target_norm)
+        and (
+            target_norm.endswith(".client.luau")
+            or "/client/" in target_norm
+            or target_norm.startswith("src/client/")
         )
-        skill_cap = 500 if is_7b else (900 if local_ollama else 3600)
-        if len(skills_block) > skill_cap:
-            skills_block = skills_block[:skill_cap]
-        if skills_block:
-            skills_block = "\n" + skills_block
-    except Exception:
-        skills_block = ""
+    )
+    if is_client_task:
+        try:
+            from . import skills_hub
+            from . import token_economy as te
+
+            skill_ids = ["forge-player-attrs", "forge-luau-touch"]
+            active = root / ".forge" / "active_project.json"
+            if active.exists():
+                import json as _json
+
+                pid = (_json.loads(active.read_text(encoding="utf-8")) or {}).get("id")
+                meta_p = root / "projects" / str(pid) / "meta.json"
+                if meta_p.exists():
+                    meta = _json.loads(meta_p.read_text(encoding="utf-8"))
+                    skill_ids = list(meta.get("skills_compact") or skill_ids)[:3]
+            focus = te.extract_focus_terms(task.raw or "", task.description or "", tz_compact[:800])
+            max_skills = 1 if (local_ollama and is_7b) else (2 if local_ollama else 3)
+            skills_block = skills_hub.bundle_for_14b(
+                root,
+                skill_ids[:max_skills],
+                max_skills=max_skills,
+                card_budget=220 if local_ollama else 350,
+                rules_budget=180 if local_ollama else 400,
+                focus_terms=focus,
+                economy=True,
+                prune=True,
+                skeleton_budget=0,
+            )
+            skill_cap = 500 if is_7b else (900 if local_ollama else 3600)
+            if len(skills_block) > skill_cap:
+                skills_block = skills_block[:skill_cap]
+            if skills_block:
+                skills_block = "\n" + skills_block
+        except Exception:
+            skills_block = ""
 
     # A11.0: 3D asset catalog — skip or tiny on local hard-fit
     assets_block = ""
@@ -621,9 +633,10 @@ def build_prompt(
             "If REPAIR MODE is present: patch that draft, do not start a new design.\n"
             "Follow the format EXACTLY. Begin with <DONE>. Include <FILE> tags.\n"
         )
-    qa_template = ""
+    # A33: keep ONLY ONE template matching the target file (never concatenate all).
+    file_template = ""
     if owner == "qa_engineer":
-        qa_template = """
+        file_template = """
 === QA_REPORT TEMPLATE (copy structure; fill real bugs) ===
 ## BUGS
 - [LOW] example only if real
@@ -637,10 +650,9 @@ def build_prompt(
 ## SCORE
 - overall: 86
 """
-    remotes_template = ""
-    if task.target_path and task.target_path.replace("\\", "/").endswith("Remotes.luau"):
+    elif target_norm.endswith("Remotes.luau"):
         # A31: EXACT COPY at TOP (like Coins). Path: src/shared/Gameplay/Remotes.luau
-        remotes_template = f"""
+        file_template = f"""
 === REMOTES TEMPLATE (ModuleScript — Folder in `folder`, TABLE in `Remotes`) ===
 {REMOTES_EXACT_COPY}
 Target MUST be -> src/shared/Gameplay/Remotes.luau
@@ -677,9 +689,8 @@ local Remotes = {{
 }}
 return Remotes
 """
-    checkpoints_template = ""
-    if task.target_path and "Checkpoints.server.luau" in task.target_path.replace("\\", "/"):
-        checkpoints_template = """
+    elif "Checkpoints.server.luau" in target_norm:
+        file_template = """
 === CHECKPOINTS TEMPLATE (Script — NO top-level return; NO coin logic) ===
 --!strict
 local Players = game:GetService("Players")
@@ -743,9 +754,8 @@ for _, plr in ipairs(Players:GetPlayers()) do
 end
 -- NEVER Remotes.CoinsCollected (typo). NEVER destroy coins here.
 """
-    effects_template = ""
-    if task.target_path and "Effects.client.luau" in task.target_path.replace("\\", "/"):
-        effects_template = """
+    elif "Effects.client.luau" in target_norm:
+        file_template = """
 === EFFECTS TEMPLATE (LocalScript — NO top-level return) ===
 --!strict
 local Players = game:GetService("Players")
@@ -787,9 +797,8 @@ if Remotes.CoinCollected then
 	end)
 end
 """
-    generator_template = ""
-    if task.target_path and "Generator.server.luau" in task.target_path.replace("\\", "/"):
-        generator_template = """
+    elif "Generator.server.luau" in target_norm:
+        file_template = """
 === GENERATOR RULES (must follow — validator will FAIL otherwise) ===
 - ensureFolder(Workspace, "Map"), ensureFolder(Workspace, "Checkpoints"), ensureFolder(Workspace, "Coins")
   — the words Checkpoints and Coins MUST appear (folders created before spawning parts).
@@ -799,9 +808,8 @@ end
 - Horror look OK (dark Path, neon CP) but folders+SpawnLocation rules are mandatory.
 - print "[Generator] map floor ready"
 """
-    coins_template = ""
-    if task.target_path and "Coins.server.luau" in task.target_path.replace("\\", "/"):
-        coins_template = f"""
+    elif "Coins.server.luau" in target_norm:
+        file_template = f"""
 === COINS TEMPLATE (Script — NO top-level return) ===
 {EXACT_COPY_INSTRUCTION}
 You MUST use Players:GetPlayerFromCharacter(char) to find the player. You MUST call coin:Destroy() and FireAllClients UpdateLeaderboard. You MUST use task.wait().
@@ -839,9 +847,8 @@ coinsFolder.ChildAdded:Connect(function(child)
 	if child:IsA("BasePart") then hook(child) end
 end)
 """
-    levelconfig_template = ""
-    if task.target_path and "LevelConfig.luau" in task.target_path.replace("\\", "/"):
-        levelconfig_template = """
+    elif "LevelConfig.luau" in target_norm:
+        file_template = """
 === LEVELCONFIG TEMPLATE (ModuleScript — Luau `=` NOT JS `:`) ===
 --!strict
 return {
@@ -854,9 +861,8 @@ return {
 -- Generator does: for i, section in ipairs(LevelConfig) do … section.gap / section.coins
 -- NEVER write JavaScript: return { sections: { id: 0 } }
 """
-    hud_template = ""
-    if task.target_path and "HUD.client.luau" in task.target_path.replace("\\", "/"):
-        hud_template = """
+    elif "HUD.client.luau" in target_norm:
+        file_template = """
 === HUD TEMPLATE (LEFT UI — read PLAYER attrs, never Character attrs) ===
 --!strict
 local Players = game:GetService("Players")
@@ -904,9 +910,8 @@ end)
 paint()
 -- NEVER character:GetAttribute("Coins") — that stays nil and wipes left HUD every frame
 """
-    leaderboard_template = ""
-    if task.target_path and "Leaderboard.client.luau" in task.target_path.replace("\\", "/"):
-        leaderboard_template = """
+    elif "Leaderboard.client.luau" in target_norm:
+        file_template = """
 === LEADERBOARD TEMPLATE (stub — create GUI; Remotes.UpdateLeaderboard only) ===
 --!strict
 local Players = game:GetService("Players")
@@ -932,62 +937,70 @@ if Remotes.UpdateLeaderboard then
 end
 -- NEVER WaitForChild("LeaderboardFrame"); NEVER invent RequestLeaderboard / LeaderboardUpdated
 """
-    void_template = ""
-    if task.target_path and "Void.server.luau" in task.target_path.replace("\\", "/"):
-        void_template = """
+    elif "Void.server.luau" in target_norm:
+        file_template = """
 === VOID RULES ===
 Use RunService.Heartbeat: if HumanoidRootPart.Position.Y < -20 then Player:LoadCharacter().
 Do NOT use Touched on HRP for void.
 """
-    puzzles_template = ""
-    if task.target_path and "Puzzles.server.luau" in task.target_path.replace("\\", "/"):
-        puzzles_template = """
+    elif "Puzzles.server.luau" in target_norm:
+        file_template = """
 === PUZZLES RULES ===
 Create PressurePlate + Gate Parts if missing. Touched => open gate. TouchEnded => close.
 Never use .Left. Prefer workspace.Puzzles folder.
 """
 
     # A17: on local Ollama, prefer one-line template hints over full Luau paste
-    if local_ollama:
-        def _short_tmpl(block: str, hint: str, cap: int = 280) -> str:
+    # A31: Remotes keeps FULL template (exact-copy + table pattern) — never collapse.
+    if local_ollama and file_template and not target_norm.endswith("Remotes.luau"):
+        def _short_tmpl(block: str, hint: str) -> str:
             if not block:
                 return ""
-            # Keep the === TITLE === line + short hint instead of full sample
             first = block.strip().splitlines()[0] if block.strip() else ""
             return f"\n{first}\n{hint}\n"
 
-        # A31: Remotes keeps FULL template on local Ollama (exact-copy + table pattern).
-        # Do NOT collapse to a one-liner — that caused Folder-as-Remotes flip-flop.
-        checkpoints_template = _short_tmpl(
-            checkpoints_template,
-            'Touched+SetAttribute; Died→LoadCharacter; FindFirstChild("Checkpoint"..idx).',
-        )
-        effects_template = _short_tmpl(effects_template, "LocalScript; OnClientEvent sounds; no top-level return.")
-        generator_template = _short_tmpl(
-            generator_template,
-            'Map/Checkpoints/Coins folders; Instance.new("SpawnLocation") NEVER Part-rename; '
-            'Name="Checkpoint"..id; print section ids.',
-        )
-        coins_template = _short_tmpl(
-            coins_template,
-            f"{EXACT_COPY_INSTRUCTION} "
-            "You MUST use Players:GetPlayerFromCharacter(char) to find the player. "
-            "You MUST call coin:Destroy() and FireAllClients UpdateLeaderboard. "
-            "You MUST use task.wait(). "
-            "Destroy coin ONLY here; player attrs; FireClient CoinCollected; ChildAdded. "
-            "Target MUST be -> src/server/Gameplay/Coins.server.luau",
-        )
-        levelconfig_template = _short_tmpl(
-            levelconfig_template, "return { { id = n, gap = g, coins = c }, ... } Luau `=` only."
-        )
-        hud_template = _short_tmpl(
-            hud_template,
-            'ScreenGui; ALWAYS player:GetAttribute("Coins") NEVER character:GetAttribute; CharacterAdded.',
-        )
-        leaderboard_template = _short_tmpl(
-            leaderboard_template, "create UI; UpdateLeaderboard only — no LeaderboardFrame."
-        )
-        qa_template = _short_tmpl(qa_template, "BUGS/SUGGESTIONS/TEST CASES/SCORE sections.") if qa_template else ""
+        if owner == "qa_engineer":
+            file_template = _short_tmpl(file_template, "BUGS/SUGGESTIONS/TEST CASES/SCORE sections.")
+        elif "Checkpoints.server.luau" in target_norm:
+            file_template = _short_tmpl(
+                file_template,
+                'Touched+SetAttribute; Died→LoadCharacter; FindFirstChild("Checkpoint"..idx).',
+            )
+        elif "Effects.client.luau" in target_norm:
+            file_template = _short_tmpl(
+                file_template, "LocalScript; OnClientEvent sounds; no top-level return."
+            )
+        elif "Generator.server.luau" in target_norm:
+            file_template = _short_tmpl(
+                file_template,
+                'Map/Checkpoints/Coins folders; Instance.new("SpawnLocation") NEVER Part-rename; '
+                'Name="Checkpoint"..id; print section ids.',
+            )
+        elif "Coins.server.luau" in target_norm:
+            file_template = _short_tmpl(
+                file_template,
+                f"{EXACT_COPY_INSTRUCTION} "
+                "You MUST use Players:GetPlayerFromCharacter(char) to find the player. "
+                "You MUST call coin:Destroy() and FireAllClients UpdateLeaderboard. "
+                "You MUST use task.wait(). "
+                "Destroy coin ONLY here; player attrs; FireClient CoinCollected; ChildAdded. "
+                "Target MUST be -> src/server/Gameplay/Coins.server.luau",
+            )
+        elif "LevelConfig.luau" in target_norm:
+            file_template = _short_tmpl(
+                file_template, "return { { id = n, gap = g, coins = c }, ... } Luau `=` only."
+            )
+        elif "HUD.client.luau" in target_norm:
+            file_template = _short_tmpl(
+                file_template,
+                'ScreenGui; ALWAYS player:GetAttribute("Coins") NEVER character:GetAttribute; CharacterAdded.',
+            )
+        elif "Leaderboard.client.luau" in target_norm:
+            file_template = _short_tmpl(
+                file_template, "create UI; UpdateLeaderboard only — no LeaderboardFrame."
+            )
+        elif "Void.server.luau" in target_norm or "Puzzles.server.luau" in target_norm:
+            pass  # already short rules blocks
 
     # HARD CAPS - repeated mistakes from 14B Generator/HUD/Checkpoints (A19.0 / A22.0 / A26 / A31)
     hard_caps = """HARD CAPS (NEVER violate - validator CRITICAL FAIL):
@@ -1071,7 +1084,7 @@ Follow AGENTS.md. Do the task for real — do not reply NOTE-only when a FILE is
 
 === Existing project files (relevant) ===
 {files}
-{skills_block}{assets_block}{feedback}{qa_template}{remotes_template}{checkpoints_template}{effects_template}{generator_template}{coins_template}{levelconfig_template}{hud_template}{leaderboard_template}{void_template}{puzzles_template}
+{skills_block}{assets_block}{feedback}{file_template}
 === YOUR TASK ===
 {task.raw.strip()}
 

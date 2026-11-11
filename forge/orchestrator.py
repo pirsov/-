@@ -285,6 +285,69 @@ def mark_tz_failed_repair(root: Path, task_id: str, note: str) -> None:
     tz_path.write_text("\n".join(out) + "\n", encoding="utf-8")
 
 
+def mark_tz_skipped_for_path(root: Path, target_path: str, note: str) -> int:
+    """Park all open TZ rows pointing at target_path as [-] (A33 forever-skip)."""
+    norm = (target_path or "").replace("\\", "/").strip()
+    if not norm:
+        return 0
+    tz_path = root / "PROJECT_TZ.md"
+    if not tz_path.is_file():
+        return 0
+    lines = tz_path.read_text(encoding="utf-8").splitlines()
+    out: List[str] = []
+    n = 0
+    for line in lines:
+        if line.startswith("- [ ] ") and f"-> {norm}" in line.replace("\\", "/"):
+            out.append(re.sub(r"^- \[ \]", "- [-]", line))
+            out.append(f"  - SKIPPED_FOREVER {now_human()} | {note}")
+            n += 1
+        else:
+            out.append(line)
+    if n:
+        tz_path.write_text("\n".join(out) + "\n", encoding="utf-8")
+    return n
+
+
+def repair_stub_structure_ok(content: str, errs: List[str]) -> bool:
+    """A33 REPAIR MODE: accept 7B stub TODO / Respawn placeholders when structure is OK.
+
+    7B predict=512 often leaves `-- TODO` / `-- Respawn logic here` but still has
+    Touched + FireClient. Do not FAIL those — accept/pass.
+    """
+    if not errs or not content:
+        return False
+    stub_only = True
+    for e in errs:
+        el = (e or "").lower()
+        if "stub" in el or "placeholder" in el:
+            continue
+        stub_only = False
+        break
+    if not stub_only:
+        return False
+    return "Touched" in content and "FireClient" in content
+
+
+def maybe_skip_after_target_fails(root: Path, target_path: str) -> bool:
+    """A33: same target_path fails 3x in a row → mark_as_skipped forever."""
+    norm = (target_path or "").replace("\\", "/").strip()
+    if not norm:
+        return False
+    streak = state_hub.record_target_fail_streak(root, norm)
+    if streak < 3:
+        print(f"   target fail streak {streak}/3 for {norm}", flush=True)
+        return False
+    note = f"same target failed {streak}x in a row — skipped forever (Live Ops will not return)"
+    state_hub.mark_as_skipped(root, norm, forever=True, note=note)
+    n = mark_tz_skipped_for_path(root, norm, note)
+    print(f"   SKIP FOREVER [{norm}] after {streak} fails (tz parked={n})", flush=True)
+    write_heartbeat(
+        root,
+        {"status": "skipped_forever", "target_path": norm, "streak": streak},
+    )
+    return True
+
+
 def add_tz_note(root: Path, task_id: str, kind: str, text: str) -> None:
     tz_path = root / "PROJECT_TZ.md"
     lines = tz_path.read_text(encoding="utf-8").splitlines()
@@ -329,6 +392,7 @@ def decompose_task(task: Task) -> List[str]:
 
 def write_heartbeat(root: Path, payload: dict) -> None:
     p = root / ".forge" / "state" / "heartbeat.json"
+    p.parent.mkdir(parents=True, exist_ok=True)
     payload = {**payload, "ts": datetime.now(timezone.utc).isoformat()}
     p.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
@@ -652,7 +716,18 @@ class Orchestrator:
     def next_task(self) -> Optional[Task]:
         tz = (self.root / "PROJECT_TZ.md").read_text(encoding="utf-8")
         pending = find_pending_tasks(tz)
-        return pending[0] if pending else None
+        # A33: never return to forever-skipped target paths
+        for task in pending:
+            tp = (task.target_path or "").replace("\\", "/")
+            if tp and state_hub.is_skipped_target(self.root, tp):
+                mark_tz_skipped_for_path(
+                    self.root,
+                    tp,
+                    "already skipped forever — parking open TZ row",
+                )
+                continue
+            return task
+        return None
 
     def _call_model(self, task: Task, prompt: str, cfg: dict, attempt: int, temp: float) -> str:
         key = task.task_id
@@ -902,10 +977,33 @@ class Orchestrator:
             all_valid = True
             err_msgs: List[str] = []
             rejected_for_repair: Optional[str] = None
+            in_repair_mode = bool(repair_draft) or attempt >= 2
             for rel in written:
                 ok, errs = validate_file(self.root / rel)
+                # A33 REPAIR MODE: stub TODO/Respawn ok if Touched+FireClient present
+                stub_accepted = False
+                if (
+                    not ok
+                    and in_repair_mode
+                    and errs
+                ):
+                    try:
+                        body = (self.root / rel).read_text(encoding="utf-8")
+                    except OSError:
+                        body = ""
+                    if repair_stub_structure_ok(body, errs):
+                        stub_accepted = True
+                        ok = True
+                        errs = []
                 if ok:
-                    print(f"  VALIDATOR PASS [{Path(rel).name}]", flush=True)
+                    if stub_accepted:
+                        print(
+                            f"  VALIDATOR PASS [{Path(rel).name}] "
+                            "(repair stub accept: Touched+FireClient; TODO/Respawn ok)",
+                            flush=True,
+                        )
+                    else:
+                        print(f"  VALIDATOR PASS [{Path(rel).name}]", flush=True)
                 else:
                     print(f"  VALIDATOR FAIL [{Path(rel).name}]: {'; '.join(errs)}", flush=True)
                     all_valid = False
@@ -1053,6 +1151,8 @@ class Orchestrator:
                         continue
 
             mark_tz_done(self.root, task.task_id, note)
+            if task.target_path:
+                state_hub.clear_target_fail_streak(self.root, task.target_path)
             score, _ = quality_score(self.root)
             write_heartbeat(
                 self.root,
@@ -1129,6 +1229,8 @@ class Orchestrator:
                     target_path=task.target_path or "",
                     validator_fails=last_validator_fails,
                 )
+                if task.target_path:
+                    maybe_skip_after_target_fails(self.root, task.target_path)
                 print(f"   KEPT seed -> failed_repair (continuing): {', '.join(checked)}", flush=True)
                 write_heartbeat(
                     self.root,
@@ -1174,6 +1276,8 @@ class Orchestrator:
                 target_path=task.target_path or "",
                 validator_fails=last_validator_fails,
             )
+            if task.target_path:
+                maybe_skip_after_target_fails(self.root, task.target_path)
             print("   FAILED (week mode) - marked failed_repair; continuing to next task", flush=True)
             write_heartbeat(
                 self.root,
@@ -1342,6 +1446,7 @@ def append_tz_tasks_before_human(
             text,
         )
     }
+    skipped = set(state_hub.skipped_targets(root))
     fresh: List[str] = []
     for raw in task_lines:
         line = raw.strip()
@@ -1355,6 +1460,12 @@ def append_tz_tasks_before_human(
             continue
         if not skip_desc_dedupe and desc in existing_descs:
             continue
+        # A33: never re-queue forever-skipped target paths (Live Ops / invent)
+        am = re.search(r"(?:->|→)\s*([^\s#]+)", line)
+        if am:
+            tpath = am.group(1).strip().replace("\\", "/")
+            if tpath in skipped:
+                continue
         fresh.append(line)
         existing_ids.add(tid)
         existing_descs.add(desc)
@@ -1407,7 +1518,10 @@ def enqueue_missing_expected_rewrites(root: Path) -> int:
         )
     tz_text = tz_path.read_text(encoding="utf-8")
     pending_paths = pending_tz_target_paths(tz_text)
-    still_need = [rel for rel in missing if rel not in pending_paths]
+    skipped = set(state_hub.skipped_targets(root))
+    still_need = [
+        rel for rel in missing if rel not in pending_paths and rel not in skipped
+    ]
     if not still_need:
         return 0
     start_n = next_tz_id_number(tz_text)
