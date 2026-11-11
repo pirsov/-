@@ -158,13 +158,13 @@ def generate(
     *,
     num_ctx: int = 2048,
     temperature: float = 0.1,
-    num_predict: int = 1024,
+    num_predict: int = 2048,
     timeout: int = 1800,
     url: str = DEFAULT_GENERATE,
     diff_mode: bool = False,
 ) -> str:
     # A25/A35: num_ctx capped at MAX_NUM_CTX (8192) so repair 7B can use 5120; 14B stays 4096.
-    # A15: num_predict capped via llm_backends (default 1024 / diff 512).
+    # A15/A36: num_predict capped via llm_backends (default/code 2048 / diff 512).
     # A29: never send cloud tags to Ollama; on HTTP 404 rematch via /api/tags once.
     preferred = (model or "").strip() or "qwen2.5-coder:14b-4k"
     installed: Optional[List[str]] = None
@@ -208,7 +208,7 @@ def generate(
         raise
     except Exception:
         num_ctx = min(int(num_ctx), 8192)
-        num_predict = min(int(num_predict), 1024)
+        num_predict = min(int(num_predict), 2048)
 
     body: Dict[str, Any] = {
         "model": preferred,

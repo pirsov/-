@@ -15,9 +15,13 @@ class TestNumPredictCaps(unittest.TestCase):
     def test_cap_default_and_diff(self):
         from forge import llm_backends
 
-        self.assertLessEqual(llm_backends.DEFAULT_NUM_PREDICT, 1024)
+        # A36: code predict ceiling raised to 2048 (was 1024) so FILE tags can close
+        self.assertLessEqual(llm_backends.DEFAULT_NUM_PREDICT, 2048)
         self.assertLessEqual(llm_backends.DIFF_NUM_PREDICT, 512)
-        self.assertEqual(llm_backends.cap_num_predict(9999), llm_backends.DEFAULT_NUM_PREDICT)
+        self.assertEqual(
+            llm_backends.cap_num_predict(9999),
+            max(llm_backends.DEFAULT_NUM_PREDICT, llm_backends.CODE_NUM_PREDICT_MAX),
+        )
         self.assertEqual(
             llm_backends.cap_num_predict(9999, diff_mode=True), llm_backends.DIFF_NUM_PREDICT
         )

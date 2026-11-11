@@ -42,10 +42,13 @@ class TestNumCtx4096Roles(unittest.TestCase):
             cfg = pick_model("gameplay_programmer", attempt=1, escalate=False)
         self.assertEqual(int(cfg["ctx"]), 4096)
         self.assertEqual(int(cfg.get("num_ctx") or cfg["ctx"]), 4096)
-        self.assertGreaterEqual(int(cfg["prompt_budget_tokens"]), 2900)
+        # A36: predict=2048 → prompt room ≈ 2016 (was ~3000 at predict=1024)
+        self.assertEqual(int(cfg["predict"]), 2048)
+        self.assertGreaterEqual(int(cfg["prompt_budget_tokens"]), 2000)
         self.assertLessEqual(int(cfg["prompt_budget_tokens"]), 3000)
         opts = llm_backends.ollama_options(num_ctx=cfg["ctx"], num_predict=cfg["predict"])
         self.assertEqual(opts["num_ctx"], 4096)
+        self.assertEqual(opts["num_predict"], 2048)
 
     def test_ollama_options_pass_4096(self):
         from forge import llm_backends

@@ -21,7 +21,9 @@ class TestNumCtxCaps(unittest.TestCase):
         self.assertEqual(llm_backends.cap_num_ctx(2048), 2048)
         opts = llm_backends.ollama_options(num_ctx=4096, num_predict=1024)
         self.assertEqual(opts["num_ctx"], 4096)
-        self.assertLessEqual(opts["num_predict"], 1024)
+        self.assertLessEqual(opts["num_predict"], 2048)
+        opts2048 = llm_backends.ollama_options(num_ctx=4096, num_predict=2048)
+        self.assertEqual(opts2048["num_predict"], 2048)
 
     def test_agent_models_ctx(self):
         for role in ("gameplay_programmer", "client_programmer"):
