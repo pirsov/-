@@ -115,8 +115,9 @@ class TestRepairMandatoryFile(unittest.TestCase):
                 mode_block.find(MANDATORY_FILE),
                 mode_block.find("START YOUR REPLY WITH <DONE>"),
             )
+            # A34 slim REPAIR MODE: one-error + FILE instruction (not whole-file dump)
             self.assertIn(
-                'You MUST include <FILE path="...">content</FILE>. The FILE tag is mandatory.',
+                'Fix this error. Output the COMPLETE file with <FILE path="...">...</FILE>.',
                 mode_block,
             )
 

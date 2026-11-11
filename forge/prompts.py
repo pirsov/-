@@ -72,7 +72,12 @@ def extract_agent_section(agents_md: str, owner: str) -> str:
 
 
 def relevant_paths(root: Path, task: Task, owner: str = "") -> List[Path]:
-    """Prefer files related to the task; QA/refactor always get all src/*.luau first."""
+    """Prefer files related to the task.
+
+    A34 / A27.0 Max Context:
+    - gameplay_programmer & client_programmer → ONLY task.target_path + Remotes.luau
+    - needs_all_src ONLY for refactorer & qa_engineer
+    """
     picks: List[Path] = []
     seen: Set[str] = set()
 
@@ -83,19 +88,19 @@ def relevant_paths(root: Path, task: Task, owner: str = "") -> List[Path]:
         seen.add(key)
         picks.append(p)
 
-    # Roles that MUST see game code (P30.1 failed because only docs were included)
-    needs_all_src = owner in {
-        "qa_engineer",
-        "refactorer",
-        "integrator",
-        "gameplay_programmer",
-        "client_programmer",
-    } or any(
-        k in (task.description or "").lower()
-        for k in ("qa", "static review", "fix", "integrity", "score")
-    )
-
+    remotes = root / "src/shared/Gameplay/Remotes.luau"
     src = root / "src"
+
+    # Slim path set for code agents — keep prompts ~1500 tok.
+    if owner in {"gameplay_programmer", "client_programmer"}:
+        if task.target_path:
+            add(root / task.target_path)
+        add(remotes)
+        return picks
+
+    # Roles that MUST see the whole game tree
+    needs_all_src = owner in {"qa_engineer", "refactorer"}
+
     if needs_all_src and src.is_dir():
         for p in sorted(src.rglob("*.luau")):
             add(p)
@@ -122,6 +127,140 @@ def relevant_paths(root: Path, task: Task, owner: str = "") -> List[Path]:
             add(p)
 
     return picks
+
+
+def tz_compact_for_task(tz: str, task: Task, *, first_n: int = 8) -> str:
+    """A34/A27.0: first N TZ lines + the current open task line (deduped)."""
+    lines = (tz or "").splitlines()
+    head = lines[:first_n]
+    current = ""
+    tid = (task.task_id or "").strip()
+    raw = (task.raw or "").strip()
+    for line in lines:
+        if tid and f" {tid} " in f" {line} " and ("- [ ]" in line or "- [-]" in line or "- [x]" in line):
+            current = line
+            break
+        if raw and line.strip() == raw:
+            current = line
+            break
+    out = list(head)
+    if current and current not in out:
+        out.append(current)
+    return "\n".join(out)
+
+
+_FUNC_START_RE = re.compile(
+    r"(?m)^(?P<indent>\s*)(?:local\s+)?function\s+(?P<name>[A-Za-z_][A-Za-z0-9_]*)\s*\("
+)
+_FUNC_NAME_HINT_RE = re.compile(r"\b([A-Za-z_][A-Za-z0-9_]*)\s*\(")
+
+
+def extract_broken_function_snippet(
+    content: str,
+    error: str = "",
+    *,
+    max_chars: int = 700,
+) -> str:
+    """Pull one broken function (or a tight window) for REPAIR MODE — not the whole file."""
+    text = content or ""
+    if not text.strip():
+        return ""
+    err = (error or "").lower()
+    # Prefer a named function mentioned in the error / stub markers nearby.
+    names: List[str] = []
+    for m in _FUNC_NAME_HINT_RE.finditer(error or ""):
+        n = m.group(1)
+        if n.lower() not in {"function", "local", "if", "for", "while", "end", "then", "and", "or"}:
+            names.append(n)
+    starts = list(_FUNC_START_RE.finditer(text))
+    chosen = None
+    if names and starts:
+        for st in starts:
+            if st.group("name") in names:
+                chosen = st
+                break
+    if chosen is None and starts:
+        # Prefer function containing stub/TODO markers
+        stub_idx = -1
+        for pat in (
+            r"--\s*TODO\b",
+            r"--\s*Respawn logic here",
+            r"--\s*real code here",
+            r"--\s*Update checkpoint data here",
+            r"--\s*Handle checkpoint logic",
+        ):
+            m = re.search(pat, text, re.I)
+            if m:
+                stub_idx = m.start()
+                break
+        if stub_idx >= 0:
+            prev = [st for st in starts if st.start() <= stub_idx]
+            chosen = prev[-1] if prev else starts[0]
+        else:
+            # Keyword from error inside a function body
+            keywords = [w for w in re.findall(r"[A-Za-z_]{4,}", err) if w not in {
+                "must", "missing", "stub", "placeholder", "comment", "write", "real", "code",
+                "error", "validator", "file", "server", "client", "luau",
+            }]
+            for st in starts:
+                # Approximate body until next same-indent function or EOF
+                body_end = len(text)
+                for nxt in starts:
+                    if nxt.start() > st.start():
+                        body_end = nxt.start()
+                        break
+                body = text[st.start():body_end]
+                if any(k in body.lower() for k in keywords[:6]):
+                    chosen = st
+                    break
+            if chosen is None:
+                chosen = starts[0]
+
+    if chosen is not None:
+        start = chosen.start()
+        indent = chosen.group("indent") or ""
+        body_end = len(text)
+        for nxt in starts:
+            if nxt.start() > start:
+                body_end = nxt.start()
+                break
+        # Stop at `end` at the same indent as the function header (Luau convention).
+        pos = chosen.end()
+        while pos < body_end:
+            line_end = text.find("\n", pos)
+            if line_end < 0 or line_end > body_end:
+                line_end = body_end
+            raw_line = text[pos:line_end]
+            if re.match(rf"^{re.escape(indent)}end\b", raw_line):
+                body_end = line_end
+                break
+            pos = line_end + 1
+        chunk = text[start:body_end].rstrip()
+        if len(chunk) > max_chars:
+            chunk = chunk[: max_chars - 20].rstrip() + "\n-- ...(snip)..."
+        return chunk
+
+    # No functions — tight window around stub / mid file
+    m = re.search(r"(?im)--\s*(TODO|Respawn logic here|real code here)", text)
+    if m:
+        mid = m.start()
+        lo = max(0, mid - max_chars // 3)
+        hi = min(len(text), mid + (2 * max_chars) // 3)
+        chunk = text[lo:hi].strip()
+        if lo > 0:
+            chunk = "-- ...(snip)...\n" + chunk
+        if hi < len(text):
+            chunk = chunk + "\n-- ...(snip)..."
+        return chunk[:max_chars]
+    if len(text) <= max_chars:
+        return text
+    half = max_chars // 2
+    return text[:half] + "\n-- ...(snip)...\n" + text[-half:]
+
+
+REPAIR_FIX_INSTRUCTION = (
+    'Fix this error. Output the COMPLETE file with <FILE path="...">...</FILE>.'
+)
 
 
 def file_budget_chars() -> int:
@@ -471,9 +610,8 @@ def build_prompt(
 
     tz = (root / "PROJECT_TZ.md").read_text(encoding="utf-8")
     if local_ollama:
-        # A33: keep only last 5 lines of PROJECT_TZ (not full open-task dump).
-        tz_lines = tz.splitlines()
-        tz_compact = "\n".join(tz_lines[-5:]) if tz_lines else ""
+        # A34/A27.0: first 8 lines + current task (not A33 last-5).
+        tz_compact = tz_compact_for_task(tz, task, first_n=8)
     else:
         tz_lines = tz.splitlines()
         compact: List[str] = []
@@ -492,7 +630,9 @@ def build_prompt(
     files = render_files(relevant_paths(root, task, owner), root, budget_chars=file_cap)
 
     feedback = ""
-    if validator_feedback:
+    # A34: when REPAIR MODE has a draft, skip the fat VALIDATOR FEEDBACK wall —
+    # one error + broken function live inside REPAIR MODE (~1200).
+    if validator_feedback and not repair_draft:
         # Prefer short checklist; trim long freeform validator walls.
         # Keep MANDATORY FILE + A22 first-error pin lines even when truncating.
         vf = validator_feedback.strip()
@@ -518,28 +658,50 @@ def build_prompt(
             vf = head.rstrip() + "\n...(validator trimmed)..."
         feedback = f"\n=== VALIDATOR FEEDBACK (fix ONLY these issues) ===\n{vf}\n"
     if repair_draft:
-        draft = repair_draft
-        if local_ollama:
-            # Keep surgical repair draft tiny so checklist + task still fit
-            draft_cap = 1200 if is_7b else 1800
-            if len(draft) > draft_cap:
-                draft = draft[: draft_cap // 2] + "\n...(draft mid truncated)...\n" + draft[-draft_cap // 2 :]
-        # MANDATORY FILE must stay at absolute top of REPAIR MODE (pin vs hard-fit trim).
-        feedback += (
+        # A34/A27.0 REPAIR MODE ~1200: ONE error + broken function snippet (not whole file).
+        one_error = ""
+        if validator_feedback:
+            for ln in validator_feedback.splitlines():
+                s = ln.strip()
+                if not s:
+                    continue
+                # Prefer checklist bullet / first concrete error line
+                m_num = re.match(r"^\d+\.\s+(.*)$", s)
+                if m_num:
+                    one_error = m_num.group(1).strip()
+                    break
+                if s.startswith("- "):
+                    one_error = s[2:].strip()
+                    break
+            if not one_error:
+                # Skip MANDATORY / START YOUR REPLY boilerplate
+                for ln in validator_feedback.splitlines():
+                    s = ln.strip()
+                    if not s or s.startswith("MANDATORY") or s.startswith("START YOUR"):
+                        continue
+                    if "FILE path" in s or s.startswith("REPAIR CHECKLIST"):
+                        continue
+                    if s.startswith("Rules:") or s.startswith("Keep the rest"):
+                        continue
+                    one_error = s
+                    break
+        if not one_error:
+            one_error = "fix the validator failure in the broken function below"
+        snippet = extract_broken_function_snippet(repair_draft, one_error, max_chars=700)
+        # Cap whole REPAIR MODE payload ~1200 chars
+        repair_cap = 1200
+        header = (
             "\n=== REPAIR MODE (A15 PATCH / 7B) ===\n"
             f"{MANDATORY_FILE_LINE}\n"
-            "MANDATORY FILE TAG — do not omit; replies without <FILE> are rejected.\n"
-            f"START YOUR REPLY WITH <DONE>{task.task_id}</DONE>. DO NOT FORGET THE XML TAGS.\n"
-            'You MUST include <FILE path="...">content</FILE>. The FILE tag is mandatory.\n'
-            "Below is YOUR previous draft (almost done). Do NOT rewrite from scratch.\n"
-            "Work the REPAIR CHECKLIST bullet-by-bullet "
-            "(e.g. add Humanoid.Died + LoadCharacter; "
-            'FindFirstChild("Checkpoint"..idx) for teleport; '
-            "Checkpoint_ → Checkpoint..id).\n"
-            "Return the COMPLETE file content inside <FILE>. "
-            "NEVER use <<<<<<< SEARCH / ======= / >>>>>>> REPLACE.\n"
-            f"{draft}\n"
+            f"START YOUR REPLY WITH <DONE>{task.task_id}</DONE>.\n"
+            f"Error: {one_error}\n"
+            "Broken function:\n"
         )
+        footer = f"\n{REPAIR_FIX_INSTRUCTION}\n"
+        room = max(200, repair_cap - len(header) - len(footer))
+        if len(snippet) > room:
+            snippet = snippet[: room - 20].rstrip() + "\n-- ...(snip)..."
+        feedback += header + snippet + footer
     elif prior_snapshot and task.mode in {
         WriteMode.REWRITE,
         WriteMode.CREATE,

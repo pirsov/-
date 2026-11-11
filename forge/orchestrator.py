@@ -542,10 +542,17 @@ def pick_model(owner: str, attempt: int, escalate: bool) -> dict:
         if repair.get("model"):
             preferred = str(repair["model"])
             is_7b = True
-            base["ctx"] = int(repair.get("ctx") or base.get("ctx") or 2048)
-            base["num_ctx"] = int(base["ctx"])  # do not keep 14B 4096 on 7B repair
+            # A33/A34: repair num_ctx=4096 (prefer num_ctx, then ctx)
+            base["ctx"] = int(
+                repair.get("num_ctx") or repair.get("ctx") or base.get("ctx") or 4096
+            )
+            base["num_ctx"] = int(base["ctx"])
             base["predict"] = int(repair.get("predict") or 512)
-            print(f"   repair model: {preferred} ctx={base['ctx']} predict={base['predict']}", flush=True)
+            print(
+                f"   repair model: {preferred} ctx={base['ctx']} "
+                f"num_ctx={base.get('num_ctx', base['ctx'])} predict={base['predict']}",
+                flush=True,
+            )
         else:
             idx = min(attempt - 1, len(ESCALATION) - 1)
             preferred = ESCALATION[idx]
@@ -882,6 +889,8 @@ class Orchestrator:
                     )
                 )
                 tok = llm_backends.estimate_tokens(prompt)
+                ctx_z = int(cfg.get("ctx") or cfg.get("num_ctx") or 0)
+                pred_w = int(cfg.get("predict") or 0)
                 if tok > budget:
                     prompt, meta = llm_backends.fit_prompt(prompt, budget)
                     print(
@@ -889,8 +898,12 @@ class Orchestrator:
                         f"tok (budget={budget}, dropped={meta.get('dropped_sections')})",
                         flush=True,
                     )
-                else:
-                    print(f"   prompt_tokens~{tok} / budget={budget} (num_ctx={cfg.get('ctx')})")
+                    tok = llm_backends.estimate_tokens(prompt)
+                # A34/A27.0: always log prompt_tokens / budget / ctx / predict before model
+                print(
+                    f"   prompt_tokens={tok} / budget={budget} / ctx={ctx_z} / predict={pred_w}",
+                    flush=True,
+                )
                 llm_backends.assert_prompt_fits(prompt, budget)
             except ValueError as e:
                 print(f"   HARD_FIT refuse: {e}", flush=True)
@@ -979,8 +992,14 @@ class Orchestrator:
             rejected_for_repair: Optional[str] = None
             in_repair_mode = bool(repair_draft) or attempt >= 2
             for rel in written:
-                ok, errs = validate_file(self.root / rel)
-                # A33 REPAIR MODE: stub TODO/Respawn ok if Touched+FireClient present
+                # A34: wire is_repair so _STUB_MARKERS are ignored in REPAIR MODE
+                ok, errs = validate_file(
+                    self.root / rel,
+                    root=self.root,
+                    is_repair=in_repair_mode,
+                )
+                # A33 fallback: stub TODO/Respawn ok if Touched+FireClient present
+                # (kept if other callers still surface stub errs without is_repair)
                 stub_accepted = False
                 if (
                     not ok

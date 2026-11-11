@@ -98,11 +98,18 @@ class TestFormatValidatorChecklist(unittest.TestCase):
                 validator_feedback="REPAIR your previous draft.\n" + checklist,
                 repair_draft=_BAD_CP,
             )
-            self.assertIn("REPAIR CHECKLIST", prompt)
-            self.assertIn("Humanoid.Died", prompt)
-            self.assertIn('FindFirstChild("Checkpoint"..idx)', prompt)
+            # A34 slim REPAIR: one Error: (first checklist bullet), not fat CHECKLIST wall
             self.assertIn("REPAIR MODE (A15 PATCH / 7B)", prompt)
-            self.assertIn("bullet-by-bullet", prompt)
+            self.assertIn("Error:", prompt)
+            self.assertIn("Humanoid.Died", prompt)
+            idx_err = prompt.find("Error:")
+            err_line = prompt[idx_err : prompt.find("\n", idx_err)]
+            self.assertIn("Humanoid.Died", err_line)
+            self.assertNotIn("FindFirstChild", err_line)
+            self.assertIn(
+                'Fix this error. Output the COMPLETE file with <FILE path="...">...</FILE>.',
+                prompt,
+            )
 
 
 class TestFailedRepairContinue(unittest.TestCase):
@@ -160,7 +167,7 @@ class TestFailedRepairContinue(unittest.TestCase):
             self.assertEqual(entry["status"], "failed_repair")
 
     @staticmethod
-    def _validate_side(path: Path):
+    def _validate_side(path: Path, *args, **kwargs):
         name = path.name
         if name == "Checkpoints.server.luau":
             return False, [

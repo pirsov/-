@@ -133,11 +133,17 @@ class TestA22FirstErrorOnlyRepair(unittest.TestCase):
                 is_7b=True,
                 prompt_budget_tokens=2000,
             )
+            # A34 slim REPAIR: one Error: line (FIRST_ERROR_ONLY implicit — no fat checklist)
             self.assertIn("BreakJoints is deprecated", prompt)
-            self.assertIn(FIRST_ERROR_ONLY_INSTRUCTION, prompt)
+            self.assertIn("Error:", prompt)
+            self.assertIn(
+                'Fix this error. Output the COMPLETE file with <FILE path="...">...</FILE>.',
+                prompt,
+            )
             # Second/third errors must not be fed as checklist bullets
             self.assertNotIn("2. SetAttribute", prompt)
             self.assertNotIn("3. Checkpoints must not use DataStoreService", prompt)
+            self.assertNotIn('SetAttribute("Checkpoint", hit) is wrong', prompt)
 
     def test_orchestrator_feeds_first_error_only(self):
         """Multi-fail path: repair prompt on attempt 2 embeds only the first error."""
@@ -197,7 +203,14 @@ class TestA22FirstErrorOnlyRepair(unittest.TestCase):
             self.assertTrue(prompts)
             last = prompts[0].read_text(encoding="utf-8")
             self.assertIn("BreakJoints is deprecated", last)
-            self.assertIn(FIRST_ERROR_ONLY_INSTRUCTION, last)
+            # A34: slim REPAIR MODE embeds only the first error (not FIRST_ERROR_ONLY text)
+            self.assertIn("Error:", last)
+            idx_err = last.find("Error:")
+            repair_err_line = last[idx_err : last.find("\n", idx_err)]
+            self.assertIn("BreakJoints", repair_err_line)
+            self.assertNotIn("SetAttribute", repair_err_line)
+            self.assertNotIn("DataStoreService", repair_err_line)
+            self.assertNotIn("2. SetAttribute", last)
 
 
 if __name__ == "__main__":

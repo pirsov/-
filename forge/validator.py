@@ -30,7 +30,18 @@ def _find_forge_root(path: Path) -> Optional[Path]:
     return None
 
 
-def validate_file(path: Path, *, root: Optional[Path] = None) -> Tuple[bool, List[str]]:
+def validate_file(
+    path: Path,
+    *,
+    root: Optional[Path] = None,
+    is_repair: bool = False,
+) -> Tuple[bool, List[str]]:
+    """Validate a generated file.
+
+    A34/A27.0: when ``is_repair=True``, ``_STUB_MARKERS`` are ignored so 7B
+    repair drafts with leftover ``-- TODO`` / Respawn placeholders can pass
+    once structure is otherwise OK.
+    """
     errors: List[str] = []
     name = path.name
     try:
@@ -128,10 +139,12 @@ def validate_file(path: Path, *, root: Optional[Path] = None) -> Tuple[bool, Lis
         if re.search(pat, content):
             errors.append(msg)
 
-    for pat in _STUB_MARKERS:
-        if re.search(pat, content, re.I):
-            errors.append("stub/placeholder comment — write real code")
-            break
+    # A34: ignore stub/TODO markers during REPAIR MODE (wired from orchestrator).
+    if not is_repair:
+        for pat in _STUB_MARKERS:
+            if re.search(pat, content, re.I):
+                errors.append("stub/placeholder comment — write real code")
+                break
 
     if name.endswith(".luau"):
         opens = content.count("(")
