@@ -249,6 +249,93 @@ def record_failed_repair(
     return entry
 
 
+def _norm_target(path: str) -> str:
+    return (path or "").replace("\\", "/").strip().rstrip("/")
+
+
+def skipped_targets(root: Path) -> List[str]:
+    """Forever-skipped target paths (A33: 3 consecutive fails → Live Ops never returns)."""
+    data = load_state(root)
+    raw = data.get("skipped_targets") or []
+    out: List[str] = []
+    if isinstance(raw, list):
+        for item in raw:
+            if isinstance(item, str) and item.strip():
+                out.append(_norm_target(item))
+            elif isinstance(item, dict) and item.get("path"):
+                out.append(_norm_target(str(item["path"])))
+    return out
+
+
+def is_skipped_target(root: Path, target_path: str) -> bool:
+    norm = _norm_target(target_path)
+    if not norm:
+        return False
+    return norm in set(skipped_targets(root))
+
+
+def mark_as_skipped(
+    root: Path,
+    target_path: str,
+    *,
+    forever: bool = True,
+    note: str = "",
+) -> Dict[str, Any]:
+    """Mark target_path skipped forever so Live Ops / next_task will not return to it."""
+    norm = _norm_target(target_path)
+    if not norm:
+        return {"ok": False, "reason": "empty_path"}
+    data = load_state(root)
+    entries: List[Any] = list(data.get("skipped_targets") or [])
+    existing = {
+        _norm_target(e) if isinstance(e, str) else _norm_target(str((e or {}).get("path") or ""))
+        for e in entries
+    }
+    if norm not in existing:
+        entries.append(
+            {
+                "path": norm,
+                "forever": bool(forever),
+                "note": note or "3 consecutive fails — skipped forever",
+                "updated_at": now_iso(),
+            }
+        )
+        data["skipped_targets"] = entries
+    # Clear fail streak once parked
+    streaks = data.setdefault("target_fail_streaks", {})
+    if isinstance(streaks, dict):
+        streaks.pop(norm, None)
+    save_state(root, data)
+    return {"ok": True, "path": norm, "forever": bool(forever)}
+
+
+def record_target_fail_streak(root: Path, target_path: str) -> int:
+    """Bump consecutive fail count for target_path. Returns new streak."""
+    norm = _norm_target(target_path)
+    if not norm:
+        return 0
+    data = load_state(root)
+    streaks = data.setdefault("target_fail_streaks", {})
+    if not isinstance(streaks, dict):
+        streaks = {}
+        data["target_fail_streaks"] = streaks
+    n = int(streaks.get(norm) or 0) + 1
+    streaks[norm] = n
+    save_state(root, data)
+    return n
+
+
+def clear_target_fail_streak(root: Path, target_path: str) -> None:
+    norm = _norm_target(target_path)
+    if not norm:
+        return
+    data = load_state(root)
+    streaks = data.get("target_fail_streaks")
+    if isinstance(streaks, dict) and norm in streaks:
+        streaks.pop(norm, None)
+        save_state(root, data)
+
+
 def clear_queue(root: Path) -> Dict[str, Any]:
     """Clear pending task_queue (and partial[]) so a new game/donate run can start."""
     data = load_state(root)

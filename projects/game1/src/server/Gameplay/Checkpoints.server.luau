@@ -1,5 +1,4 @@
 --!strict
--- Checkpoints + I011 finish BestTime + I012 RunStartedAt reset on respawn (Q1=B, Q2=B)
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Remotes = require(ReplicatedStorage:WaitForChild("Gameplay"):WaitForChild("Remotes"))
@@ -9,47 +8,6 @@ if not folder then
 	folder = Instance.new("Folder")
 	folder.Name = "Checkpoints"
 	folder.Parent = workspace
-end
-
-local function lastCheckpointIndex(): number
-	local n = 0
-	for _, child in ipairs(folder:GetChildren()) do
-		if child:IsA("BasePart") then
-			local i = tonumber(string.match(child.Name, "%d+"))
-			if i and i > n then
-				n = i
-			end
-		end
-	end
-	return n
-end
-
--- Mirror PlayerData set_best_time (Script isolation — no Module require)
-local function set_best_time(plr: Player, val: number)
-	if typeof(val) ~= "number" or val <= 0 then
-		return
-	end
-	local current = plr:GetAttribute("BestTime")
-	if typeof(current) ~= "number" then
-		current = 0
-	end
-	if (current :: number) == 0 or val < (current :: number) then
-		plr:SetAttribute("BestTime", val)
-	end
-end
-
-local function tryWriteFinishBest(plr: Player, idx: number)
-	local last = lastCheckpointIndex()
-	if last < 1 or idx < last then
-		return
-	end
-	local started = plr:GetAttribute("RunStartedAt")
-	if typeof(started) ~= "number" then
-		return
-	end
-	local elapsed = os.clock() - (started :: number)
-	set_best_time(plr, elapsed)
-	plr:SetAttribute("Finished", true)
 end
 
 local function hookPart(part: BasePart)
@@ -72,14 +30,8 @@ local function hookPart(part: BasePart)
 			current = 0
 		end
 		if idx > (current :: number) then
-			-- Ensure run clock exists (first CP of a fresh run)
-			if plr:GetAttribute("RunStartedAt") == nil then
-				plr:SetAttribute("RunStartedAt", os.clock())
-			end
 			plr:SetAttribute("Checkpoint", idx)
 			plr:SetAttribute("Score", idx * 100)
-			-- I011: BestTime only on last CP / finish (not every CP — no DataStore spam)
-			tryWriteFinishBest(plr, idx)
 			Remotes.CheckpointReached:FireClient(plr, idx)
 		end
 	end)
@@ -113,9 +65,6 @@ local function teleportToCheckpoint(plr: Player, char: Model)
 end
 
 local function hookCharacter(plr: Player, char: Model)
-	-- I012 / Q2=B: death→respawn starts a NEW run clock (HUD Time resets client-side too)
-	plr:SetAttribute("RunStartedAt", os.clock())
-	plr:SetAttribute("Finished", false)
 	task.defer(function()
 		teleportToCheckpoint(plr, char)
 	end)
