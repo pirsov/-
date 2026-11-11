@@ -153,7 +153,9 @@ class TestCompressTzAndBuildPrompt(unittest.TestCase):
             )
             self.assertLessEqual(llm_backends.estimate_tokens(prompt), budget)
             self.assertLessEqual(llm_backends.estimate_tokens(prompt), 1000)
-            self.assertIn("REPAIR CHECKLIST", prompt)
+            # A34 slim REPAIR MODE: one Error: + snippet (not fat REPAIR CHECKLIST wall)
+            self.assertIn("=== REPAIR MODE", prompt)
+            self.assertIn("Error:", prompt)
             self.assertIn("Humanoid.Died", prompt)
 
     def test_build_prompt_14b_under_strict_3000(self):

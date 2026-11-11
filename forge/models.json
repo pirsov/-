@@ -22,7 +22,7 @@
     "ctx": 4096,
     "num_ctx": 4096,
     "predict": 512,
-    "_comment": "A33: repair 7B num_ctx 4096 so repair draft + checklist fit (was 2048)"
+    "_comment": "A33/A34: repair 7B num_ctx 4096 (slim REPAIR MODE ~1200 + one-error snippet)"
   },
   "compact": {
     "model": "qwen2.5-coder:7b-2k",

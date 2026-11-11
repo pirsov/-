@@ -69,7 +69,7 @@ def _seed_prompt_root(root: Path, *, n_tz: int = 30) -> None:
 
 
 class TestA33PromptSlim(unittest.TestCase):
-    def test_server_prompt_one_template_no_skills_tz_last_5(self):
+    def test_server_prompt_one_template_no_skills_tz_compact(self):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
             _seed_prompt_root(root)
@@ -77,6 +77,10 @@ class TestA33PromptSlim(unittest.TestCase):
             p = root / path
             p.parent.mkdir(parents=True)
             p.write_text("--!strict\nprint(1)\n", encoding="utf-8")
+            # A34 relevant_paths also wants Remotes beside target
+            rem = root / "src/shared/Gameplay/Remotes.luau"
+            rem.parent.mkdir(parents=True, exist_ok=True)
+            rem.write_text("return {}\n", encoding="utf-8")
             with patch("forge.llm.backend_name", return_value="ollama"):
                 prompt = build_prompt(
                     root,
@@ -103,12 +107,14 @@ class TestA33PromptSlim(unittest.TestCase):
             ]
             self.assertEqual(len(titles), 1, titles)
             self.assertIn("CHECKPOINTS TEMPLATE", titles[0])
-            # TZ last 5 lines only — early T0 must not appear
+            # A34/A27.0: first 8 TZ lines + current task (not A33 last-5 / H1)
             tz_idx = prompt.find("PROJECT_TZ.md (compact)")
             self.assertGreater(tz_idx, 0)
-            tz_chunk = prompt[tz_idx : tz_idx + 400]
-            self.assertNotIn("T0 |", tz_chunk)
-            self.assertIn("H1 |", tz_chunk)
+            next_sec = prompt.find("\n===", tz_idx + 10)
+            tz_chunk = prompt[tz_idx:next_sec]
+            self.assertIn("# TZ", tz_chunk)
+            self.assertIn("T9 |", tz_chunk)
+            self.assertNotIn("T29 |", tz_chunk)
             toks = llm_backends.estimate_tokens(prompt)
             self.assertLessEqual(toks, 1800, f"prompt too large: {toks}")
 
