@@ -40,8 +40,8 @@ COMPACT_CTX = int(_COMPACT.get("ctx") or 2048)
 CHARS_PER_TOKEN = 4
 # Default when role/cfg omits ctx (ollama.num_ctx). Role overrides may be higher.
 LOCAL_NUM_CTX = int(os.environ.get("FORGE_NUM_CTX") or _OLLAMA.get("num_ctx") or 2048)
-# Absolute max Ollama num_ctx forge will request (14b-4k supports 4096).
-MAX_NUM_CTX = int(os.environ.get("FORGE_MAX_NUM_CTX") or 4096)
+# Absolute max Ollama num_ctx forge will request (A35: allow repair 5120; hard ceiling 8192).
+MAX_NUM_CTX = int(os.environ.get("FORGE_MAX_NUM_CTX") or 8192)
 # Absolute STRICT ceilings (never exceed even if ctx is larger)
 HARD_PROMPT_TOKENS_14B = int(os.environ.get("FORGE_PROMPT_TOKENS_14B") or 3000)
 HARD_PROMPT_TOKENS_7B = int(os.environ.get("FORGE_PROMPT_TOKENS_7B") or 1000)
@@ -60,7 +60,7 @@ def cap_num_predict(n: int, *, diff_mode: bool = False) -> int:
 
 
 def cap_num_ctx(n: int) -> int:
-    """A25: allow up to MAX_NUM_CTX (4096) so gameplay/client 14B can fit rules+skeletons."""
+    """A25/A35: allow up to MAX_NUM_CTX (8192) so repair 7B can use 5120; 14B stays 4096 via models.json."""
     try:
         val = int(n)
     except (TypeError, ValueError):

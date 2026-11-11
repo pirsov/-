@@ -53,7 +53,8 @@ class TestNumCtx4096Roles(unittest.TestCase):
         opts = llm_backends.ollama_options(num_ctx=4096, num_predict=1024)
         self.assertEqual(opts["num_ctx"], 4096)
         self.assertEqual(llm_backends.cap_num_ctx(4096), 4096)
-        self.assertEqual(llm_backends.MAX_NUM_CTX, 4096)
+        self.assertEqual(llm_backends.MAX_NUM_CTX, 8192)
+        self.assertEqual(llm_backends.cap_num_ctx(5120), 5120)
 
 
 class TestBudget3000For14B(unittest.TestCase):
