@@ -1265,8 +1265,42 @@ def live_ops_missing_file_tasks(
     return lines
 
 
-def append_tz_tasks_before_human(root: Path, task_lines: List[str]) -> int:
-    """Insert new AGENT checkbox lines before ## HUMAN (or append to AGENT)."""
+_TZ_ARROW_PATH_RE = re.compile(
+    r"(?m)^\s*- \[([ xX-])\]\s+[A-Za-z0-9.]+\s*\|[^|\n]*\|[^|\n]*\|\s*(?:->|→)\s*([^\s#]+)"
+)
+
+
+def pending_tz_target_paths(tz_text: str) -> set:
+    """Normalized -> paths for open (- [ ]) AGENT checkboxes only."""
+    out: set = set()
+    for m in _TZ_ARROW_PATH_RE.finditer(tz_text or ""):
+        if m.group(1) != " ":
+            continue
+        path = m.group(2).strip().replace("\\", "/").rstrip("/")
+        if path:
+            out.add(path)
+    return out
+
+
+def next_tz_id_number(tz_text: str) -> int:
+    """Next T# from full TZ text (not the truncated Live Ops summary)."""
+    from . import deepseek
+
+    return deepseek.next_tz_task_number(tz_text or "")
+
+
+def append_tz_tasks_before_human(
+    root: Path,
+    task_lines: List[str],
+    *,
+    skip_desc_dedupe: bool = False,
+) -> int:
+    """Insert new AGENT checkbox lines before ## HUMAN (or append to AGENT).
+
+    skip_desc_dedupe: when True (missing-file REWRITE redo), only skip colliding
+    task ids — prior [x] rows with the same description must not block re-queue
+    while the target file is still absent.
+    """
     tz_path = root / "PROJECT_TZ.md"
     if not tz_path.is_file():
         return 0
@@ -1296,7 +1330,9 @@ def append_tz_tasks_before_human(root: Path, task_lines: List[str]) -> int:
         if not m:
             continue
         tid, desc = m.group(1), re.sub(r"\s+", " ", m.group(2).strip().lower())[:120]
-        if tid in existing_ids or desc in existing_descs:
+        if tid in existing_ids:
+            continue
+        if not skip_desc_dedupe and desc in existing_descs:
             continue
         fresh.append(line)
         existing_ids.add(tid)
@@ -1332,14 +1368,49 @@ def append_tz_tasks_before_human(root: Path, task_lines: List[str]) -> int:
     return len(fresh)
 
 
+def enqueue_missing_expected_rewrites(root: Path) -> int:
+    """Locally synthesize REWRITE-from-template tasks for missing EXPECTED_GAME_FILES.
+
+    Does not call DeepSeek. Skips paths that already have a pending TZ checkbox.
+    Re-queues even when a prior [x] row used the same description (file still gone).
+    """
+    missing = missing_expected_game_files(root)
+    if not missing:
+        return 0
+    tz_path = root / "PROJECT_TZ.md"
+    if not tz_path.is_file():
+        # Minimal AGENT/HUMAN so Live Ops can append
+        tz_path.write_text(
+            "# LAST_UPDATE: live ops missing cores\n\n## AGENT\n\n## HUMAN\n",
+            encoding="utf-8",
+        )
+    tz_text = tz_path.read_text(encoding="utf-8")
+    pending_paths = pending_tz_target_paths(tz_text)
+    still_need = [rel for rel in missing if rel not in pending_paths]
+    if not still_need:
+        return 0
+    start_n = next_tz_id_number(tz_text)
+    lines = live_ops_missing_file_tasks(still_need, start_n)
+    return append_tz_tasks_before_human(root, lines, skip_desc_dedupe=True)
+
+
 def try_live_ops_more_tasks(root: Path) -> int:
     """Generate and append more TZ tasks. Returns count appended (0 = empty/dup).
 
-    A28: if EXPECTED_GAME_FILES are missing from src/, queue
-    REWRITE {file}: Create from scratch using template FIRST — before polish.
+    A30: missing EXPECTED_GAME_FILES -> local REWRITE-from-template tasks FIRST,
+    without waiting for DeepSeek. DeepSeek invent is polish-only when no cores
+    are missing. Desc-dedupe must not block re-queue of still-missing files.
     """
     from . import deepseek
 
+    # 1) Always enqueue local missing-core REWRITEs first (no DeepSeek).
+    n_missing = enqueue_missing_expected_rewrites(root)
+    missing = missing_expected_game_files(root)
+    if missing:
+        # Cores still absent (queued this round or already pending) — no polish invent.
+        return n_missing
+
+    # 2) Polish / extra invent only after all EXPECTED_GAME_FILES exist on disk.
     project_id = _active_project_id(root)
     tz_text = (
         (root / "PROJECT_TZ.md").read_text(encoding="utf-8")
@@ -1349,36 +1420,16 @@ def try_live_ops_more_tasks(root: Path) -> int:
     goal = live_ops_goal(root, project_id)
     files = list_existing_luau(root)
     summary = summarize_done_tasks(tz_text)
-    start_n = deepseek.next_tz_task_number(summary)
-
-    missing = missing_expected_game_files(root)
-    forced = live_ops_missing_file_tasks(missing, start_n)
-    new_lines: List[str] = list(forced)
-
-    # Polish / Effects / HUD / Leaderboard only after core files exist (or after
-    # we already queued REWRITE-from-template for every missing core file).
-    if not missing:
-        polish = deepseek.generate_more_tasks(
-            project_id,
-            goal,
-            files,
-            summary,
-        )
-        new_lines.extend(polish or [])
-    elif len(forced) < 3:
-        # Few missing — still allow a short polish batch AFTER the forced rewrites.
-        bumped_summary = summary + "\n" + "\n".join(forced)
-        polish = deepseek.generate_more_tasks(
-            project_id,
-            goal,
-            files,
-            bumped_summary,
-        )
-        new_lines.extend(polish or [])
-
-    if not new_lines:
-        return 0
-    return append_tz_tasks_before_human(root, new_lines)
+    polish = deepseek.generate_more_tasks(
+        project_id,
+        goal,
+        files,
+        summary,
+    )
+    n_polish = 0
+    if polish:
+        n_polish = append_tz_tasks_before_human(root, polish)
+    return n_missing + n_polish
 
 
 def run_loop(
@@ -1411,13 +1462,26 @@ def run_loop(
                 if sleep_s > 0 and i + 1 < max_steps:
                     time.sleep(sleep_s)
                 continue
-            # A20.0 Live Ops: empty queue in --week/24h -> invent more tasks via DeepSeek
+            # A20.0 / A30 Live Ops: empty queue in --week/24h -> local missing
+            # REWRITEs first, then DeepSeek polish invent.
             if result.reason == "no_tasks" and week and not dry_run:
                 try:
                     n_new = try_live_ops_more_tasks(root)
                 except Exception as e:
                     n_new = 0
                     print(f"[Live Ops] generate failed: {type(e).__name__}: {e}", flush=True)
+                if n_new <= 0:
+                    # Safety net: DeepSeek empty/dup must not stop while cores missing.
+                    try:
+                        n_forced = enqueue_missing_expected_rewrites(root)
+                    except Exception as e:
+                        n_forced = 0
+                        print(
+                            f"[Live Ops] missing enqueue failed: {type(e).__name__}: {e}",
+                            flush=True,
+                        )
+                    if n_forced > 0:
+                        n_new = n_forced
                 if n_new > 0:
                     live_ops_fail_streak = 0
                     print(
@@ -1431,6 +1495,22 @@ def run_loop(
                     if sleep_s > 0 and i + 1 < max_steps:
                         time.sleep(sleep_s)
                     continue
+                still_missing = missing_expected_game_files(root)
+                if still_missing:
+                    # Pending already covers them, or TZ unwritable — do NOT blame invent.
+                    print(
+                        f"[Live Ops] {len(still_missing)} EXPECTED_GAME_FILES still missing; "
+                        "local REWRITE queue unchanged. Stopping to avoid empty loop.",
+                        flush=True,
+                    )
+                    write_heartbeat(
+                        root,
+                        {
+                            "status": "live_ops_missing_stop",
+                            "missing": still_missing[:12],
+                        },
+                    )
+                    break
                 live_ops_fail_streak += 1
                 if live_ops_fail_streak >= 3:
                     print("[Live Ops] DeepSeek could not invent new tasks. Stopping.", flush=True)

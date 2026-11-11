@@ -99,15 +99,32 @@ def _token_economy_ok() -> Dict[str, Any]:
     try:
         from . import llm_backends
 
+        # Default ollama.num_ctx (budget) stays 2048; surface gameplay/client role
+        # override (num_ctx=4096) so checklist matches models.json without changing caps.
+        role_ctx = 4096
+        try:
+            models_path = ROOT_DEFAULT / "forge" / "models.json"
+            data = json.loads(models_path.read_text(encoding="utf-8"))
+            agents = data.get("agents") if isinstance(data, dict) else {}
+            gp = (agents or {}).get("gameplay_programmer") or {}
+            raw = gp.get("num_ctx") or gp.get("ctx")
+            if raw is not None:
+                role_ctx = int(raw)
+        except (OSError, json.JSONDecodeError, TypeError, ValueError):
+            role_ctx = 4096
+
         return {
             "ok": True,
             "detail": (
                 f"ctx={llm_backends.LOCAL_NUM_CTX} "
+                f"(gameplay/client num_ctx={role_ctx}) "
                 f"prompt<={llm_backends.HARD_PROMPT_TOKENS_14B}/{llm_backends.HARD_PROMPT_TOKENS_7B} "
                 f"predict={llm_backends.DEFAULT_NUM_PREDICT}/diff={llm_backends.DIFF_NUM_PREDICT}"
             ),
             "num_predict": llm_backends.DEFAULT_NUM_PREDICT,
             "num_predict_diff": llm_backends.DIFF_NUM_PREDICT,
+            "default_num_ctx": llm_backends.LOCAL_NUM_CTX,
+            "gameplay_num_ctx": role_ctx,
         }
     except Exception as e:
         return {"ok": False, "detail": str(e)}
