@@ -24,7 +24,7 @@
     "network_remote": {
       "latest": "v1",
       "versions": ["v1", "v1.1"],
-      "summary": "Remotes ModuleScript — getOrCreate whitelist (v1.1 adds CoinSync/Donate/SaveAck)"
+      "summary": "Remotes ModuleScript — folder+getOrCreate+TABLE return (never Folder); v1.1 CoinSync/Donate/SaveAck"
     },
     "datastore_service": {
       "latest": "v1",

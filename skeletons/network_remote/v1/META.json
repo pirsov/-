@@ -1,11 +1,16 @@
 {
   "id": "network_remote",
   "version": "v1",
-  "required": ["getOrCreate", "RemoteEvent", "return"],
-  "required_any": [["CheckpointReached", "CoinCollected"]],
+  "required": ["getOrCreate", "RemoteEvent", "return", "CheckpointReached", "CoinCollected"],
+  "required_any": [["Checkpoint", "UpdateLeaderboard"]],
   "forbid": ["DataStoreService", "LocalPlayer", "FireServer"],
-  "forbid_regex": ["Remotes\\.CoinsCollected\\b"],
-  "prompt_budget_chars": 500,
+  "forbid_regex": [
+    "Remotes\\.CoinsCollected\\b",
+    "(?m)^return\\s+folder\\s*$",
+    "local\\s+Remotes\\s*=\\s*folder\\b",
+    "local\\s+Remotes\\s*=\\s*Instance\\.new\\(\\s*[\"']Folder[\"']"
+  ],
+  "prompt_budget_chars": 700,
   "default_path_glob": "src/shared/Gameplay/Remotes.luau",
   "path_hints": ["Remotes.luau", "Gameplay/Remotes"]
 }
