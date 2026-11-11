@@ -261,28 +261,145 @@ MANDATORY_FILE_LINE = (
     "If you don't include the FILE tag, your fix will be rejected."
 )
 
+# A28/A31: exact-copy lead-in (Coins + Remotes Live Ops REWRITE).
+EXACT_COPY_INSTRUCTION = (
+    "Copy this template EXACTLY. Do not modify the structure. "
+    "Only change the sound IDs and attribute names if needed."
+)
 
-def repair_errors_for_7b(fails: Sequence[str]) -> List[str]:
+# A31: Remotes exact-copy (same lead-in; structure is the contract).
+REMOTES_EXACT_COPY = EXACT_COPY_INSTRUCTION
+
+# A31: one-liner so 7B does not flip-flop table-vs-Folder vs missing events.
+REMOTES_SHAPE_ONE_LINER = (
+    "Remotes.luau REQUIRED SHAPE: "
+    "local folder = FindFirstChild/create Folder under ReplicatedStorage; "
+    "getOrCreate (or FindFirstChild create) for Checkpoint, CheckpointReached, "
+    "UpdateLeaderboard, CoinCollected; "
+    "local Remotes = { Checkpoint=..., CheckpointReached=..., "
+    "UpdateLeaderboard=..., CoinCollected=... }; "
+    "return Remotes — NEVER Remotes = folder / return folder / Folder instance."
+)
+
+# Compact snippet fed on Remotes repair (anti-oscillation).
+REMOTES_MINI_TEMPLATE = """\
+-- Remotes mini (copy structure):
+local folder = ReplicatedStorage:FindFirstChild("Remotes")
+if not folder then
+	folder = Instance.new("Folder")
+	folder.Name = "Remotes"
+	folder.Parent = ReplicatedStorage
+end
+local function getOrCreate(name: string): RemoteEvent
+	local r = folder:FindFirstChild(name)
+	if not r then
+		r = Instance.new("RemoteEvent")
+		r.Name = name
+		r.Parent = folder
+	end
+	return r :: RemoteEvent
+end
+local Remotes = {
+	Checkpoint = getOrCreate("Checkpoint"),
+	CheckpointReached = getOrCreate("CheckpointReached"),
+	UpdateLeaderboard = getOrCreate("UpdateLeaderboard"),
+	CoinCollected = getOrCreate("CoinCollected"),
+}
+return Remotes
+"""
+
+_REMOTES_TABLE_ERR_MARKERS = (
+    "must be a table",
+    "Folder instance",
+    "return folder",
+    "not the Folder",
+)
+_REMOTES_MISSING_ERR_MARKERS = (
+    "CheckpointReached",
+    "CoinCollected",
+    "getOrCreate",
+    "create-or-reuse",
+    "network_remote",
+    "missing required",
+)
+
+
+def is_remotes_target(path: Optional[str]) -> bool:
+    if not path:
+        return False
+    return path.replace("\\", "/").endswith("Remotes.luau")
+
+
+def _remotes_error_classes(fails: Sequence[str]) -> tuple:
+    """Return (has_table_vs_folder, has_missing_events_or_getOrCreate)."""
+    items = [str(f) for f in (fails or []) if str(f).strip()]
+    has_table = any(
+        any(m.lower() in f.lower() for m in _REMOTES_TABLE_ERR_MARKERS) for f in items
+    )
+    has_missing = any(
+        any(m.lower() in f.lower() for m in _REMOTES_MISSING_ERR_MARKERS) for f in items
+    )
+    return has_table, has_missing
+
+
+def remotes_combined_repair_message(fails: Sequence[str]) -> str:
+    """Combined Remotes repair bullet: full shape + mini template (A31)."""
+    return (
+        f"{REMOTES_SHAPE_ONE_LINER}\n"
+        "Apply this mini template (keep Folder in `folder`, TABLE in `Remotes`):\n"
+        f"{REMOTES_MINI_TEMPLATE.strip()}"
+    )
+
+
+def repair_errors_for_7b(
+    fails: Sequence[str],
+    *,
+    target_path: Optional[str] = None,
+) -> List[str]:
     """Return the error list to feed 7B repair.
 
-    When more than one validator fail is present, return ONLY the first so the
-    repair model works one step at a time (later errors stay for later attempts).
+    Default (A22.0): when more than one fail is present, return ONLY the first so
+    the repair model works one step at a time.
+
+    Remotes.luau (A31): if both table-vs-Folder AND missing events/getOrCreate
+    appear, feed ONE combined shape message so 7B does not oscillate.
     """
     items = [str(f).strip() for f in (fails or []) if str(f).strip()]
+    if is_remotes_target(target_path):
+        has_table, has_missing = _remotes_error_classes(items)
+        if has_table and has_missing:
+            return [remotes_combined_repair_message(items)]
+        if items:
+            # Still attach mini template so fixing one class does not drop the other.
+            return [f"{items[0]}\n{REMOTES_SHAPE_ONE_LINER}\n{REMOTES_MINI_TEMPLATE.strip()}"]
     if len(items) > 1:
         return items[:1]
     return items
 
 
-def format_validator_checklist(fails: Sequence[str], *, first_only: bool = False) -> str:
+def format_validator_checklist(
+    fails: Sequence[str],
+    *,
+    first_only: bool = False,
+    target_path: Optional[str] = None,
+) -> str:
     """Numbered checklist for 7B repair — model must fix every bullet, nothing else.
 
     When first_only=True and multiple fails exist, only the first error is listed
     and FIRST_ERROR_ONLY_INSTRUCTION is appended (A22.0 multi-error step split).
+
+    Remotes.luau (A31): combined shape when both table-vs-Folder and missing events.
     """
     raw = [str(f).strip() for f in (fails or []) if str(f).strip()]
     deferred = 0
-    if first_only and len(raw) > 1:
+    remotes_combined = False
+    if is_remotes_target(target_path):
+        items = repair_errors_for_7b(raw, target_path=target_path)
+        has_table, has_missing = _remotes_error_classes(raw)
+        remotes_combined = bool(has_table and has_missing and len(raw) > 1)
+        if not remotes_combined and first_only and len(raw) > 1:
+            deferred = len(raw) - 1
+    elif first_only and len(raw) > 1:
         deferred = len(raw) - 1
         items = raw[:1]
     else:
@@ -296,7 +413,12 @@ def format_validator_checklist(fails: Sequence[str], *, first_only: bool = False
         + "\nRules: surgical PATCH only; do not rewrite architecture; "
         "after edits the file must satisfy ALL bullets above."
     )
-    if deferred:
+    if remotes_combined:
+        body += (
+            "\nRemotes anti-oscillation: fix TABLE + getOrCreate + CheckpointReached "
+            "+ CoinCollected in ONE pass — do not alternate Folder vs missing events."
+        )
+    elif deferred:
         body += (
             f"\n{FIRST_ERROR_ONLY_INSTRUCTION}"
             f"\n(Deferred {deferred} other validator error(s) for later repair steps.)"
@@ -517,8 +639,16 @@ def build_prompt(
 """
     remotes_template = ""
     if task.target_path and task.target_path.replace("\\", "/").endswith("Remotes.luau"):
-        remotes_template = """
-=== REMOTES TEMPLATE (copy structure; do not return the Folder) ===
+        # A31: EXACT COPY at TOP (like Coins). Path: src/shared/Gameplay/Remotes.luau
+        remotes_template = f"""
+=== REMOTES TEMPLATE (ModuleScript — Folder in `folder`, TABLE in `Remotes`) ===
+{REMOTES_EXACT_COPY}
+Target MUST be -> src/shared/Gameplay/Remotes.luau
+Pattern (REQUIRED):
+1) local folder = ... Folder under ReplicatedStorage (NOT assigned to Remotes)
+2) getOrCreate (or FindFirstChild create) for CheckpointReached, CoinCollected, etc.
+3) local Remotes = {{ Checkpoint=..., CheckpointReached=..., UpdateLeaderboard=..., CoinCollected=... }}  -- TABLE
+4) return Remotes  -- NEVER return folder / NEVER Remotes = folder
 --!strict
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -539,12 +669,12 @@ local function getOrCreate(name: string): RemoteEvent
 	return r :: RemoteEvent
 end
 
-local Remotes = {
+local Remotes = {{
 	Checkpoint = getOrCreate("Checkpoint"),
 	CheckpointReached = getOrCreate("CheckpointReached"),
 	UpdateLeaderboard = getOrCreate("UpdateLeaderboard"),
 	CoinCollected = getOrCreate("CoinCollected"),
-}
+}}
 return Remotes
 """
     checkpoints_template = ""
@@ -671,9 +801,9 @@ end
 """
     coins_template = ""
     if task.target_path and "Coins.server.luau" in task.target_path.replace("\\", "/"):
-        coins_template = """
+        coins_template = f"""
 === COINS TEMPLATE (Script — NO top-level return) ===
-Copy this template EXACTLY. Do not modify the structure. Only change the sound IDs and attribute names if needed.
+{EXACT_COPY_INSTRUCTION}
 You MUST use Players:GetPlayerFromCharacter(char) to find the player. You MUST call coin:Destroy() and FireAllClients UpdateLeaderboard. You MUST use task.wait().
 --!strict
 local Players = game:GetService("Players")
@@ -826,9 +956,8 @@ Never use .Left. Prefer workspace.Puzzles folder.
             first = block.strip().splitlines()[0] if block.strip() else ""
             return f"\n{first}\n{hint}\n"
 
-        remotes_template = _short_tmpl(
-            remotes_template, "getOrCreate RemoteEvents; return Remotes table ModuleScript."
-        )
+        # A31: Remotes keeps FULL template on local Ollama (exact-copy + table pattern).
+        # Do NOT collapse to a one-liner — that caused Folder-as-Remotes flip-flop.
         checkpoints_template = _short_tmpl(
             checkpoints_template,
             'Touched+SetAttribute; Died→LoadCharacter; FindFirstChild("Checkpoint"..idx).',
@@ -841,8 +970,7 @@ Never use .Left. Prefer workspace.Puzzles folder.
         )
         coins_template = _short_tmpl(
             coins_template,
-            "Copy this template EXACTLY. Do not modify the structure. "
-            "Only change the sound IDs and attribute names if needed. "
+            f"{EXACT_COPY_INSTRUCTION} "
             "You MUST use Players:GetPlayerFromCharacter(char) to find the player. "
             "You MUST call coin:Destroy() and FireAllClients UpdateLeaderboard. "
             "You MUST use task.wait(). "
@@ -861,7 +989,7 @@ Never use .Left. Prefer workspace.Puzzles folder.
         )
         qa_template = _short_tmpl(qa_template, "BUGS/SUGGESTIONS/TEST CASES/SCORE sections.") if qa_template else ""
 
-    # HARD CAPS - repeated mistakes from 14B Generator/HUD/Checkpoints (A19.0 / A22.0 / A26)
+    # HARD CAPS - repeated mistakes from 14B Generator/HUD/Checkpoints (A19.0 / A22.0 / A26 / A31)
     hard_caps = """HARD CAPS (NEVER violate - validator CRITICAL FAIL):
 - NEVER use LocalPlayer in .server.luau files. LocalPlayer is client-only. Use Players.PlayerAdded or GetPlayerFromCharacter.
 - NEVER use character:GetAttribute("Coins"). ALWAYS use player:GetAttribute("Coins").
@@ -870,7 +998,15 @@ Never use .Left. Prefer workspace.Puzzles folder.
 - Spawn MUST be created with Instance.new("SpawnLocation"). NEVER use Instance.new("Part") and rename it to SpawnLocation.
 - NEVER use BreakJoints. Use Humanoid.Health = 0 if you need to kill, but prefer not to kill at all.
 - Checkpoints: SetAttribute("Checkpoint", idx) where idx is a number (tonumber(match)), NEVER a Part/Instance.
-- Checkpoints.server.luau MUST NOT use DataStoreService. DataStore is ONLY for datastore_service archetype."""
+- Checkpoints.server.luau MUST NOT use DataStoreService. DataStore is ONLY for datastore_service archetype.
+- Remotes.luau: NEVER set Remotes = folder. ALWAYS return a TABLE of RemoteEvent refs via getOrCreate. MUST include CheckpointReached + CoinCollected."""
+
+    remotes_strict = (
+        "Remotes.luau STRICT: NEVER Remotes = folder; ALWAYS "
+        "`local Remotes = { Checkpoint=getOrCreate(...), CheckpointReached=..., "
+        "UpdateLeaderboard=..., CoinCollected=... }; return Remotes`. "
+        "MUST include getOrCreate + CheckpointReached + CoinCollected."
+    )
 
     localplayer_server_rule = (
         "NEVER use LocalPlayer in .server.luau files. LocalPlayer is client-only. "
@@ -884,6 +1020,7 @@ Never use .Left. Prefer workspace.Puzzles folder.
 - {localplayer_server_rule}
 - server/client: no top-level return; ModuleScript: return table.
 - Checkpoint.."id" (no _); {REMOTES_WAIT_RULE} never bare Remotes; LevelConfig Luau `=`; coins Destroy+FireClient.
+- {remotes_strict}
 - Compact code; APPEND disabled — full-file REWRITE only.
 - NEVER use <<<<<<< SEARCH / ======= / >>>>>>> REPLACE. This is Cursor diff format and it will be rejected by the parser. Always output the COMPLETE file content.
 {hard_caps}"""
@@ -906,6 +1043,7 @@ Never use .Left. Prefer workspace.Puzzles folder.
 - Generator: CREATE Map/Path/Spawn (Instance.new); never WaitForChild Map first.
 - Generator checkpoint names: "Checkpoint" .. tostring(id) - NEVER "Checkpoint_".
 - {REMOTES_WAIT_RULE} — NEVER bare ReplicatedStorage.Remotes; never return a Folder.
+- {remotes_strict}
 - LevelConfig: Luau `id = n` only - NEVER JavaScript `id: n`. return array for ipairs.
 - Coins: coin:Destroy(); FireClient(player); FindFirstChild Coins + ChildAdded; FireAllClients UpdateLeaderboard.
 - HUD: create ScreenGui; player.CharacterAdded - never bare characterAdded.

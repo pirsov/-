@@ -967,10 +967,15 @@ class Orchestrator:
                 except Exception as e:
                     print(f"   warn: skeleton routing check skipped: {e}")
                 # A22.0: 7B panics on 3+ errors — feed ONLY the first fail this attempt.
-                repair_errs = repair_errors_for_7b(err_msgs)
-                checklist = format_validator_checklist(err_msgs, first_only=True)
+                # A31: Remotes.luau with table-vs-Folder + missing events → combined shape.
+                repair_errs = repair_errors_for_7b(
+                    err_msgs, target_path=task.target_path
+                )
+                checklist = format_validator_checklist(
+                    err_msgs, first_only=True, target_path=task.target_path
+                )
                 # Absolute top of repair feedback — must survive hard-fit trim.
-                from .prompts import MANDATORY_FILE_LINE
+                from .prompts import MANDATORY_FILE_LINE, is_remotes_target
 
                 validator_feedback = (
                     f"{MANDATORY_FILE_LINE}\n"
@@ -989,19 +994,35 @@ class Orchestrator:
                     '\nCheckpoints: include Humanoid.Died / LoadCharacter and '
                     'FindFirstChild("Checkpoint"..idx) when those bullets appear above.'
                 )
-                if len(err_msgs) > 1 and FIRST_ERROR_ONLY_INSTRUCTION not in checklist:
+                remotes_bundled = (
+                    is_remotes_target(task.target_path)
+                    and "anti-oscillation" in checklist
+                )
+                if (
+                    len(err_msgs) > 1
+                    and FIRST_ERROR_ONLY_INSTRUCTION not in checklist
+                    and not remotes_bundled
+                ):
                     validator_feedback += f"\n{FIRST_ERROR_ONLY_INSTRUCTION}"
                 print("   VALIDATOR REJECTED - next attempt is repair-only", flush=True)
-                if len(err_msgs) > 1:
+                if remotes_bundled:
+                    print(
+                        "   Remotes repair: combined table+events shape "
+                        "(anti-oscillation)",
+                        flush=True,
+                    )
+                elif len(err_msgs) > 1:
                     print(
                         f"   repair step 1/{len(err_msgs)} "
-                        f"(feeding first error only to 7B): {repair_errs[0]}",
+                        f"(feeding first error only to 7B): {repair_errs[0][:120]}",
                         flush=True,
                     )
                 print("   repair checklist:")
                 for i, msg in enumerate(repair_errs, 1):
-                    print(f"      {i}. {msg}")
-                if len(err_msgs) > 1:
+                    # Combined Remotes message can be long — show first line + note
+                    preview = msg.splitlines()[0] if msg else msg
+                    print(f"      {i}. {preview}")
+                if len(err_msgs) > 1 and not remotes_bundled:
                     print(
                         f"   deferred {len(err_msgs) - 1} other error(s) for later steps",
                         flush=True,

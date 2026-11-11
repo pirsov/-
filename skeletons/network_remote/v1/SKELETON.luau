@@ -1,9 +1,13 @@
 --!strict
 -- archetype: network_remote@v1
+-- Folder stays in `folder`; Remotes is ALWAYS a TABLE of RemoteEvent refs.
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local folder = ReplicatedStorage:FindFirstChild("Remotes") or Instance.new("Folder")
-folder.Name = "Remotes"
-folder.Parent = ReplicatedStorage
+local folder = ReplicatedStorage:FindFirstChild("Remotes")
+if not folder then
+	folder = Instance.new("Folder")
+	folder.Name = "Remotes"
+	folder.Parent = ReplicatedStorage
+end
 local function getOrCreate(name: string): RemoteEvent
 	local r = folder:FindFirstChild(name)
 	if not r then
@@ -14,7 +18,9 @@ local function getOrCreate(name: string): RemoteEvent
 	return r :: RemoteEvent
 end
 local Remotes = {
+	Checkpoint = getOrCreate("Checkpoint"),
 	CheckpointReached = getOrCreate("CheckpointReached"),
+	UpdateLeaderboard = getOrCreate("UpdateLeaderboard"),
 	CoinCollected = getOrCreate("CoinCollected"),
 }
 return Remotes
