@@ -1228,6 +1228,41 @@ def list_existing_luau(root: Path) -> List[str]:
     return [str(p.relative_to(root)).replace("\\", "/") for p in sorted(src.rglob("*.luau"))]
 
 
+def missing_expected_game_files(root: Path) -> List[str]:
+    """EXPECTED_GAME_FILES paths not present under root (missing core game files)."""
+    missing: List[str] = []
+    for rel in EXPECTED_GAME_FILES:
+        if not (root / rel).is_file():
+            missing.append(rel)
+    return missing
+
+
+def _owner_for_expected_file(rel: str) -> str:
+    norm = rel.replace("\\", "/")
+    if "/client/" in norm or norm.startswith("src/client/"):
+        return "client_programmer"
+    return "gameplay_programmer"
+
+
+def live_ops_missing_file_tasks(
+    missing: List[str],
+    start_n: int,
+) -> List[str]:
+    """REWRITE-from-template TZ lines for missing EXPECTED_GAME_FILES (A28).
+
+    These MUST be queued before polish / Effects / HUD / Leaderboard improvements.
+    """
+    lines: List[str] = []
+    for i, rel in enumerate(missing):
+        fname = Path(rel).name
+        owner = _owner_for_expected_file(rel)
+        lines.append(
+            f"- [ ] T{start_n + i} | REWRITE {fname}: Create from scratch using template "
+            f"| @{owner} | -> {rel}"
+        )
+    return lines
+
+
 def append_tz_tasks_before_human(root: Path, task_lines: List[str]) -> int:
     """Insert new AGENT checkbox lines before ## HUMAN (or append to AGENT)."""
     tz_path = root / "PROJECT_TZ.md"
@@ -1296,7 +1331,11 @@ def append_tz_tasks_before_human(root: Path, task_lines: List[str]) -> int:
 
 
 def try_live_ops_more_tasks(root: Path) -> int:
-    """Generate and append more TZ tasks. Returns count appended (0 = empty/dup)."""
+    """Generate and append more TZ tasks. Returns count appended (0 = empty/dup).
+
+    A28: if EXPECTED_GAME_FILES are missing from src/, queue
+    REWRITE {file}: Create from scratch using template FIRST — before polish.
+    """
     from . import deepseek
 
     project_id = _active_project_id(root)
@@ -1308,12 +1347,33 @@ def try_live_ops_more_tasks(root: Path) -> int:
     goal = live_ops_goal(root, project_id)
     files = list_existing_luau(root)
     summary = summarize_done_tasks(tz_text)
-    new_lines = deepseek.generate_more_tasks(
-        project_id,
-        goal,
-        files,
-        summary,
-    )
+    start_n = deepseek.next_tz_task_number(summary)
+
+    missing = missing_expected_game_files(root)
+    forced = live_ops_missing_file_tasks(missing, start_n)
+    new_lines: List[str] = list(forced)
+
+    # Polish / Effects / HUD / Leaderboard only after core files exist (or after
+    # we already queued REWRITE-from-template for every missing core file).
+    if not missing:
+        polish = deepseek.generate_more_tasks(
+            project_id,
+            goal,
+            files,
+            summary,
+        )
+        new_lines.extend(polish or [])
+    elif len(forced) < 3:
+        # Few missing — still allow a short polish batch AFTER the forced rewrites.
+        bumped_summary = summary + "\n" + "\n".join(forced)
+        polish = deepseek.generate_more_tasks(
+            project_id,
+            goal,
+            files,
+            bumped_summary,
+        )
+        new_lines.extend(polish or [])
+
     if not new_lines:
         return 0
     return append_tz_tasks_before_human(root, new_lines)

@@ -209,18 +209,13 @@ def mode_instructions(task: Task, *, file_exists: bool = False, prefer_diff: boo
     # A27: APPEND mode fully disabled — coerce to REWRITE so the model returns
     # the COMPLETE file (APPEND caused duplicate `local function` pastes).
     mode = WriteMode.REWRITE if task.mode == WriteMode.APPEND else task.mode
-    if mode == WriteMode.REWRITE and file_exists and prefer_diff:
+    # A28: Cursor SEARCH/REPLACE markers break the parser — always COMPLETE file.
+    if mode == WriteMode.REWRITE and file_exists:
         return (
-            "WRITE MODE = REWRITE (APPEND disabled — A27; return COMPLETE file or PATCH).\n"
-            "- Prefer SEARCH/REPLACE blocks inside <FILE> instead of rewriting the whole file.\n"
-            "- Format exactly:\n"
-            "<<<<<<< SEARCH\n"
-            "exact old lines from the baseline\n"
-            "=======\n"
-            "new lines\n"
-            ">>>>>>> REPLACE\n"
-            "- Multiple blocks allowed. SEARCH must match the baseline exactly.\n"
-            "- Or return the COMPLETE new file content (full-file rewrite is OK).\n"
+            "WRITE MODE = REWRITE (APPEND disabled — A27; COMPLETE file only — A28).\n"
+            "- Always return the COMPLETE new file content inside <FILE>.\n"
+            "- NEVER use <<<<<<< SEARCH / ======= / >>>>>>> REPLACE "
+            "(Cursor diff format — rejected by the parser).\n"
             "- NEVER append-only / never paste the file twice.\n"
             f"- Target file: {task.target_path}\n"
         )
@@ -228,6 +223,7 @@ def mode_instructions(task: Task, *, file_exists: bool = False, prefer_diff: boo
         return (
             "WRITE MODE = REWRITE.\n"
             "- Return the COMPLETE new file content.\n"
+            "- NEVER use <<<<<<< SEARCH / ======= / >>>>>>> REPLACE.\n"
             "- APPEND is disabled — never return append-only fragments.\n"
             f"- Target file: {task.target_path}\n"
         )
@@ -416,7 +412,8 @@ def build_prompt(
             "(e.g. add Humanoid.Died + LoadCharacter; "
             'FindFirstChild("Checkpoint"..idx) for teleport; '
             "Checkpoint_ → Checkpoint..id).\n"
-            "Prefer SEARCH/REPLACE blocks against this draft; full file only if required.\n"
+            "Return the COMPLETE file content inside <FILE>. "
+            "NEVER use <<<<<<< SEARCH / ======= / >>>>>>> REPLACE.\n"
             f"{draft}\n"
         )
     elif prior_snapshot and task.mode in {
@@ -430,9 +427,11 @@ def build_prompt(
             if len(snap) > snap_cap:
                 snap = snap[: snap_cap // 2] + "\n...(baseline truncated)...\n" + snap[-snap_cap // 2 :]
         feedback += (
-            "\n=== BASELINE FILE (PATCH from THIS — A15; APPEND disabled A27) ===\n"
-            "Prefer SEARCH/REPLACE against this baseline. Do not invent a new architecture.\n"
-            "Return COMPLETE file or patches — never append-only fragments.\n"
+            "\n=== BASELINE FILE (rewrite from THIS — A15; APPEND disabled A27; "
+            "no SEARCH/REPLACE A28) ===\n"
+            "Return the COMPLETE updated file. Do not invent a new architecture.\n"
+            "NEVER use <<<<<<< SEARCH / ======= / >>>>>>> REPLACE "
+            "(Cursor diff format — rejected by the parser).\n"
             "Preserve: Map folder, Name=\"Path\" floor, SpawnPlaza, SpawnLocation, "
             'checkpoint Name = "Checkpoint" .. tostring(id) (NO underscore), coins, print section ids.\n'
             "Only apply the task delta (e.g. add Obstacle parts).\n"
@@ -674,6 +673,7 @@ end
     if task.target_path and "Coins.server.luau" in task.target_path.replace("\\", "/"):
         coins_template = """
 === COINS TEMPLATE (Script — NO top-level return) ===
+Copy this template EXACTLY. Do not modify the structure. Only change the sound IDs and attribute names if needed.
 You MUST use Players:GetPlayerFromCharacter(char) to find the player. You MUST call coin:Destroy() and FireAllClients UpdateLeaderboard. You MUST use task.wait().
 --!strict
 local Players = game:GetService("Players")
@@ -841,10 +841,13 @@ Never use .Left. Prefer workspace.Puzzles folder.
         )
         coins_template = _short_tmpl(
             coins_template,
+            "Copy this template EXACTLY. Do not modify the structure. "
+            "Only change the sound IDs and attribute names if needed. "
             "You MUST use Players:GetPlayerFromCharacter(char) to find the player. "
             "You MUST call coin:Destroy() and FireAllClients UpdateLeaderboard. "
             "You MUST use task.wait(). "
-            "Destroy coin ONLY here; player attrs; FireClient CoinCollected; ChildAdded.",
+            "Destroy coin ONLY here; player attrs; FireClient CoinCollected; ChildAdded. "
+            "Target MUST be -> src/server/Gameplay/Coins.server.luau",
         )
         levelconfig_template = _short_tmpl(
             levelconfig_template, "return { { id = n, gap = g, coins = c }, ... } Luau `=` only."
@@ -881,7 +884,8 @@ Never use .Left. Prefer workspace.Puzzles folder.
 - {localplayer_server_rule}
 - server/client: no top-level return; ModuleScript: return table.
 - Checkpoint.."id" (no _); {REMOTES_WAIT_RULE} never bare Remotes; LevelConfig Luau `=`; coins Destroy+FireClient.
-- Compact code; SEARCH/REPLACE preferred on existing files. APPEND disabled — full-file REWRITE only.
+- Compact code; APPEND disabled — full-file REWRITE only.
+- NEVER use <<<<<<< SEARCH / ======= / >>>>>>> REPLACE. This is Cursor diff format and it will be rejected by the parser. Always output the COMPLETE file content.
 {hard_caps}"""
         token_econ = "TOKEN ECONOMY: minimal comments; only code for THIS task."
     else:
@@ -907,7 +911,8 @@ Never use .Left. Prefer workspace.Puzzles folder.
 - HUD: create ScreenGui; player.CharacterAdded - never bare characterAdded.
 - Leaderboard: create UI; UpdateLeaderboard only - no LeaderboardFrame WaitForChild.
 - Void: Heartbeat Y<-20 LoadCharacter. Puzzles: TouchEnded not .Left.
-- APPEND is disabled (A27): always return COMPLETE file content / SEARCH-REPLACE — never append-only.
+- APPEND is disabled (A27): always return COMPLETE file content — never append-only.
+- NEVER use <<<<<<< SEARCH / ======= / >>>>>>> REPLACE. This is Cursor diff format and it will be rejected by the parser. Always output the COMPLETE file content.
 {hard_caps}
 - TOKEN ECONOMY: Do not write excessive comments. Use concise local variable names. Output only the necessary code."""
         token_econ = """TOKEN ECONOMY (local 14B ctx<=4k):
@@ -932,7 +937,7 @@ Follow AGENTS.md. Do the task for real — do not reply NOTE-only when a FILE is
 === YOUR TASK ===
 {task.raw.strip()}
 
-{mode_instructions(task, file_exists=bool(prior_snapshot), prefer_diff=True)}
+{mode_instructions(task, file_exists=bool(prior_snapshot), prefer_diff=False)}
 
 {strict_rules}
 
@@ -942,13 +947,9 @@ Format:
 <DONE>{task.task_id}</DONE>
 <NOTE>one short sentence</NOTE>
 <FILE path="{task.target_path or "src/server/Example.server.luau"}">
-<<<<<<< SEARCH
-old lines
-=======
-new lines
->>>>>>> REPLACE
+complete file content here
 </FILE>
-(or full file content when CREATE / large rewrite)
+(NEVER <<<<<<< SEARCH / ======= / >>>>>>> REPLACE — always COMPLETE file content)
 """
     # A17 hard fit — NEVER send oversized prompts to Ollama
     if budget is not None:
