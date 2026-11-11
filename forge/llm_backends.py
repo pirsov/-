@@ -23,15 +23,18 @@ _COMPACT = dict(_CFG.get("compact") or {})
 _WEEK = dict(_CFG.get("week_mode") or {})
 
 # Env overrides (FORGE_NUM_PREDICT / FORGE_NUM_PREDICT_DIFF)
+# A36: default/ceiling 2048 so 14B can finish </FILE> (was 1024 cutoff).
 DEFAULT_NUM_PREDICT = int(
     os.environ.get("FORGE_NUM_PREDICT")
     or _OLLAMA.get("num_predict")
     or _WEEK.get("max_predict_code")
-    or 1024
+    or 2048
 )
 DIFF_NUM_PREDICT = int(
     os.environ.get("FORGE_NUM_PREDICT_DIFF") or _OLLAMA.get("num_predict_diff") or 512
 )
+# Absolute non-diff ceiling (gameplay/client predict=2048)
+CODE_NUM_PREDICT_MAX = int(os.environ.get("FORGE_NUM_PREDICT_MAX") or 2048)
 COMPACT_NUM_PREDICT = int(_COMPACT.get("predict") or 256)
 COMPACT_MODEL = str(_COMPACT.get("model") or "qwen2.5-coder:7b-2k")
 COMPACT_CTX = int(_COMPACT.get("ctx") or 2048)
@@ -50,12 +53,16 @@ PROMPT_CTX_RESERVE = int(os.environ.get("FORGE_PROMPT_CTX_RESERVE") or 32)
 
 
 def cap_num_predict(n: int, *, diff_mode: bool = False) -> int:
-    """Hard ceiling for Ollama output length (A15)."""
-    cap = DIFF_NUM_PREDICT if diff_mode else DEFAULT_NUM_PREDICT
+    """Hard ceiling for Ollama output length (A15/A36).
+
+    Non-diff: allow up to CODE_NUM_PREDICT_MAX (2048) so long FILE bodies can close.
+    Diff/repair: stay on DIFF_NUM_PREDICT (512).
+    """
+    cap = DIFF_NUM_PREDICT if diff_mode else max(DEFAULT_NUM_PREDICT, CODE_NUM_PREDICT_MAX)
     try:
         val = int(n)
     except (TypeError, ValueError):
-        val = cap
+        val = DEFAULT_NUM_PREDICT if not diff_mode else DIFF_NUM_PREDICT
     return max(64, min(val, cap, 4096))
 
 
@@ -72,7 +79,7 @@ def ollama_options(
     *,
     num_ctx: int = 2048,
     temperature: float = 0.1,
-    num_predict: int = 1024,
+    num_predict: int = 2048,
     diff_mode: bool = False,
 ) -> Dict[str, Any]:
     return {
@@ -109,8 +116,8 @@ def effective_prompt_token_budget(
     """
     STRICT fit budget:
       min(14B≤3000 | 7B≤1000,  num_ctx - num_predict - reserve)
-    With gameplay/client (ctx=4096, predict=1024) → ~3000 tok for 14B.
-    With default ctx=2048 → ~992 tok (room-limited).
+    With gameplay/client (ctx=4096, predict=2048) → ~2016 tok for 14B (A36).
+    With default ctx=2048 / predict=1024 → ~992 tok (room-limited).
     """
     ctx = cap_num_ctx(LOCAL_NUM_CTX if num_ctx is None else num_ctx)
     pred = cap_num_predict(

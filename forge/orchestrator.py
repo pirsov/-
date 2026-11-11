@@ -139,8 +139,31 @@ KNOWN_SEEDS = {
 _DONE_ID = r"((?:[PW]\d+(?:\.\d+)*(?:\.[a-z])?)|(?:[ABHZGFRT]\d+[a-z]?))"
 
 
-def parse_agent_output(text: str, expected_id: str) -> Tuple[Optional[str], str, List[FileOp], Optional[str]]:
-    """Returns (done_id, note, files, blocked_id)."""
+def _strip_done_note_markup(text: str) -> str:
+    """Remove DONE/SUCCESS/NOTE tags so leftover body can be recovered as FILE content."""
+    body = text or ""
+    body = re.sub(
+        rf"(?:<(?:DONE|SUCCESS)>|(?<![\w/])DONE>)\s*{_DONE_ID}\s*(?:</(?:DONE|SUCCESS)>)?",
+        "",
+        body,
+        count=1,
+        flags=re.I,
+    )
+    body = re.sub(r"<NOTE>[\s\S]*?</NOTE>", "", body, count=1, flags=re.I)
+    return body.strip()
+
+
+def parse_agent_output(
+    text: str,
+    expected_id: str,
+    target_path: Optional[str] = None,
+) -> Tuple[Optional[str], str, List[FileOp], Optional[str]]:
+    """Returns (done_id, note, files, blocked_id).
+
+    A36: if DONE but no closed </FILE>, recover long bodies so writes are not discarded:
+      - unclosed <FILE path="...">… (predict cutoff mid-tag)
+      - no FILE tag at all, body >500 chars → wrap with target_path
+    """
     blocked = re.search(rf"<BLOCKED>\s*{_DONE_ID}\s*</BLOCKED>", text, re.I)
     if blocked:
         return None, "", [], blocked.group(1)
@@ -178,6 +201,39 @@ def parse_agent_output(text: str, expected_id: str) -> Tuple[Optional[str], str,
             path = raw_path.split("#", 1)[0]
             mode = WriteMode.REWRITE
         files.append(FileOp(path=path, content=content, mode=mode))
+
+    # A36 recovery: DONE without a closed FILE — keep long model output
+    if not files and target_path:
+        path = target_path.replace("\\", "/").strip()
+        # 1) Unclosed <FILE …> (hit predict before </FILE>)
+        open_m = re.search(
+            r'<FILE\s+path="([^"]+)">\r?\n?([\s\S]*)\Z',
+            text,
+            re.I,
+        )
+        if open_m and "</FILE>" not in text:
+            raw_path = open_m.group(1).strip() or path
+            content = open_m.group(2).strip("\r\n")
+            if "#" in raw_path:
+                raw_path = raw_path.split("#", 1)[0]
+            if len(content) > 500:
+                print(
+                    f"   A36: auto-close truncated <FILE> -> {path} ({len(content)} chars)",
+                    flush=True,
+                )
+                files.append(FileOp(path=path or raw_path, content=content, mode=WriteMode.REWRITE))
+        else:
+            # 2) Forgot FILE tags entirely — wrap leftover body
+            body = _strip_done_note_markup(text)
+            # Drop a lone unclosed opener line if present without usable path content
+            body = re.sub(r'^<FILE\s+path="[^"]*">\s*', "", body, count=1, flags=re.I)
+            if len(body) > 500:
+                print(
+                    f"   A36: auto-wrap DONE-without-FILE -> {path} ({len(body)} chars)",
+                    flush=True,
+                )
+                files.append(FileOp(path=path, content=body, mode=WriteMode.REWRITE))
+
     return done_id, note, files, None
 
 
@@ -556,6 +612,7 @@ def pick_model(owner: str, attempt: int, escalate: bool) -> dict:
             base["predict"] = max(int(base.get("predict", 1024)), 1024)
 
     # Cap predict on local Ollama so 6GB cards don't blow KV during long FILE writes
+    # A36: week max_predict_code=2048; gameplay/client agents request 2048.
     week_cap = int(WEEK_MODE.get("max_predict_code") or 0)
     if week_cap and owner in {
         "gameplay_programmer",
@@ -564,7 +621,11 @@ def pick_model(owner: str, attempt: int, escalate: bool) -> dict:
         "integrator",
         "tech_architect",
     }:
-        base["predict"] = min(int(base.get("predict", 1024)), week_cap)
+        base["predict"] = min(int(base.get("predict", 2048)), week_cap)
+
+    # A36: first-pass 14B codegen roles always get predict=2048 (close </FILE>)
+    if not is_7b and owner in {"gameplay_programmer", "client_programmer"}:
+        base["predict"] = max(int(base.get("predict") or 0), 2048)
 
     # A15/A25: hard Ollama output + ctx ceilings (gameplay/client 14B may use 4096)
     try:
@@ -743,12 +804,21 @@ class Orchestrator:
             return out
         if self.dry_run:
             return ""
+        # A36: 14B gameplay/client must pass predict=2048 (models.json + pick_model)
+        num_predict = int(cfg.get("predict") or 2048)
+        if (
+            not cfg.get("is_7b")
+            and not cfg.get("diff_mode")
+            and attempt < 2
+            and task.owner in {"gameplay_programmer", "client_programmer"}
+        ):
+            num_predict = max(num_predict, 2048)
         return llm.generate(
             cfg["model"],
             prompt,
             num_ctx=cfg["ctx"],
             temperature=temp,
-            num_predict=cfg["predict"],
+            num_predict=num_predict,
             diff_mode=bool(cfg.get("diff_mode") or attempt >= 2),
         )
 
@@ -934,7 +1004,9 @@ class Orchestrator:
 
             (logs / f"{stamp}-{task.task_id}-attempt{attempt}-response.txt").write_text(out, encoding="utf-8")
 
-            done_id, note, file_ops, blocked = parse_agent_output(out, task.task_id)
+            done_id, note, file_ops, blocked = parse_agent_output(
+                out, task.task_id, target_path=task.target_path
+            )
             if blocked:
                 print("   model refused (BLOCKED) - retrying", flush=True)
                 validator_feedback = "Do not output BLOCKED. Produce <DONE> and <FILE> now."
