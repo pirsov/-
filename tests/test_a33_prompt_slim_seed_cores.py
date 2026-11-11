@@ -146,11 +146,12 @@ class TestA33PromptSlim(unittest.TestCase):
 
 
 class TestA33RepairCtx4096(unittest.TestCase):
-    def test_models_json_repair_refactorer_4096(self):
+    def test_models_json_repair_refactorer_ctx(self):
         cfg = load_model_config()
         repair = cfg.get("repair") or {}
-        self.assertEqual(int(repair["ctx"]), 4096)
-        self.assertEqual(int(repair.get("num_ctx") or repair["ctx"]), 4096)
+        # A35: repair 7B 5120; refactorer stays 4096
+        self.assertEqual(int(repair["ctx"]), 5120)
+        self.assertEqual(int(repair.get("num_ctx") or repair["ctx"]), 5120)
         ref = (cfg.get("agents") or {})["refactorer"]
         self.assertEqual(int(ref["ctx"]), 4096)
         self.assertEqual(int(ref.get("num_ctx") or ref["ctx"]), 4096)

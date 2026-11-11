@@ -1,9 +1,9 @@
 {
-  "_comment": "A29: local Ollama agent tags only (qwen2.5-coder:14b-4k / 7b-2k). A25/A33: gameplay/client 14B + repair/refactorer 7B num_ctx=4096; prompt target ~1500 (A33 slim). predict<=1024 (diff<=512).",
+  "_comment": "A29: local Ollama agent tags only (qwen2.5-coder:14b-4k / 7b-2k). A25/A33: gameplay/client 14B num_ctx=4096; A35: repair 7B num_ctx=5120 (refactorer 4096); prompt target ~1500 (A33 slim). predict<=1024 (diff<=512).",
   "hardware": {
     "name": "gtx1660_6gb",
     "vram_mb": 6144,
-    "notes": "Keep one model loaded. OLLAMA_NUM_PARALLEL=1. Close Chrome/Studio if VRAM >90%. gameplay/client/repair/refactorer use num_ctx=4096. Prefer installed tags from `ollama list`."
+    "notes": "Keep one model loaded. OLLAMA_NUM_PARALLEL=1. Close Chrome/Studio if VRAM >90%. gameplay/client 14B num_ctx=4096; repair 7B num_ctx=5120. Prefer installed tags from `ollama list`."
   },
   "agents": {
     "game_designer":       { "model": "phi4-mini:4k",         "ctx": 2048, "predict": 1024 },
@@ -19,10 +19,10 @@
   },
   "repair": {
     "model": "qwen2.5-coder:7b-2k",
-    "ctx": 4096,
-    "num_ctx": 4096,
+    "ctx": 5120,
+    "num_ctx": 5120,
     "predict": 512,
-    "_comment": "A33/A34: repair 7B num_ctx 4096 (slim REPAIR MODE ~1200 + one-error snippet)"
+    "_comment": "A35: repair 7B num_ctx 5120 (was 4096); 14B gameplay/client stay 4096"
   },
   "compact": {
     "model": "qwen2.5-coder:7b-2k",

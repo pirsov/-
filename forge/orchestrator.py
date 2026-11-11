@@ -542,15 +542,12 @@ def pick_model(owner: str, attempt: int, escalate: bool) -> dict:
         if repair.get("model"):
             preferred = str(repair["model"])
             is_7b = True
-            # A33/A34: repair num_ctx=4096 (prefer num_ctx, then ctx)
-            base["ctx"] = int(
-                repair.get("num_ctx") or repair.get("ctx") or base.get("ctx") or 4096
-            )
-            base["num_ctx"] = int(base["ctx"])
+            # A35: repair 7B explicitly ctx=5120 (models.json mirrors; 14B stays 4096)
+            base["ctx"] = 5120
+            base["num_ctx"] = 5120
             base["predict"] = int(repair.get("predict") or 512)
             print(
-                f"   repair model: {preferred} ctx={base['ctx']} "
-                f"num_ctx={base.get('num_ctx', base['ctx'])} predict={base['predict']}",
+                f"   [7B] num_ctx={base['num_ctx']} predict={base['predict']}",
                 flush=True,
             )
         else:
@@ -591,7 +588,7 @@ def pick_model(owner: str, attempt: int, escalate: bool) -> dict:
         )
     except Exception:
         raw_ctx = int(base.get("ctx") or base.get("num_ctx") or 2048)
-        base["ctx"] = min(raw_ctx, 4096)
+        base["ctx"] = min(raw_ctx, 8192)
         base["num_ctx"] = int(base["ctx"])
         base["is_7b"] = is_7b
         base["prompt_budget_tokens"] = 1000 if is_7b else 3000

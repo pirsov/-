@@ -293,19 +293,19 @@ class TestA34StubIgnoreOnRepair(unittest.TestCase):
 
 
 class TestA34RepairCtxAndLog(unittest.TestCase):
-    def test_pick_model_repair_num_ctx_4096(self):
+    def test_pick_model_repair_num_ctx_5120(self):
         with patch("forge.orchestrator.llm.backend_name", return_value="ollama"), patch(
             "forge.orchestrator.installed_models",
             return_value=["qwen2.5-coder:7b-2k", "qwen2.5-coder:14b-4k"],
         ), patch("forge.orchestrator.llm.resolve_model", side_effect=lambda p, *a, **k: p):
             cfg = pick_model("gameplay_programmer", attempt=2, escalate=True)
-        self.assertEqual(int(cfg["ctx"]), 4096)
-        self.assertEqual(int(cfg.get("num_ctx") or cfg["ctx"]), 4096)
+        self.assertEqual(int(cfg["ctx"]), 5120)
+        self.assertEqual(int(cfg.get("num_ctx") or cfg["ctx"]), 5120)
         self.assertTrue(cfg.get("is_7b"))
         opts = llm_backends.ollama_options(
             num_ctx=cfg["ctx"], num_predict=cfg["predict"], diff_mode=True
         )
-        self.assertEqual(opts["num_ctx"], 4096)
+        self.assertEqual(opts["num_ctx"], 5120)
 
     def test_prompt_log_includes_predict(self):
         with tempfile.TemporaryDirectory() as td:

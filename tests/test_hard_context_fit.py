@@ -14,9 +14,10 @@ from forge.task_parser import Task, WriteMode
 class TestNumCtxCaps(unittest.TestCase):
     def test_local_default_and_max_ctx(self):
         self.assertEqual(llm_backends.LOCAL_NUM_CTX, 2048)
-        self.assertEqual(llm_backends.MAX_NUM_CTX, 4096)
+        self.assertEqual(llm_backends.MAX_NUM_CTX, 8192)
         self.assertEqual(llm_backends.cap_num_ctx(4096), 4096)
-        self.assertEqual(llm_backends.cap_num_ctx(99999), 4096)
+        self.assertEqual(llm_backends.cap_num_ctx(5120), 5120)
+        self.assertEqual(llm_backends.cap_num_ctx(99999), 8192)
         self.assertEqual(llm_backends.cap_num_ctx(2048), 2048)
         opts = llm_backends.ollama_options(num_ctx=4096, num_predict=1024)
         self.assertEqual(opts["num_ctx"], 4096)
